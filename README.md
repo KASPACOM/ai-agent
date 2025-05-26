@@ -1,3 +1,54 @@
+# Kasparebro AI Agent
+
+A Python-based AI agent system built with Agno framework, featuring:
+- Telegram integration
+- Memory and reasoning capabilities
+- Task orchestration
+- Multi-agent coordination
+
+## Setup
+
+1. Create a virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+2. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+3. Set up environment variables:
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+4. Run the application:
+```bash
+python src/main.py
+```
+
+## Project Structure
+
+```
+src/
+├── agents/           # Agent implementations
+├── core/            # Core functionality
+├── integrations/    # External service integrations
+├── orchestrator/    # Task orchestration
+└── main.py         # Application entry point
+```
+
+## Features
+
+- AI Agent with memory and reasoning capabilities
+- Telegram bot integration
+- Task orchestration and management
+- Multi-agent coordination
+- MongoDB integration for persistence
+
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="200" alt="Nest Logo" /></a>
 </p>
