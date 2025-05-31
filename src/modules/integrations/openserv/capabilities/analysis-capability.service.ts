@@ -4,19 +4,31 @@ import { z } from 'zod';
 // Analysis operation schemas
 const MarketAnalysisSchema = z.object({
   symbol: z.string().describe('Token symbol to analyze (e.g., KAS, BTC)'),
-  timeframe: z.enum(['1h', '24h', '7d', '30d']).default('24h').describe('Analysis timeframe'),
-  includeMetrics: z.array(z.string()).optional().describe('Specific metrics to include'),
+  timeframe: z
+    .enum(['1h', '24h', '7d', '30d'])
+    .default('24h')
+    .describe('Analysis timeframe'),
+  includeMetrics: z
+    .array(z.string())
+    .optional()
+    .describe('Specific metrics to include'),
 });
 
 const PriceAnalysisSchema = z.object({
   symbol: z.string().describe('Token symbol for price analysis'),
-  comparison: z.string().optional().describe('Symbol to compare against (e.g., USD, BTC)'),
+  comparison: z
+    .string()
+    .optional()
+    .describe('Symbol to compare against (e.g., USD, BTC)'),
 });
 
 const TrendAnalysisSchema = z.object({
   address: z.string().optional().describe('Wallet address to analyze'),
   symbol: z.string().optional().describe('Token symbol to analyze trends'),
-  period: z.enum(['short', 'medium', 'long']).default('medium').describe('Analysis period'),
+  period: z
+    .enum(['short', 'medium', 'long'])
+    .default('medium')
+    .describe('Analysis period'),
 });
 
 export interface AnalysisCapability {
@@ -28,12 +40,12 @@ export interface AnalysisCapability {
 
 @Injectable()
 export class AnalysisCapabilityService {
-  
   getCapabilities(): AnalysisCapability[] {
     return [
       {
         name: 'market_analysis',
-        description: 'Perform comprehensive market analysis for a cryptocurrency',
+        description:
+          'Perform comprehensive market analysis for a cryptocurrency',
         schema: MarketAnalysisSchema,
         handler: this.performMarketAnalysis.bind(this),
       },
@@ -52,12 +64,14 @@ export class AnalysisCapabilityService {
     ];
   }
 
-  private async performMarketAnalysis(args: z.infer<typeof MarketAnalysisSchema>): Promise<any> {
+  private async performMarketAnalysis(
+    args: z.infer<typeof MarketAnalysisSchema>,
+  ): Promise<any> {
     try {
       // TODO: Implement actual market analysis
       // This would integrate with CoinGecko, DexScreener, or other market data APIs
       console.log('Performing market analysis for:', args.symbol);
-      
+
       // Placeholder implementation
       return {
         success: true,
@@ -91,12 +105,14 @@ export class AnalysisCapabilityService {
     }
   }
 
-  private async analyzePriceMovements(args: z.infer<typeof PriceAnalysisSchema>): Promise<any> {
+  private async analyzePriceMovements(
+    args: z.infer<typeof PriceAnalysisSchema>,
+  ): Promise<any> {
     try {
       // TODO: Implement actual price analysis
       // This would integrate with price data APIs
       console.log('Analyzing price movements for:', args.symbol);
-      
+
       // Placeholder implementation
       return {
         success: true,
@@ -131,12 +147,14 @@ export class AnalysisCapabilityService {
     }
   }
 
-  private async analyzeTrends(args: z.infer<typeof TrendAnalysisSchema>): Promise<any> {
+  private async analyzeTrends(
+    args: z.infer<typeof TrendAnalysisSchema>,
+  ): Promise<any> {
     try {
       // TODO: Implement actual trend analysis
       // This would analyze wallet behavior or token trends
       console.log('Analyzing trends for:', args);
-      
+
       // Placeholder implementation
       return {
         success: true,
@@ -170,4 +188,4 @@ export class AnalysisCapabilityService {
       };
     }
   }
-} 
+}

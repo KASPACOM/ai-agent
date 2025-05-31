@@ -48,7 +48,7 @@ export class TelegramSubscriberService
     console.log('Setting up message handlers');
     const channelId = this.configService.getTelegramChannelId;
     console.log('Configured channel ID:', channelId);
-    
+
     // Handle channel posts
     this.bot.on('channel_post', (msg) => {
       // Only process messages from our configured channel

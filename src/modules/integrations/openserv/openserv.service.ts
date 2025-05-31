@@ -28,7 +28,7 @@ export class OpenServService {
   private readonly apiClient = axios.create({
     baseURL: 'https://api.openserv.ai',
     headers: {
-      'Authorization': `Bearer ${process.env.OPENSERV_API_KEY}`,
+      Authorization: `Bearer ${process.env.OPENSERV_API_KEY}`,
       'Content-Type': 'application/json',
     },
   });
@@ -60,7 +60,11 @@ export class OpenServService {
       await this.agent.processInput(inputEvent);
 
       // Report task completion to OpenServ
-      await this.completeTask(workspace.id, task.id, 'Task completed successfully');
+      await this.completeTask(
+        workspace.id,
+        task.id,
+        'Task completed successfully',
+      );
     } catch (error) {
       console.error('Error handling OpenServ task:', error);
       if (action.task && action.workspace) {
@@ -158,22 +162,15 @@ export class OpenServService {
     filename: string,
   ): Promise<void> {
     try {
-      const FormData = require('form-data');
       const form = new FormData();
-      
-      form.append('file', Buffer.from(content, 'utf-8'), {
-        filename,
-        contentType: 'text/plain',
-      });
+
+      form.append('file', new Blob([Buffer.from(content, 'utf-8')]), filename);
       form.append('path', filename);
       form.append('taskIds', taskId.toString());
       form.append('skipSummarizer', 'true');
-
-      await this.apiClient.post(`/workspaces/${workspaceId}/file`, form, {
-        headers: form.getHeaders(),
-      });
+      await this.apiClient.post(`/workspaces/${workspaceId}/file`, form);
     } catch (error) {
       console.error('Error uploading file to OpenServ:', error);
     }
   }
-} 
+}

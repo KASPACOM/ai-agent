@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { OpenServService } from './openserv.service';
 import { OpenServController } from './openserv.controller';
 import { KaspaCapabilityService } from './capabilities/kaspa-capability.service';
 import { AnalysisCapabilityService } from './capabilities/analysis-capability.service';
+import { OpenServService } from './openserv.service';
 
 @Module({
   providers: [
@@ -13,4 +13,4 @@ import { AnalysisCapabilityService } from './capabilities/analysis-capability.se
   controllers: [OpenServController],
   exports: [OpenServService],
 })
-export class OpenServModule {} 
+export class OpenServModule {}

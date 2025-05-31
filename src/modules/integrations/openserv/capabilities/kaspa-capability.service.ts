@@ -9,12 +9,19 @@ const KaspaBalanceSchema = z.object({
 const KaspaSendSchema = z.object({
   toAddress: z.string().describe('Recipient Kaspa address'),
   amount: z.number().positive().describe('Amount to send in KAS'),
-  fromAddress: z.string().optional().describe('Sender address (if not default)'),
+  fromAddress: z
+    .string()
+    .optional()
+    .describe('Sender address (if not default)'),
 });
 
 const KaspaHistorySchema = z.object({
   address: z.string().describe('Kaspa address to get transaction history for'),
-  limit: z.number().optional().default(10).describe('Number of transactions to return'),
+  limit: z
+    .number()
+    .optional()
+    .default(10)
+    .describe('Number of transactions to return'),
 });
 
 export interface KaspaCapability {
@@ -26,7 +33,6 @@ export interface KaspaCapability {
 
 @Injectable()
 export class KaspaCapabilityService {
-  
   getCapabilities(): KaspaCapability[] {
     return [
       {
@@ -50,12 +56,14 @@ export class KaspaCapabilityService {
     ];
   }
 
-  private async getBalance(args: z.infer<typeof KaspaBalanceSchema>): Promise<any> {
+  private async getBalance(
+    args: z.infer<typeof KaspaBalanceSchema>,
+  ): Promise<any> {
     try {
       // TODO: Implement actual Kaspa balance checking
       // This would integrate with Kaspa RPC or API
       console.log('Getting balance for address:', args.address);
-      
+
       // Placeholder implementation
       return {
         success: true,
@@ -74,12 +82,14 @@ export class KaspaCapabilityService {
     }
   }
 
-  private async sendTransaction(args: z.infer<typeof KaspaSendSchema>): Promise<any> {
+  private async sendTransaction(
+    args: z.infer<typeof KaspaSendSchema>,
+  ): Promise<any> {
     try {
       // TODO: Implement actual Kaspa transaction sending
       // This would integrate with Kaspa wallet or RPC
       console.log('Sending transaction:', args);
-      
+
       // Placeholder implementation
       return {
         success: true,
@@ -99,12 +109,14 @@ export class KaspaCapabilityService {
     }
   }
 
-  private async getTransactionHistory(args: z.infer<typeof KaspaHistorySchema>): Promise<any> {
+  private async getTransactionHistory(
+    args: z.infer<typeof KaspaHistorySchema>,
+  ): Promise<any> {
     try {
       // TODO: Implement actual Kaspa transaction history
       // This would integrate with Kaspa explorer API
       console.log('Getting transaction history for:', args.address);
-      
+
       // Placeholder implementation
       return {
         success: true,
@@ -136,4 +148,4 @@ export class KaspaCapabilityService {
       };
     }
   }
-} 
+}
