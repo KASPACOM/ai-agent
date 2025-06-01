@@ -533,9 +533,8 @@ export class BackendApiService {
     );
 
     try {
-      const url = `${this.BASEURL}/${this.P2P_DATA_CONTROLLER}/trade-analytics`;
+      const url = `${this.BASEURL}/${this.P2P_DATA_CONTROLLER}/${ticker}/trade-stats`;
       const params = {
-        ticker,
         timeFrame,
       };
 
@@ -672,7 +671,7 @@ export class BackendApiService {
     try {
       const response = await firstValueFrom(
         this.httpService.get<{ count: number }>(
-          `${this.BASEURL}/${this.KRC20CONTROLLER}/count`,
+          `${this.BASEURL}/${this.P2P_DATA_CONTROLLER}/tokens/count`,
         ),
       );
       return response.data.count;
@@ -685,9 +684,9 @@ export class BackendApiService {
   async searchToken(query: string): Promise<TokenSearchItems[]> {
     try {
       const response = await firstValueFrom(
-        this.httpService.get<TokenSearchItems[]>(
-          `${this.BASEURL}/${this.KRC20CONTROLLER}/search`,
-          { params: { query } },
+        this.httpService.post<TokenSearchItems[]>(
+          `${this.BASEURL}/${this.P2P_DATA_CONTROLLER}/token/search`,
+          { query },
         ),
       );
       return response.data;
@@ -734,14 +733,15 @@ export class BackendApiService {
     timeframe?: string,
   ): Promise<{ price: number; date: string }[]> {
     try {
-      let url = `${this.BASEURL}/${this.KRC20CONTROLLER}/price-history-v2/${ticker.toUpperCase()}`;
-
-      if (timeframe && timeframe !== 'All') {
-        url += `?timeFrame=${timeframe}`;
-      }
+      const url = `${this.BASEURL}/${this.P2P_DATA_CONTROLLER}/${ticker}/price-history`;
+      const params =
+        timeframe && timeframe !== 'All' ? { timeFrame: timeframe } : {};
 
       const response = await firstValueFrom(
-        this.httpService.get<{ data: { price: number; date: string }[] }>(url),
+        this.httpService.get<{ data: { price: number; date: string }[] }>(
+          url,
+          params ? { params } : {},
+        ),
       );
       return response.data.data;
     } catch (error) {

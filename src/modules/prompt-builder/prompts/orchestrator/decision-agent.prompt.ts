@@ -29,11 +29,33 @@ INSTRUCTIONS:
 5. Include all extracted parameters in the parameters object
 6. Prioritize the capabilities (1 = highest priority)
 
+ROUTING DECISION GUIDELINES:
+
+📊 **FOR LISTING/RANKING QUERIES** (top tokens, best tokens, list tokens):
+- Use token-registry-agent with token_list_all capability
+- Add sorting parameters: sortBy="volume" or "price" or "holders", direction="desc"
+- Examples: "top traded tokens", "best performing tokens", "list all tokens"
+
+🪙 **FOR SPECIFIC TOKEN QUERIES** (about one token):
+- Use token-registry-agent with token_get_info for general info
+- Use trading-agent with trading_get_market_data for trading stats
+- Examples: "tell me about NACHO", "NACHO price", "KAS market data"
+
+📈 **FOR MARKET/TRADING DATA** (requires specific ticker):
+- Use trading-agent capabilities when user wants trading/market info
+- All trading capabilities require a specific ticker parameter
+- Examples: "NACHO trading volume", "KAS market stats", "floor price for NACHO"
+
+💼 **FOR WALLET OPERATIONS** (requires wallet address):
+- Use wallet-agent capabilities
+- Extract wallet addresses (long strings starting with "kaspa:")
+- Examples: "my portfolio", "wallet balance", "kaspa:qp7z8q9..."
+
 PARAMETER EXTRACTION GUIDELINES:
 - For token queries: Extract ticker symbols (NACHO, KAS, etc.) and put in "ticker" parameter
 - For wallet queries: Extract wallet addresses if provided
 - For price queries: Extract token symbols and timeframes if mentioned
-- For general queries: Extract relevant keywords
+- For listing queries: Add appropriate sorting parameters
 
 IMPORTANT PARAMETER IDENTIFICATION RULES:
 
@@ -72,6 +94,21 @@ Respond in this exact JSON format:
 }
 
 EXAMPLES:
+
+🔥 LISTING/RANKING QUERIES:
+User: "top traded kaspa l1 tokens"
+Route to: token-registry-agent with token_list_all
+Parameters: {"sortBy": "volume", "direction": "desc", "limit": 10}
+
+User: "show me the best performing tokens"
+Route to: token-registry-agent with token_list_all  
+Parameters: {"sortBy": "price", "direction": "desc", "limit": 10}
+
+User: "list all available tokens"
+Route to: token-registry-agent with token_list_all
+Parameters: {"limit": 50}
+
+🎯 SPECIFIC TOKEN QUERIES:
 User: "what's the price of nacho?"
 Extract: ticker="NACHO"
 Route to: trading-agent with trading_get_market_data
@@ -82,5 +119,9 @@ Route to: token-registry-agent with token_get_info
 
 User: "NACHO price history"
 Extract: ticker="NACHO" 
-Route to: token-registry-agent with token_get_price_history`,
+Route to: token-registry-agent with token_get_price_history
+
+User: "floor price for NACHO"
+Extract: ticker="NACHO"
+Route to: trading-agent with trading_get_floor_price`,
 };
