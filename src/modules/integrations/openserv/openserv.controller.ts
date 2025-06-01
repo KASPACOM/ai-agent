@@ -131,22 +131,4 @@ export class OpenServController {
       });
     }
   }
-
-  // Smart routing endpoint
-  @Post('/smart-route')
-  async smartRoute(
-    @Body() request: { message: string; context?: any },
-    @Res() res: Response,
-  ): Promise<void> {
-    try {
-      const result = await this.multiAgent.smartRoute(request.message);
-      res.status(HttpStatus.OK).json(result);
-    } catch (error) {
-      console.error('Error in smart routing:', error);
-      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        error: error.message,
-      });
-    }
-  }
 }

@@ -17,12 +17,14 @@ import { OpenServPublisherService } from './publisher.service';
 import { LLMRouterService } from './llm-router.service';
 import { OpenAiAdapter } from '../../orchestrator/llms/openai.service';
 
-// === Agent Services ===
-import { DeFiAgentService } from './agents/defi-agent.service';
-import { TradingAgentService } from './agents/trading-agent.service';
-import { WalletAgentService } from './agents/wallet-agent.service';
-import { TokenRegistryAgentService } from './agents/token-registry-agent.service';
-import { UserManagementAgentService } from './agents/user-management-agent.service';
+// === Agent Builder and Factories ===
+import { AgentBuilder } from './agents/agent-builder.service';
+import { AgentFactory } from './agents/agent-factory.service';
+import { TradingAgentFactory } from './agents/factories/trading-agent.factory';
+import { WalletAgentFactory } from './agents/factories/wallet-agent.factory';
+import { DeFiAgentFactory } from './agents/factories/defi-agent.factory';
+import { TokenRegistryAgentFactory } from './agents/factories/token-registry-agent.factory';
+import { UserManagementAgentFactory } from './agents/factories/user-management-agent.factory';
 
 // === Infrastructure API Services ===
 import { KaspaApiService } from './services/kaspa-api.service';
@@ -56,12 +58,14 @@ import { AppConfigModule } from '../../core/modules/config/app-config.module';
     OpenAiAdapter,
     LLMRouterService,
 
-    // === Agent Services ===
-    DeFiAgentService,
-    TradingAgentService,
-    WalletAgentService,
-    TokenRegistryAgentService,
-    UserManagementAgentService,
+    // === Agent Builder and Factories ===
+    AgentBuilder,
+    AgentFactory,
+    TradingAgentFactory,
+    WalletAgentFactory,
+    DeFiAgentFactory,
+    TokenRegistryAgentFactory,
+    UserManagementAgentFactory,
 
     // === Infrastructure API Services ===
     KaspaApiService,
@@ -84,12 +88,14 @@ import { AppConfigModule } from '../../core/modules/config/app-config.module';
     OpenAiAdapter,
     LLMRouterService,
 
-    // === Agent Services ===
-    DeFiAgentService,
-    TradingAgentService,
-    WalletAgentService,
-    TokenRegistryAgentService,
-    UserManagementAgentService,
+    // === Agent Builder and Factories ===
+    AgentBuilder,
+    AgentFactory,
+    TradingAgentFactory,
+    WalletAgentFactory,
+    DeFiAgentFactory,
+    TokenRegistryAgentFactory,
+    UserManagementAgentFactory,
 
     // === Infrastructure API Services ===
     KaspaApiService,

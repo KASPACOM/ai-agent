@@ -313,3 +313,16 @@ export interface ParameterSchema {
   description: string;
   default?: any;
 }
+
+export interface AgentMetadata {
+  name: string;
+  description: string;
+  version?: string;
+  category?: string;
+}
+
+export interface IAgent {
+  getMetadata(): AgentMetadata;
+  getCapabilities(): CapabilityDetail[];
+  isInternalOnly?: boolean;
+}
