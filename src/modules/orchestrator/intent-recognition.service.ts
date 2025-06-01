@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConversationContext } from './models/openserv.model';
+import { ConversationContext } from '../integrations/openserv/models/openserv.model';
 
 export interface IntentResult {
   intent: string;

@@ -1,12 +1,13 @@
-// Import types from openserv models
+// Import types from multiagent models
 import type {
   AgentCapabilityInfo,
   CapabilityDetail,
   ParameterSchema,
-  UserSession,
   AgentResponse,
   AgentDecision,
-} from '../../integrations/openserv/models/openserv.model';
+} from '../../multiagent/models/agent.model';
+
+import { UserSession } from '../../integrations/openserv/models/openserv.model';
 
 export interface PromptTemplate {
   name: string;
@@ -49,7 +50,6 @@ export interface RoutingPromptContext extends PromptContext {
 
 // Re-export types for convenience
 export type {
-  AgentCapabilityInfo,
   CapabilityDetail,
   ParameterSchema,
   UserSession,

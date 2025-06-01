@@ -5,29 +5,10 @@ import {
   AgentMetadata,
   CapabilityDetail,
   ParameterSchema,
-} from '../models/openserv.model';
-
-export interface CapabilityHandler {
-  (args: Record<string, any>): Promise<any>;
-}
-
-export interface AgentCapabilityConfig {
-  name: string;
-  description: string;
-  parameters: ParameterSchema[];
-  examples: string[];
-  handler: CapabilityHandler;
-  isInternal?: boolean;
-}
-
-export interface BuiltAgent {
-  metadata: AgentMetadata;
-  capabilities: CapabilityDetail[];
-  executeCapability: (name: string, args: any) => Promise<any>;
-  getHealthStatus: () => any;
-  getPerformanceMetrics: () => any;
-  isInternalOnly?: boolean;
-}
+  CapabilityHandler,
+  AgentCapabilityConfig,
+  BuiltAgent,
+} from '../models/agent.model';
 
 /**
  * AgentBuilder - Composable agent builder using the builder pattern

@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { UserSession, ConversationContext } from './models/openserv.model';
+import {
+  UserSession,
+  ConversationContext,
+} from '../integrations/openserv/models/openserv.model';
 
 @Injectable()
 export class SessionStorageService {

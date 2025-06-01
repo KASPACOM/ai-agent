@@ -1,23 +1,30 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+
+// === Import configurations ===
 import {
   OpenServConfigurationService,
   OpenServAdvancedConfig,
 } from '../integrations/openserv/openserv.config';
+
+// === OpenServ Models (for communication protocol) ===
 import {
+  OpenServResponse,
   UserSession,
   ContextMessage,
   UserPreferences,
-  OpenServResponse,
   OrchestrationFlow,
+} from '../integrations/openserv/models/openserv.model';
+
+// === MultiAgent Models (for internal types) ===
+import {
   AgentDecision,
   AgentResponse,
   AgentCapabilityInfo,
-  CapabilityDetail,
-} from '../integrations/openserv/models/openserv.model';
+} from '../multiagent/models/agent.model';
 
-// Import orchestration services
-import { SessionStorageService } from '../integrations/openserv/session-storage.service';
+// === Core Services ===
+import { SessionStorageService } from './session-storage.service';
 import { MultiAgentService } from './multi-agent.service';
 import { PromptBuilderService } from '../prompt-builder/prompt-builder.service';
 
@@ -155,9 +162,7 @@ export class AdvancedOrchestratorService implements OnModuleInit {
 
     try {
       // Stage 1: Decision Agent
-      this.logger.log(
-        `[3-STAGE] ${flowId} - Starting Stage 1: Decision Agent`,
-      );
+      this.logger.log(`[3-STAGE] ${flowId} - Starting Stage 1: Decision Agent`);
       await this.executeDecisionStage(flow, session);
 
       // Stage 2: Agent Execution
@@ -215,12 +220,14 @@ export class AdvancedOrchestratorService implements OnModuleInit {
   ): Promise<void> {
     const stageId = `${flow.id}-DECISION`;
     this.logger.log(`[DECISION] ${stageId} - Starting decision stage`);
-    
+
     try {
       // Get all available agent capabilities
       this.logger.log(`[DECISION] ${stageId} - Discovering agent capabilities`);
       const agentCapabilities = await this.getAvailableAgentCapabilities();
-      this.logger.log(`[DECISION] ${stageId} - Discovered ${agentCapabilities.length} agent groups with capabilities`);
+      this.logger.log(
+        `[DECISION] ${stageId} - Discovered ${agentCapabilities.length} agent groups with capabilities`,
+      );
 
       // Build decision prompt using PromptBuilder
       this.logger.log(`[DECISION] ${stageId} - Building decision prompt`);
@@ -229,27 +236,43 @@ export class AdvancedOrchestratorService implements OnModuleInit {
         agentCapabilities,
         session,
       });
-      this.logger.debug(`[DECISION] ${stageId} - Built prompt length: ${builtPrompt.prompt.length} characters`);
+      this.logger.debug(
+        `[DECISION] ${stageId} - Built prompt length: ${builtPrompt.prompt.length} characters`,
+      );
 
       // Call LLM for decision
-      this.logger.log(`[DECISION] ${stageId} - Calling LLM for decision making`);
+      this.logger.log(
+        `[DECISION] ${stageId} - Calling LLM for decision making`,
+      );
       const decisionResponse = await this.callDecisionLLM(builtPrompt.prompt);
 
       flow.decisionStage.agentDecisions = decisionResponse.decisions;
       flow.decisionStage.reasoning = decisionResponse.reasoning;
       flow.decisionStage.status = 'completed';
 
-      this.logger.log(`[DECISION] ${stageId} - Decision stage completed: ${flow.decisionStage.agentDecisions.length} agents selected`);
-      
+      this.logger.log(
+        `[DECISION] ${stageId} - Decision stage completed: ${flow.decisionStage.agentDecisions.length} agents selected`,
+      );
+
       // Log each decision made
       flow.decisionStage.agentDecisions.forEach((decision, index) => {
-        this.logger.log(`[DECISION] ${stageId} - Decision ${index + 1}: Agent=${decision.agent}, Capability=${decision.capability}`);
-        this.logger.debug(`[DECISION] ${stageId} - Decision ${index + 1} parameters:`, decision.parameters);
+        this.logger.log(
+          `[DECISION] ${stageId} - Decision ${index + 1}: Agent=${decision.agent}, Capability=${decision.capability}`,
+        );
+        this.logger.debug(
+          `[DECISION] ${stageId} - Decision ${index + 1} parameters:`,
+          decision.parameters,
+        );
       });
-      
-      this.logger.debug(`[DECISION] ${stageId} - LLM reasoning: "${decisionResponse.reasoning}"`);
+
+      this.logger.debug(
+        `[DECISION] ${stageId} - LLM reasoning: "${decisionResponse.reasoning}"`,
+      );
     } catch (error) {
-      this.logger.error(`[DECISION] ${stageId} - Decision stage failed:`, error);
+      this.logger.error(
+        `[DECISION] ${stageId} - Decision stage failed:`,
+        error,
+      );
       this.logger.error(`[DECISION] ${stageId} - Error stack:`, error.stack);
       flow.decisionStage.status = 'failed';
       flow.decisionStage.error = error.message;
@@ -265,8 +288,10 @@ export class AdvancedOrchestratorService implements OnModuleInit {
     session: UserSession,
   ): Promise<void> {
     const stageId = `${flow.id}-EXECUTION`;
-    this.logger.log(`[EXECUTION] ${stageId} - Starting agent execution stage with ${flow.decisionStage.agentDecisions.length} agents`);
-    
+    this.logger.log(
+      `[EXECUTION] ${stageId} - Starting agent execution stage with ${flow.decisionStage.agentDecisions.length} agents`,
+    );
+
     try {
       const responses: AgentResponse[] = [];
       const errors: string[] = [];
@@ -276,9 +301,14 @@ export class AdvancedOrchestratorService implements OnModuleInit {
         async (decision, index) => {
           const executionId = `${stageId}-Agent${index + 1}`;
           const startTime = Date.now();
-          
-          this.logger.log(`[EXECUTION] ${executionId} - Executing ${decision.agent}.${decision.capability}`);
-          this.logger.debug(`[EXECUTION] ${executionId} - Parameters:`, decision.parameters);
+
+          this.logger.log(
+            `[EXECUTION] ${executionId} - Executing ${decision.agent}.${decision.capability}`,
+          );
+          this.logger.debug(
+            `[EXECUTION] ${executionId} - Parameters:`,
+            decision.parameters,
+          );
 
           try {
             const response = await this.multiAgentService.executeCapability(
@@ -292,8 +322,13 @@ export class AdvancedOrchestratorService implements OnModuleInit {
             );
 
             const executionTime = Date.now() - startTime;
-            this.logger.log(`[EXECUTION] ${executionId} - Completed successfully in ${executionTime}ms`);
-            this.logger.debug(`[EXECUTION] ${executionId} - Response:`, response);
+            this.logger.log(
+              `[EXECUTION] ${executionId} - Completed successfully in ${executionTime}ms`,
+            );
+            this.logger.debug(
+              `[EXECUTION] ${executionId} - Response:`,
+              response,
+            );
 
             return {
               agent: decision.agent,
@@ -304,8 +339,14 @@ export class AdvancedOrchestratorService implements OnModuleInit {
             };
           } catch (error) {
             const executionTime = Date.now() - startTime;
-            this.logger.error(`[EXECUTION] ${executionId} - Failed after ${executionTime}ms:`, error);
-            this.logger.error(`[EXECUTION] ${executionId} - Error stack:`, error.stack);
+            this.logger.error(
+              `[EXECUTION] ${executionId} - Failed after ${executionTime}ms:`,
+              error,
+            );
+            this.logger.error(
+              `[EXECUTION] ${executionId} - Error stack:`,
+              error.stack,
+            );
 
             return {
               agent: decision.agent,
@@ -333,13 +374,21 @@ export class AdvancedOrchestratorService implements OnModuleInit {
       flow.executionStage.status = 'completed';
 
       const successCount = responses.filter((r) => r.success).length;
-      this.logger.log(`[EXECUTION] ${stageId} - Execution stage completed: ${successCount}/${responses.length} agents succeeded`);
-      
+      this.logger.log(
+        `[EXECUTION] ${stageId} - Execution stage completed: ${successCount}/${responses.length} agents succeeded`,
+      );
+
       if (errors.length > 0) {
-        this.logger.warn(`[EXECUTION] ${stageId} - Errors encountered:`, errors);
+        this.logger.warn(
+          `[EXECUTION] ${stageId} - Errors encountered:`,
+          errors,
+        );
       }
     } catch (error) {
-      this.logger.error(`[EXECUTION] ${stageId} - Execution stage failed:`, error);
+      this.logger.error(
+        `[EXECUTION] ${stageId} - Execution stage failed:`,
+        error,
+      );
       this.logger.error(`[EXECUTION] ${stageId} - Error stack:`, error.stack);
       flow.executionStage.status = 'failed';
       throw error;
@@ -354,8 +403,10 @@ export class AdvancedOrchestratorService implements OnModuleInit {
     session: UserSession,
   ): Promise<void> {
     const stageId = `${flow.id}-SYNTHESIS`;
-    this.logger.log(`[SYNTHESIS] ${stageId} - Starting response synthesis stage`);
-    
+    this.logger.log(
+      `[SYNTHESIS] ${stageId} - Starting response synthesis stage`,
+    );
+
     try {
       // Build synthesis prompt using PromptBuilder
       this.logger.log(`[SYNTHESIS] ${stageId} - Building synthesis prompt`);
@@ -364,10 +415,14 @@ export class AdvancedOrchestratorService implements OnModuleInit {
         agentResponses: flow.executionStage.agentResponses,
         session,
       });
-      this.logger.debug(`[SYNTHESIS] ${stageId} - Built prompt length: ${builtPrompt.prompt.length} characters`);
+      this.logger.debug(
+        `[SYNTHESIS] ${stageId} - Built prompt length: ${builtPrompt.prompt.length} characters`,
+      );
 
       // Call LLM for synthesis
-      this.logger.log(`[SYNTHESIS] ${stageId} - Calling LLM for response synthesis`);
+      this.logger.log(
+        `[SYNTHESIS] ${stageId} - Calling LLM for response synthesis`,
+      );
       const synthesisResponse = await this.callSynthesisLLM(builtPrompt.prompt);
 
       flow.synthesisStage.finalResponse = synthesisResponse.response;
@@ -375,10 +430,17 @@ export class AdvancedOrchestratorService implements OnModuleInit {
       flow.synthesisStage.status = 'completed';
 
       this.logger.log(`[SYNTHESIS] ${stageId} - Synthesis stage completed`);
-      this.logger.debug(`[SYNTHESIS] ${stageId} - Final response length: ${synthesisResponse.response.length} characters`);
-      this.logger.debug(`[SYNTHESIS] ${stageId} - LLM reasoning: "${synthesisResponse.reasoning}"`);
+      this.logger.debug(
+        `[SYNTHESIS] ${stageId} - Final response length: ${synthesisResponse.response.length} characters`,
+      );
+      this.logger.debug(
+        `[SYNTHESIS] ${stageId} - LLM reasoning: "${synthesisResponse.reasoning}"`,
+      );
     } catch (error) {
-      this.logger.error(`[SYNTHESIS] ${stageId} - Synthesis stage failed:`, error);
+      this.logger.error(
+        `[SYNTHESIS] ${stageId} - Synthesis stage failed:`,
+        error,
+      );
       this.logger.error(`[SYNTHESIS] ${stageId} - Error stack:`, error.stack);
       flow.synthesisStage.status = 'failed';
       flow.synthesisStage.error = error.message;
@@ -395,30 +457,32 @@ export class AdvancedOrchestratorService implements OnModuleInit {
     try {
       // Use the MultiAgentService to get all capability groups
       const capabilityGroups = this.multiAgentService.getAllCapabilities();
-      
+
       // Convert AgentCapabilityGroup[] to AgentCapabilityInfo[] format
       const agentCapabilities: AgentCapabilityInfo[] = [];
-      
+
       for (const group of capabilityGroups) {
         // Filter out internal-only capabilities for external use
-        const publicCapabilities = group.capabilities.filter(cap => !cap.isInternal);
-        
+        const publicCapabilities = group.capabilities.filter(
+          (cap) => !cap.isInternal,
+        );
+
         if (publicCapabilities.length > 0) {
           agentCapabilities.push({
             agent: group.agentMetadata.name,
             capabilities: publicCapabilities,
           });
         }
-        
+
         this.logger.debug(
           `Discovered ${publicCapabilities.length} public capabilities for ${group.agentMetadata.name}`,
         );
       }
-      
+
       this.logger.log(
         `Dynamically discovered capabilities from ${agentCapabilities.length} agents`,
       );
-      
+
       return agentCapabilities;
     } catch (error) {
       this.logger.error('Failed to get agent capabilities:', error);
@@ -521,9 +585,7 @@ export class AdvancedOrchestratorService implements OnModuleInit {
       );
 
       // Fallback to simple routing
-      this.logger.warn(
-        `[LLM-DECISION] ${llmCallId} - Using fallback routing`,
-      );
+      this.logger.warn(`[LLM-DECISION] ${llmCallId} - Using fallback routing`);
       return {
         decisions: [
           {

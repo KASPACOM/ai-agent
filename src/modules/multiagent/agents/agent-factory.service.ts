@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import { BuiltAgent } from './agent-builder.service';
+import { BuiltAgent } from '../models/agent.model';
 
 // Import individual agent factories
 import { TradingAgentFactory } from './factories/trading-agent.factory';

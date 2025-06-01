@@ -1,47 +1,91 @@
-# Kaspa DeFi Agent Orchestration System
+# Kasparebro: AI-Powered Multi-Agent DeFi System
 
-A sophisticated **factory-based multi-agent system** built for the Kaspa ecosystem, featuring **real OpenAI LLM integration**, intelligent agent coordination, and **28 production-ready capabilities** across 5 specialized domain agents.
+A production-ready **factory-based multi-agent system** for the Kaspa ecosystem featuring **real OpenAI LLM integration**, intelligent orchestration, and **28 production capabilities** across 5 specialized domain agents.
 
-## ✨ Key Features
+## 🏆 Key Achievements
 
-- 🤖 **Real LLM Integration** - OpenAI GPT-powered decision making and response synthesis
-- 🏭 **Factory-Based Architecture** - Dynamic agent creation with capability injection
-- 🎯 **3-Stage LLM Orchestration** - Decision → Execution → Synthesis workflow
-- 📝 **Centralized Prompt Management** - Template-based prompts with variable substitution
-- 🔄 **Provider-Agnostic LLM Layer** - Easy to switch between OpenAI, Claude, etc.
-- 🧠 **Intelligent Agent Routing** - LLM decides which agents to call dynamically
-- 💬 **Live Telegram Integration** - Working bot with real conversational AI
-- 🔐 **Authentication-Aware** - Public capabilities ready, wallet auth documented
-- 🏗️ **Modular Architecture** - Clean separation with dependency injection
+- ✅ **28 Production Capabilities** - All working with real APIs, zero mocks
+- ✅ **Factory-Based Architecture** - Dynamic agent creation with capability injection
+- ✅ **3-Stage LLM Orchestration** - Decision → Execution → Synthesis workflow
+- ✅ **Clean Module Separation** - MultiAgent, Orchestrator, and Integration layers
+- ✅ **Live Telegram Integration** - Working conversational AI bot
+- ✅ **Provider-Agnostic LLM** - Easy to switch between OpenAI, Claude, etc.
+- ✅ **No Mock Implementations** - Only real integrations, clear TODOs for missing features
+- ✅ **SOLID Principles** - Single responsibility, dependency injection, modular design
 
-## 🏗️ Current Architecture Overview
+## 🎯 Design Principles
+
+### **Single Source of Truth**
+- One orchestrator service (`AdvancedOrchestratorService`)
+- Centralized capability registry (`AgentFactory`)
+- Template-based prompt management (`PromptBuilderService`)
+
+### **No Mock Implementations**
+- All 28 capabilities use real APIs (Kaspa, Kasplex, Backend)
+- Missing features throw clear errors with implementation TODOs
+- Authentication-aware design with public/private capability separation
+
+### **Modular Architecture**
+- Clean separation: MultiAgent ↔ Orchestrator ↔ Integrations
+- Independent modules with clear responsibilities
+- Easy to add new agents, capabilities, or integrations
+
+### **SOLID Principles**
+- **S**: Each agent handles single domain (Trading, Wallet, DeFi, etc.)
+- **O**: Agent factory allows extending without modifying existing code
+- **L**: All agents implement common interfaces
+- **I**: Segregated interfaces for different agent types
+- **D**: Dependency injection throughout, abstractions over concretions
+
+## 🏗️ Architecture Overview
 
 ```mermaid
 graph TB
     subgraph "Client Layer"
         TG[Telegram Bot]
-        API[REST API]
+        OS[OpenServ Platform]
+        API[Future Integrations]
     end
     
-    subgraph "Orchestration Layer"
+    subgraph "Orchestrator Module"
         ORCH[AdvancedOrchestratorService<br/>3-Stage LLM Processing]
-        PROMPT[PromptBuilderService<br/>Centralized Prompts]
+        INTENT[IntentRecognitionService<br/>Pattern-based Intent Analysis]
+        ROUTER[LLMRouterService<br/>Intelligent Agent Routing]
+        SESSION[SessionStorageService<br/>Conversation Memory]
+        PROMPT[PromptBuilderService<br/>Template Management]
         LLM[OpenAI Adapter<br/>Provider Abstraction]
     end
     
-    subgraph "Factory-Based Agent System"
-        MULTI[MultiAgentService<br/>Agent Registry & Coordination]
-        FACTORY_T[TradingAgentFactory<br/>4 capabilities]
-        FACTORY_W[WalletAgentFactory<br/>9 capabilities]
-        FACTORY_D[DeFiAgentFactory<br/>5 capabilities]
-        FACTORY_TR[TokenRegistryAgentFactory<br/>10 capabilities]
-        FACTORY_U[UserManagementAgentFactory<br/>0 capabilities*]
+    subgraph "MultiAgent Module"
+        MULTI[MultiAgentService<br/>Agent Coordination]
+        FACTORY[AgentFactory<br/>Dynamic Agent Creation]
+        
+        subgraph "Agent Factories"
+            FACTORY_T[TradingAgentFactory<br/>4 capabilities]
+            FACTORY_W[WalletAgentFactory<br/>9 capabilities]
+            FACTORY_D[DeFiAgentFactory<br/>5 capabilities]
+            FACTORY_TR[TokenRegistryAgentFactory<br/>10 capabilities]
+            FACTORY_U[UserManagementAgentFactory<br/>0 active*]
+        end
+        
+        subgraph "Core Services"
+            KASPA[KaspaApiService]
+            KASPLEX[KasplexKrc20Service]
+            BACKEND[BackendApiService]
+        end
     end
     
-    subgraph "Infrastructure Services"
-        KASPA[KaspaApiService]
-        KASPLEX[KasplexKrc20Service]
-        BACKEND[BackendApiService]
+    subgraph "Integration Modules"
+        subgraph "Telegram Integration"
+            TG_BOT[TelegramBotService]
+            TG_ORCH[TelegramOrchestratorBridge]
+        end
+        
+        subgraph "OpenServ Integration"
+            OS_PUB[OpenServPublisherService]
+            OS_SUB[OpenServSubscriberService]
+            OS_CONFIG[OpenServConfigurationService]
+        end
     end
     
     subgraph "External APIs"
@@ -49,12 +93,19 @@ graph TB
         KASPA_API[Kaspa Blockchain]
         KASPLEX_API[Kasplex KRC20]
         BACKEND_API[Kaspiano Backend]
-        DEFI_API[DeFi Swap API]
     end
     
-    TG --> ORCH
+    TG --> TG_BOT
+    OS --> OS_SUB
     API --> ORCH
     
+    TG_BOT --> TG_ORCH
+    TG_ORCH --> ORCH
+    OS_SUB --> ORCH
+    
+    ORCH --> INTENT
+    ORCH --> ROUTER
+    ORCH --> SESSION
     ORCH --> PROMPT
     ORCH --> LLM
     ORCH --> MULTI
@@ -62,11 +113,12 @@ graph TB
     PROMPT --> LLM
     LLM --> OPENAI
     
-    MULTI --> FACTORY_T
-    MULTI --> FACTORY_W
-    MULTI --> FACTORY_D
-    MULTI --> FACTORY_TR
-    MULTI --> FACTORY_U
+    MULTI --> FACTORY
+    FACTORY --> FACTORY_T
+    FACTORY --> FACTORY_W
+    FACTORY --> FACTORY_D
+    FACTORY --> FACTORY_TR
+    FACTORY --> FACTORY_U
     
     FACTORY_T --> BACKEND
     FACTORY_T --> KASPA
@@ -80,103 +132,68 @@ graph TB
     BACKEND --> BACKEND_API
     KASPA --> KASPA_API
     KASPLEX --> KASPLEX_API
-    BACKEND --> DEFI_API
 ```
 
-*Note: UserManagementAgentFactory has 0 active capabilities (all require wallet authentication)*
+*UserManagementAgentFactory has 0 active capabilities (all require wallet authentication)*
 
-## 🎯 Current Capability Overview
+## 📊 Current Capability Matrix
 
-### **📊 Total: 28 Active Capabilities**
+### **📈 Total: 28 Active Capabilities**
 
-| Agent | Active Capabilities | Auth Status |
-|-------|-------------------|------------|
-| **Trading Agent** | 4 | ✅ Public APIs only |
-| **Wallet Agent** | 9 | ✅ Blockchain read-only |
-| **DeFi Agent** | 5 | ✅ Backend APIs only |
-| **Token Registry Agent** | 10 | ✅ Public data only |
-| **User Management Agent** | 0 | 🔐 All require wallet auth |
-| **TOTAL** | **28** | **28 ready + 6 auth-pending** |
+| Agent | Active | Status | Authentication |
+|-------|--------|--------|----------------|
+| **Trading Agent** | 4 | ✅ Production | Public APIs |
+| **Wallet Agent** | 9 | ✅ Production | Blockchain read-only |
+| **DeFi Agent** | 5 | ✅ Production | Backend APIs |
+| **Token Registry Agent** | 10 | ✅ Production | Public data |
+| **User Management Agent** | 0 | 🔐 Auth Required | Wallet authentication |
+| **TOTAL** | **28** | **All Real APIs** | **Zero Mocks** |
 
 ### 🔄 **Trading Agent (4 capabilities)**
-- `trading_get_market_data` - Market prices and statistics
-- `trading_get_floor_price` - Token floor price data
-- `trading_get_sell_orders` - Marketplace order listings
-- `trading_gas_estimation` - Transaction fee estimates
-
-*Commented out (3): sell order creation, token buying, order confirmation (require PSKT + wallet auth)*
-
-### 💰 **Wallet Agent (9 capabilities)**
-- `wallet_get_portfolio` - Complete portfolio overview
-- `wallet_get_token_balance` - Specific token balances
-- `wallet_get_kaspa_balance` - KAS balance checking
-- `wallet_get_activity` - Transaction history
-- `wallet_get_token_list` - Available tokens
-- `wallet_validate_address` - Address validation
-- `wallet_get_utxos` - UTXO analysis
-- `wallet_get_fee_estimate` - Fee calculations
-- `wallet_get_kaspa_price` - Current KAS price
-
-*All use public blockchain APIs (Kaspa API, Kasplex API) - no authentication required*
-
-### 🔄 **DeFi Agent (5 capabilities)**
-- `defi_get_token_info` - Token information lookup
-- `defi_search_tokens` - Token search functionality
-- `defi_create_token` - Token creation guidance
-- `defi_create_pool` - Pool creation guidance
-- `defi_general_query` - Educational DeFi information
-
-*Smart contract operations documented for future wallet integration*
-
-### 🏷️ **Token Registry Agent (10 capabilities)**
-- `token_get_info` - Complete token information
-- `token_search` - Token search by criteria
-- `token_list_all` - Full token catalog
-- `token_get_price_history` - Historical price data
-- `token_get_holders` - Token holder statistics
-- `token_get_price` - Current token pricing
-- `token_count_total` - Total token counts
-- `token_get_kasplex_info` - Kasplex token data
-- `token_check_deployment` - Deployment verification
-- `token_get_mint_status` - Minting status check
-
-*All public token registry and Kasplex endpoints*
-
-### 👤 **User Management Agent (0 active capabilities)**
-*All 3 original capabilities require wallet authentication:*
-- User notifications (requires session)
-- Wallet activity data (requires session)
-- Contact information (requires session)
-
-## 🔐 Authentication Architecture
-
-### **Current Status: Authentication-Aware Design**
-
-#### ✅ **Ready Now (28 capabilities)**
-- **Public APIs**: Market data, token information, blockchain queries
-- **No Authentication Required**: Direct API access without user sessions
-- **Immediate Functionality**: Works for all users without setup
-
-#### 🚧 **Future Implementation (6 capabilities)**
-- **Wallet Authentication Required**: Trading operations, user data
-- **Implementation Ready**: All auth endpoints documented
-- **Clear Roadmap**: Headers, session management, error handling defined
-
-#### **Authentication Requirements (from kaspacom.md analysis)**
 ```typescript
-// Required for wallet-auth capabilities
-headers: {
-  "Content-Type": "application/json",
-  "Authorization": "Bearer <jwt_token>"
-  // OR session cookies handled automatically
-}
-
-// PSKT (Partially Signed Kaspa Transaction) for trading
-// Wallet signature verification for user sessions
-// Error handling: 401 Unauthorized, 403 Forbidden
+trading_get_market_data     // Real market prices and statistics
+trading_get_floor_price     // Real token floor price data
+trading_get_sell_orders     // Real marketplace order listings
+trading_gas_estimation      // Real transaction fee estimates
 ```
 
-## 🔄 3-Stage LLM Processing Flow
+### 💰 **Wallet Agent (9 capabilities)**
+```typescript
+wallet_get_portfolio        // Complete portfolio via Kaspa/Kasplex APIs
+wallet_get_token_balance    // Specific token balances
+wallet_get_kaspa_balance    // KAS balance from blockchain
+wallet_get_activity         // Transaction history
+wallet_get_token_list       // Available tokens from registry
+wallet_validate_address     // Address validation
+wallet_get_utxos           // UTXO analysis
+wallet_get_fee_estimate    // Fee calculations
+wallet_get_kaspa_price     // Current KAS price
+```
+
+### 🔄 **DeFi Agent (5 capabilities)**
+```typescript
+defi_get_token_info        // Token info via Backend API
+defi_search_tokens         // Token search functionality
+defi_create_token          // Token creation guidance
+defi_create_pool           // Pool creation guidance  
+defi_general_query         // Educational DeFi information
+```
+
+### 🏷️ **Token Registry Agent (10 capabilities)**
+```typescript
+token_get_info             // Complete token information
+token_search               // Token search by criteria
+token_list_all             // Full token catalog
+token_get_price_history    // Historical price data
+token_get_holders          // Token holder statistics
+token_get_price            // Current token pricing
+token_count_total          // Total token counts
+token_get_kasplex_info     // Kasplex token data
+token_check_deployment     // Deployment verification
+token_get_mint_status      // Minting status check
+```
+
+## 🔄 3-Stage LLM Orchestration Flow
 
 ```mermaid
 sequenceDiagram
@@ -195,258 +212,273 @@ sequenceDiagram
     ORCH->>PROMPT: buildDecisionPrompt(userInput, capabilities)
     PROMPT-->>ORCH: Built prompt with 28 capabilities
     ORCH->>LLM: generateStructuredOutput(prompt, schema)
-    LLM-->>ORCH: JSON decision: {agent: "trading-agent", capability: "trading_get_market_data", parameters: {ticker: "NACHO"}}
+    LLM-->>ORCH: JSON: {agent: "token-registry-agent", capability: "token_get_info", parameters: {ticker: "NACHO"}}
     
     Note over ORCH: STAGE 2: Agent Execution
-    ORCH->>MULTI: executeCapability("trading_get_market_data", {ticker: "NACHO"})
-    MULTI->>FACTORY: createAgent() & executeCapability()
-    FACTORY-->>MULTI: Market data response
-    MULTI-->>ORCH: Agent execution results
+    ORCH->>MULTI: executeCapability("token_get_info", {ticker: "NACHO"})
+    MULTI->>FACTORY: Route to TokenRegistryAgentFactory
+    FACTORY-->>MULTI: Agent execution result
+    MULTI-->>ORCH: {success: true, data: {...tokenInfo}}
     
     Note over ORCH: STAGE 3: Response Synthesis
-    ORCH->>PROMPT: buildSynthesisPrompt(originalInput, agentResponses)
+    ORCH->>PROMPT: buildSynthesisPrompt(originalInput, agentResponses, session)
     PROMPT-->>ORCH: Built synthesis prompt
     ORCH->>LLM: generateStructuredOutput(prompt, schema)
-    LLM-->>ORCH: JSON response: {response: "Natural language answer", reasoning: "..."}
+    LLM-->>ORCH: "NACHO is currently trading at $0.05 with a market cap of..."
     
-    ORCH-->>TG: Final synthesized response
-    TG-->>User: "The current NACHO token price is..."
+    ORCH-->>TG: OpenServResponse with natural language
+    TG-->>User: AI-generated response about NACHO
 ```
 
-## 🏭 Factory-Based Architecture
+## 🔧 Module Structure
 
-### **Why Factory Pattern?**
-- ✅ **Dynamic Agent Creation**: Agents created on-demand with injected capabilities
-- ✅ **Clean Separation**: No more agent service files, just focused factories
-- ✅ **Easy Capability Management**: Add/remove capabilities without service changes
-- ✅ **Real Service Integration**: Direct injection of working API services
-- ✅ **Authentication Awareness**: Clear separation of public vs auth-required
+### **Core Modules**
 
-### **Factory Structure**
 ```
-src/modules/integrations/openserv/agents/factories/
-├── trading-agent.factory.ts        # 4 public market capabilities
-├── wallet-agent.factory.ts         # 9 blockchain read capabilities  
-├── defi-agent.factory.ts           # 5 backend API capabilities
-├── token-registry-agent.factory.ts # 10 public token capabilities
-├── user-management-agent.factory.ts # 0 active (auth-required commented)
-└── agent-builder.service.ts        # Factory builder pattern
+src/modules/
+├── multiagent/                 # 🏭 Agent Factory System
+│   ├── agents/
+│   │   ├── agent-factory.service.ts      # Central agent factory
+│   │   ├── trading-agent.service.ts      # Trading capabilities
+│   │   ├── wallet-agent.service.ts       # Wallet capabilities
+│   │   ├── defi-agent.service.ts         # DeFi capabilities
+│   │   ├── token-registry-agent.service.ts # Token capabilities
+│   │   └── user-management-agent.service.ts # User capabilities
+│   ├── services/
+│   │   ├── kaspa-api.service.ts          # Kaspa blockchain API
+│   │   ├── kasplex-krc20.service.ts      # Kasplex KRC20 API
+│   │   └── backend-api.service.ts        # Kaspiano backend API
+│   └── models/
+│       └── agent.model.ts                # Agent interfaces & types
+
+├── orchestrator/               # 🎭 Orchestration Intelligence
+│   ├── orchestrator.service.ts          # Main 3-stage orchestrator
+│   ├── multi-agent.service.ts           # Agent coordination
+│   ├── intent-recognition.service.ts    # Pattern-based intent analysis
+│   ├── llm-router.service.ts           # LLM-based routing
+│   ├── session-storage.service.ts      # Conversation memory
+│   ├── workflow-engine.service.ts      # Workflow execution
+│   └── llms/
+│       └── openai.service.ts           # OpenAI adapter
+
+├── prompt-builder/             # 📝 Prompt Management
+│   ├── prompt-builder.service.ts       # Template engine
+│   ├── models/prompt.interfaces.ts     # Prompt types
+│   └── prompts/
+│       ├── orchestrator/               # Decision & synthesis prompts
+│       └── openserv/                  # Routing prompts
+
+└── integrations/               # 🔌 External Integrations
+    ├── telegram/               # Telegram bot integration
+    └── openserv/               # OpenServ platform integration
 ```
 
-### **Factory Benefits Over Services**
-- **No Placeholder Methods**: Only real, working capabilities included
-- **Service Injection**: Direct integration with BackendApiService, KaspaApiService, etc.
-- **Authentication Boundaries**: Clear separation of public vs private operations
-- **Maintainable**: Easy to add capabilities without architectural changes
+## 🔐 Authentication Architecture
 
-## 📝 Centralized Prompt Management
+### **Current Status: Authentication-Aware Design**
 
-### Template-Based System
-```
-src/modules/prompt-builder/
-├── prompt-builder.module.ts      # Module that any service can import
-├── prompt-builder.service.ts     # Core prompt building logic
-├── models/prompt.interfaces.ts   # Type-safe prompt interfaces
-└── prompts/
-    ├── orchestrator/
-    │   ├── decision-agent.prompt.ts    # LLM decision prompts (28 capabilities)
-    │   └── synthesis-agent.prompt.ts   # Response synthesis prompts
-    └── openserv/
-        └── routing-agent.prompt.ts     # Routing logic prompts
-```
+#### ✅ **Production Ready (28 capabilities)**
+- **Public APIs**: Market data, token information, blockchain queries
+- **No Authentication Required**: Direct API access without user sessions
+- **Zero Mocks**: All real integrations with error handling
 
-### Template Features
-- ✅ **28 Capability Awareness** - LLM knows all available agent capabilities
-- ✅ **Authentication Context** - Distinguishes public vs auth-required capabilities
-- ✅ **Variable Substitution** - `{{userInput}}`, `{{agentCapabilities}}`, etc.
-- ✅ **Context-Aware** - Session history and user preferences
-- ✅ **Type-Safe** - TypeScript interfaces for all prompt contexts
-- ✅ **Kaspa-Specific** - Pre-loaded with KRC20 token knowledge
+#### 🚧 **Future Implementation (Wallet Auth Required)**
+- **Trading Operations**: Order creation, transaction signing
+- **User Management**: Preferences, notifications, private data
+- **Implementation Ready**: All auth endpoints documented in `api-docs/`
 
-## 🧠 LLM Abstraction Layer
-
-### Provider-Agnostic Design
 ```typescript
-// Generic LLM interfaces - works with any provider
-interface LlmConversation {
-  messages: LlmMessage[];
-  metadata?: Record<string, any>;
+// Authentication requirements documented
+headers: {
+  "Content-Type": "application/json", 
+  "Authorization": "Bearer <jwt_token>"
 }
 
-interface LlmAdapter {
-  generateCompletion(conversation: LlmConversation): Promise<string>;
-  generateStructuredOutput<T>(conversation: LlmConversation, schema: object): Promise<T>;
-}
+// PSKT (Partially Signed Kaspa Transaction) for trading
+// Wallet signature verification for user sessions
+// Error handling: 401 Unauthorized, 403 Forbidden
 ```
 
-### Current Implementation
-- ✅ **OpenAI Integration** - Real GPT API calls with structured outputs
-- ✅ **Provider Abstraction** - Easy to add Claude, Anthropic, etc.
-- ✅ **Error Handling** - Graceful fallbacks when LLM calls fail
-- ✅ **Temperature Control** - Different settings for decision vs synthesis
-- ✅ **28-Capability Context** - LLM understands all available capabilities
+## 🚀 Quick Start
 
-## 🎯 Current Implementation Status
-
-### ✅ **Production-Ready Features**
-
-#### **🏭 Factory-Based Multi-Agent System**
-- 5 agent factories with 28 total capabilities
-- Dynamic agent creation with capability injection
-- Clean separation of public vs authentication-required operations
-- Real service integration (no placeholder methods)
-
-#### **🤖 Real LLM Integration**
-- OpenAI GPT-4 integration with structured outputs
-- 3-stage orchestration (Decision → Execution → Synthesis)
-- Intelligent routing across 28 capabilities
-- Context-aware prompt generation with authentication boundaries
-
-#### **💬 Live Telegram Bot**
-- Real-time message processing with 28 available capabilities
-- Session management with memory
-- Multi-agent coordination through factories
-- Natural language responses
-- Working in production environment
-
-#### **🔐 Authentication Architecture**
-- **28 Public Capabilities**: Ready for immediate use
-- **6 Auth-Required Capabilities**: Documented for future implementation
-- **Clear Boundaries**: Separation between public APIs and wallet operations
-- **Implementation Roadmap**: Headers, sessions, PSKT requirements documented
-
-#### **📊 Infrastructure**
-- Kaspa blockchain API integration
-- Kasplex KRC20 token support
-- Kaspiano backend connectivity
-- DeFi swap API integration
-- Health monitoring and logging
-
-### 🚧 **Next Phase: Wallet Authentication**
-
-#### **🔐 Wallet Auth Implementation**
-- User wallet signin flow implementation
-- Session token management
-- PSKT signature verification
-- 6 additional trading and user management capabilities
-
-#### **💾 Enhanced Features**
-- Database session storage (currently in-memory)
-- User preference persistence
-- Conversation history database
-- Analytics and usage tracking
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Node.js 18+
-- OpenAI API key
-- Telegram Bot Token
-- Environment configuration
-
-### Installation
+### **Prerequisites**
 ```bash
+Node.js 18+
+npm or yarn
+OpenAI API key
+```
+
+### **Installation**
+```bash
+# Clone repository
+git clone [repository-url]
+cd kasparebro
+
 # Install dependencies
 npm install
 
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your API keys
-
-# Start development server
-npm run start:dev
+# Set up environment
+cp development.env .env
+# Edit .env with your OpenAI API key
 ```
 
-### Required Environment Variables
+### **Environment Configuration**
 ```env
-# OpenAI Integration
-OPENAI_API_KEY=your_openai_api_key
-OPENAI_MODEL_NAME=gpt-4
+# OpenAI Configuration
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-4-turbo-preview
 
-# Telegram Bot
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token
-TELEGRAM_CHANNEL_ID=your_channel_id
-
-# External APIs
+# Kaspa APIs
 KASPA_API_BASE_URL=https://api.kaspa.org
-KASPLEX_API_BASE_URL=https://api.kasplex.org/v1
+KASPLEX_API_BASE_URL=https://api.kasplex.org
 BACKEND_API_BASE_URL=https://api.kaspiano.com
-DEFI_API_BASE_URL=https://dev-api.kaspa.com
-USER_API_BASE_URL=https://users.kaspiano.com
+
+# Telegram (Optional)
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 ```
 
-## 📱 Real Usage Examples
+### **Run Application**
+```bash
+# Development mode
+npm run start:dev
 
-### Live Telegram Interactions
-
-```
-User: "what's the price of nacho?"
-
-System Flow:
-1. 🧠 LLM Decision: Route to trading-agent → trading_get_market_data
-2. 🏭 Factory Execution: TradingAgentFactory creates agent & calls BackendApiService
-3. ✨ LLM Synthesis: Generate natural response from market data
-
-Bot: "The current NACHO token price is showing strong market activity..."
+# Production mode
+npm run build
+npm run start:prod
 ```
 
-```
-User: "show me KAS token information"
+### **Test Capabilities**
+```bash
+# Test a capability directly
+curl -X POST http://localhost:3000/api/capability \
+  -H "Content-Type: application/json" \
+  -d '{
+    "capability": "token_get_info",
+    "args": {"ticker": "NACHO"}
+  }'
 
-System Flow:
-1. 🧠 LLM Decision: Route to token-registry-agent → token_get_info
-2. 🏭 Factory Execution: TokenRegistryAgentFactory fetches comprehensive data
-3. ✨ LLM Synthesis: Create detailed token overview
-
-Bot: "KAS (Kaspa) is the native token of the Kaspa blockchain with..."
-```
-
-```
-User: "what's in my wallet kaspa1qr3..."
-
-System Flow:
-1. 🧠 LLM Decision: Route to wallet-agent → wallet_get_portfolio
-2. 🏭 Factory Execution: WalletAgentFactory queries blockchain APIs
-3. ✨ LLM Synthesis: Portfolio breakdown and analysis
-
-Bot: "Your wallet contains 1,250 KAS tokens and 500 NACHO tokens..."
+# Test via Telegram bot (if configured)
+# Send message to your bot: "What's the price of NACHO?"
 ```
 
-## 🏛️ Architecture Benefits
+## 🧪 Testing
 
-### **🏭 Factory-Based Design**
-- **No Service Bloat**: Clean factories instead of monolithic agent services
-- **Real Capabilities**: Only working methods, no placeholders
-- **Easy Expansion**: Add capabilities without architectural changes
-- **Service Integration**: Direct injection of working API services
+### **Capability Testing**
+```bash
+# All capabilities return real data
+npm run test
 
-### **🔐 Authentication Awareness**
-- **Clear Boundaries**: 28 public capabilities ready, 6 auth-required documented
-- **Implementation Ready**: Complete auth roadmap with headers and session management
-- **Graceful Degradation**: System works fully without auth, expands with auth
+# Integration tests
+npm run test:e2e
 
-### **🧠 Intelligent Processing**
-- **28-Capability Routing**: LLM intelligently routes across all available capabilities
-- **Context Awareness**: Session memory and conversation history
-- **Parameter Extraction**: Automatically extracts tokens, addresses, amounts
+# Test specific agent
+npm run test -- --testPathPattern=trading-agent
+```
 
-### **⚡ Production Ready**
-- **Error Handling**: Graceful fallbacks and error recovery
-- **Logging**: Comprehensive debugging with capability tracking
-- **Scalable**: Stateless factory design with configurable session management
-- **Performance**: Efficient capability discovery and parallel execution
+### **Manual Testing Examples**
+```typescript
+// 1. Token Information
+{
+  "capability": "token_get_info",
+  "args": {"ticker": "NACHO"}
+}
 
-## 🛠️ Development Status
+// 2. Wallet Portfolio
+{
+  "capability": "wallet_get_portfolio", 
+  "args": {"address": "kaspa:qz4wqhgqrpx6h5x5..."}
+}
 
-**Current State**: ✅ **Production-Ready Factory-Based System**
-- 28 active capabilities across 5 agent factories
-- Real OpenAI GPT integration working
-- Live Telegram bot operational with full capability access
-- Authentication-aware architecture ready for wallet integration
-- Factory pattern eliminates service complexity
+// 3. Market Data
+{
+  "capability": "trading_get_market_data",
+  "args": {"ticker": "KAS"}
+}
+```
 
-**Ready For**: Wallet authentication implementation, capability expansion, additional integrations
+## 📋 Current Status & Next Steps
+
+### ✅ **Completed (Production Ready)**
+- Factory-based multi-agent architecture
+- 28 production capabilities with real APIs
+- 3-stage LLM orchestration
+- Telegram integration
+- OpenServ integration foundation
+- Centralized prompt management
+- Provider-agnostic LLM layer
+- Zero mock implementations
+- Comprehensive error handling
+
+### 🚧 **In Progress**
+- Enhanced LLM decision accuracy
+- Advanced workflow engine
+- Performance optimization
+
+### 📅 **Planned (Future Phases)**
+- Wallet authentication integration
+- Advanced trading capabilities
+- Cross-chain portfolio aggregation
+- Discord/Slack integrations
+- Advanced AI analytics
+
+### 🔐 **Authentication Implementation Ready**
+All authentication-required features are documented and ready for implementation:
+- JWT token management
+- Wallet signature verification
+- PSKT transaction signing
+- User session management
+
+## 📚 Documentation
+
+### **API Documentation**
+- `api-docs/kaspacom.md` - Backend API specifications
+- `api-docs/defi.md` - DeFi operation specifications
+
+### **Architecture Decisions**
+All architectural decisions prioritize:
+- **Maintainability**: Clean code, SOLID principles
+- **Modularity**: Independent modules, clear interfaces  
+- **Reliability**: Real APIs, proper error handling
+- **Extensibility**: Factory pattern, dependency injection
+
+## 🤝 Contributing
+
+### **Development Principles**
+1. **No Mock Implementations** - Only real integrations
+2. **Single Source of Truth** - One service per responsibility
+3. **SOLID Principles** - Clean architecture patterns
+4. **Type Safety** - Full TypeScript coverage
+5. **Test Coverage** - Unit and integration tests
+
+### **Adding New Capabilities**
+1. Define capability in appropriate agent factory
+2. Implement handler with real API integration
+3. Add parameter validation and error handling
+4. Create tests for the capability
+5. Update documentation
+
+### **Adding New Agents**
+1. Create agent service in `multiagent/agents/`
+2. Add to `AgentFactory`
+3. Update `MultiAgentService` routing
+4. Add comprehensive tests
+
+## 📄 License
+
+[License information]
 
 ---
 
-*Built with ❤️ for the Kaspa DeFi ecosystem - 28 capabilities and counting!* 
+**Kasparebro**: Production-ready AI agents for the Kaspa ecosystem. Zero mocks, maximum reliability. 🚀 
+
+### **Design Philosophy**
+
+Kasparebro follows **SOLID principles** and **Clean Architecture** patterns with these core tenets:
+
+- **Single Source of Truth**: One service per responsibility
+- **No Mock Implementations**: Only real integrations
+- **SOLID Principles**: Clean architecture patterns
+- **Modular Architecture**: Independent modules, clear interfaces
+- **Authentication-Aware Design**: Real APIs, proper error handling
+
+**Kasparebro**: Production-ready AI agents for the Kaspa ecosystem. Zero mocks, maximum reliability. 🚀 

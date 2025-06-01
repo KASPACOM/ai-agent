@@ -1,3 +1,10 @@
+// Import agent models from multiagent module
+import {
+  AgentDecision,
+  AgentResponse,
+  RoutingDecision,
+} from '../../../multiagent/models/agent.model';
+
 export interface OpenServAgentConfig {
   name: string;
   description: string;
@@ -107,15 +114,6 @@ export interface AgentCapability {
   description: string;
   agent: string;
   schema: Record<string, any>;
-}
-
-export interface RoutingDecision {
-  primaryAgent: string;
-  capability: string;
-  confidence: number;
-  reasoning: string;
-  fallbackAgents?: string[];
-  parameters?: Record<string, any>;
 }
 
 export interface UserSession {
@@ -274,55 +272,4 @@ export interface OrchestrationFlow {
   // Overall flow status
   overallStatus: 'pending' | 'completed' | 'failed';
   completedAt?: Date;
-}
-
-export interface AgentDecision {
-  agent: string;
-  capability: string;
-  prompt: string;
-  parameters: Record<string, any>;
-  priority: number;
-}
-
-export interface AgentResponse {
-  agent: string;
-  capability: string;
-  response: any;
-  success: boolean;
-  error?: string;
-  executionTime: number;
-}
-
-export interface AgentCapabilityInfo {
-  agent: string;
-  capabilities: CapabilityDetail[];
-}
-
-export interface CapabilityDetail {
-  name: string;
-  description: string;
-  parameters: ParameterSchema[];
-  examples: string[];
-  isInternal?: boolean;
-}
-
-export interface ParameterSchema {
-  name: string;
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array';
-  required: boolean;
-  description: string;
-  default?: any;
-}
-
-export interface AgentMetadata {
-  name: string;
-  description: string;
-  version?: string;
-  category?: string;
-}
-
-export interface IAgent {
-  getMetadata(): AgentMetadata;
-  getCapabilities(): CapabilityDetail[];
-  isInternalOnly?: boolean;
 }

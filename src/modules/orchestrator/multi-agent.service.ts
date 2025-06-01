@@ -2,11 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   CapabilityDetail,
   AgentMetadata,
-} from '../integrations/openserv/models/openserv.model';
-
-// Import the new AgentFactory instead of individual agents
-import { AgentFactory } from '../integrations/openserv/agents/agent-factory.service';
-import { BuiltAgent } from '../integrations/openserv/agents/agent-builder.service';
+} from '../multiagent/models/agent.model';
+import { AgentFactory } from '../multiagent/agents/agent-factory.service';
+import { BuiltAgent } from '../multiagent/models/agent.model';
 
 interface AgentCapabilityGroup {
   agentMetadata: AgentMetadata;

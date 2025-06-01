@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import { AgentBuilder, BuiltAgent } from '../agent-builder.service';
+import { AgentBuilder } from '../agent-builder.service';
+import { BuiltAgent } from '../../models/agent.model';
 import { BackendApiService } from '../../services/backend-api.service';
 
 /**

@@ -1,10 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import { AgentCapability, RoutingDecision } from './models/openserv.model';
-import { PromptBuilderService } from '../../prompt-builder/prompt-builder.service';
-import { OpenAiAdapter } from '../../orchestrator/llms/openai.service';
-import { LlmConversation } from '../../orchestrator/llms/llm-adapter.interface';
+import { AgentCapability } from '../integrations/openserv/models/openserv.model';
+import { RoutingDecision } from '../multiagent/models/agent.model';
+import { PromptBuilderService } from '../prompt-builder/prompt-builder.service';
+import { OpenAiAdapter } from './llms/openai.service';
+import { LlmConversation } from './llms/llm-adapter.interface';
 
 // === Types for intelligent routing ===
 interface RoutingContext {
