@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import OpenAI from 'openai';
-import { Message } from '../models/message.model';
-import { CompletionOptions, LlmAdapter } from './llm-adapter.interface';
+import {
+  CompletionOptions,
+  LlmAdapter,
+  LlmConversation,
+} from './llm-adapter.interface';
 import { AppConfigService } from '../../core/modules/config/app-config.service';
 
 @Injectable()
@@ -15,12 +18,12 @@ export class OpenAiAdapter implements LlmAdapter {
   }
 
   async generateCompletion(
-    messages: Message[],
+    conversation: LlmConversation,
     options?: CompletionOptions,
   ): Promise<string> {
     const response = await this.openai.chat.completions.create({
       model: this.configService.getOpenAiModelName,
-      messages: this.formatMessages(messages),
+      messages: this.transformToOpenAIFormat(conversation),
       temperature: options?.temperature ?? 0.7,
       max_tokens: options?.maxTokens,
       top_p: options?.topP,
@@ -33,13 +36,13 @@ export class OpenAiAdapter implements LlmAdapter {
   }
 
   async generateStructuredOutput<T>(
-    messages: Message[],
+    conversation: LlmConversation,
     responseSchema: object,
     options?: CompletionOptions,
   ): Promise<T> {
     const response = await this.openai.chat.completions.create({
       model: this.configService.getOpenAiModelName,
-      messages: this.formatMessages(messages),
+      messages: this.transformToOpenAIFormat(conversation),
       temperature: options?.temperature ?? 0.7,
       max_tokens: options?.maxTokens,
       top_p: options?.topP,
@@ -53,10 +56,13 @@ export class OpenAiAdapter implements LlmAdapter {
     return JSON.parse(content) as T;
   }
 
-  private formatMessages(
-    messages: Message[],
+  /**
+   * Transform generic LlmConversation to OpenAI-specific format
+   */
+  private transformToOpenAIFormat(
+    conversation: LlmConversation,
   ): OpenAI.Chat.ChatCompletionMessageParam[] {
-    return messages.map((msg) => ({
+    return conversation.messages.map((msg) => ({
       role: msg.role as any,
       content: msg.content,
     }));

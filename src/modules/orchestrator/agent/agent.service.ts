@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AdvancedOrchestratorService } from '../advanced-orchestrator.service';
+import { AdvancedOrchestratorService } from '../orchestrator.service';
 
 export interface AgentRequest {
   userId: string;

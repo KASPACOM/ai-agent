@@ -21,6 +21,7 @@ import {
   KnsDailyTradeStats,
   KnsSoldOrdersResponse,
 } from './models/token-registry.model';
+import { CapabilityDetail } from '../models/openserv.model';
 
 /**
  * TokenRegistryAgentService
@@ -54,6 +55,185 @@ export class TokenRegistryAgentService {
     this.BASEURL =
       this.configService.get<string>('BACKEND_API_BASE_URL') ||
       'https://api.kaspiano.com';
+  }
+
+  /**
+   * Returns this agent's capabilities for dynamic discovery
+   */
+  getCapabilities(): CapabilityDetail[] {
+    return [
+      {
+        name: 'token_get_info',
+        description: 'Get detailed information about a specific token',
+        parameters: [
+          {
+            name: 'ticker',
+            type: 'string',
+            required: true,
+            description: 'Token ticker symbol (e.g., KAS, NACHO)',
+          },
+          {
+            name: 'walletAddress',
+            type: 'string',
+            required: false,
+            description: 'Optional wallet address for personalized data',
+          },
+        ],
+        examples: [
+          'tell me about NACHO token',
+          'KAS token information',
+          'what is this token?',
+        ],
+      },
+      {
+        name: 'token_search',
+        description: 'Search for tokens by name, ticker, or description',
+        parameters: [
+          {
+            name: 'query',
+            type: 'string',
+            required: true,
+            description: 'Search query (name, ticker, or keyword)',
+          },
+        ],
+        examples: [
+          'search for NACHO',
+          'find tokens with meme',
+          'look for gaming tokens',
+        ],
+      },
+      {
+        name: 'token_get_price_history',
+        description: 'Get historical price data for a token',
+        parameters: [
+          {
+            name: 'ticker',
+            type: 'string',
+            required: true,
+            description: 'Token ticker to get price history for',
+          },
+          {
+            name: 'timeframe',
+            type: 'string',
+            required: false,
+            description: 'Time period: "24h", "7d", "30d", "90d"',
+            default: '24h',
+          },
+        ],
+        examples: [
+          'NACHO price history',
+          'KAS price chart last week',
+          'token price over time',
+        ],
+      },
+      {
+        name: 'token_get_holders',
+        description: 'Get holder statistics and changes for a token',
+        parameters: [
+          {
+            name: 'ticker',
+            type: 'string',
+            required: true,
+            description: 'Token ticker to analyze',
+          },
+          {
+            name: 'timeInterval',
+            type: 'string',
+            required: false,
+            description: 'Time interval for holder change analysis',
+            default: '24h',
+          },
+        ],
+        examples: [
+          'NACHO holder statistics',
+          'how many people hold this token?',
+          'token holder growth',
+        ],
+      },
+      {
+        name: 'token_list_all',
+        description: 'List all available tokens with optional sorting and filtering',
+        parameters: [
+          {
+            name: 'limit',
+            type: 'number',
+            required: false,
+            description: 'Maximum number of tokens to return',
+            default: 50,
+          },
+          {
+            name: 'sortBy',
+            type: 'string',
+            required: false,
+            description: 'Sort by: "price", "volume", "marketCap", "holders"',
+          },
+        ],
+        examples: [
+          'list all tokens',
+          'show top tokens by volume',
+          'available tokens sorted by price',
+        ],
+      },
+      {
+        name: 'nft_get_collections',
+        description: 'Get NFT collections information and statistics',
+        parameters: [
+          {
+            name: 'limit',
+            type: 'number',
+            required: false,
+            description: 'Maximum number of collections to return',
+            default: 50,
+          },
+          {
+            name: 'filterSoldOut',
+            type: 'boolean',
+            required: false,
+            description: 'Filter out sold out collections',
+            default: false,
+          },
+        ],
+        examples: [
+          'show NFT collections',
+          'list available NFTs',
+          'NFT marketplace',
+        ],
+      },
+      {
+        name: 'nft_search',
+        description: 'Search for NFT collections by name or description',
+        parameters: [
+          {
+            name: 'query',
+            type: 'string',
+            required: true,
+            description: 'Search query for NFT collections',
+          },
+        ],
+        examples: [
+          'search for art NFTs',
+          'find pixel art collections',
+          'gaming NFTs',
+        ],
+      },
+      {
+        name: 'kns_domain_info',
+        description: 'Get information about KNS (Kaspa Name Service) domains',
+        parameters: [
+          {
+            name: 'domain',
+            type: 'string',
+            required: false,
+            description: 'Specific KNS domain to lookup',
+          },
+        ],
+        examples: [
+          'KNS domain prices',
+          'check mydomain.kas availability',
+          'Kaspa name service info',
+        ],
+      },
+    ];
   }
 
   // === KRC20 Token Operations ===

@@ -4,8 +4,11 @@ import { HttpModule } from '@nestjs/axios';
 
 // === Core Orchestration Services ===
 import { MultiAgentService } from './multi-agent.service';
-import { AdvancedOrchestratorService } from './advanced-orchestrator.service';
+import { AdvancedOrchestratorService } from './orchestrator.service';
 import { WorkflowEngineService } from './workflow-engine.service';
+
+// === LLM Services ===
+import { OpenAiAdapter } from './llms/openai.service';
 
 // === Domain Agents (OpenServ-agnostic) ===
 import { DeFiAgentService } from '../integrations/openserv/agents/defi-agent.service';
@@ -22,13 +25,24 @@ import { BackendApiService } from '../integrations/openserv/services/backend-api
 // === OpenServ Integration (for communication only) ===
 import { OpenServModule } from '../integrations/openserv/openserv.module';
 
+// === Prompt Management ===
+import { PromptBuilderModule } from '../prompt-builder/prompt-builder.module';
+
+// === Core Configuration ===
+import { AppConfigModule } from '../core/modules/config/app-config.module';
+
 @Module({
   imports: [
     ConfigModule,
     HttpModule,
+    AppConfigModule, // Import AppConfig for OpenAI configuration
     OpenServModule, // Import OpenServ for communication layer
+    PromptBuilderModule, // Import PromptBuilder for centralized prompt management
   ],
   providers: [
+    // === LLM Services ===
+    OpenAiAdapter,
+
     // === Infrastructure Services ===
     KaspaApiService,
     KasplexKrc20Service,
@@ -47,6 +61,9 @@ import { OpenServModule } from '../integrations/openserv/openserv.module';
     WorkflowEngineService,
   ],
   exports: [
+    // === LLM Services ===
+    OpenAiAdapter,
+
     // === Primary Orchestration Service ===
     AdvancedOrchestratorService,
 

@@ -10,6 +10,7 @@ import {
   VerifiedUser,
   AdType,
 } from './models/user-management.model';
+import { CapabilityDetail } from '../models/openserv.model';
 
 /**
  * UserManagementAgentService
@@ -39,6 +40,89 @@ export class UserManagementAgentService {
     this.BASEURL =
       this.configService.get<string>('BACKEND_API_BASE_URL') ||
       'https://api.kaspiano.com';
+  }
+
+  /**
+   * Returns this agent's capabilities for dynamic discovery
+   * NOTE: This agent is internal-only and its capabilities are not exposed to end users
+   */
+  getCapabilities(): CapabilityDetail[] {
+    return [
+      {
+        name: 'user_get_notifications',
+        description: '[INTERNAL] Get user notifications and alerts',
+        parameters: [
+          {
+            name: 'userId',
+            type: 'string',
+            required: true,
+            description: 'User ID to get notifications for',
+          },
+        ],
+        examples: [],
+        isInternal: true,
+      },
+      {
+        name: 'user_manage_preferences',
+        description: '[INTERNAL] Manage user preferences and settings',
+        parameters: [
+          {
+            name: 'userId',
+            type: 'string',
+            required: true,
+            description: 'User ID to manage preferences for',
+          },
+          {
+            name: 'action',
+            type: 'string',
+            required: true,
+            description: 'Action: "get" or "update"',
+          },
+        ],
+        examples: [],
+        isInternal: true,
+      },
+      {
+        name: 'user_track_activity',
+        description: '[INTERNAL] Track and log user activity',
+        parameters: [
+          {
+            name: 'userId',
+            type: 'string',
+            required: true,
+            description: 'User ID to track activity for',
+          },
+          {
+            name: 'action',
+            type: 'string',
+            required: true,
+            description: 'Action being tracked',
+          },
+        ],
+        examples: [],
+        isInternal: true,
+      },
+      {
+        name: 'user_authentication',
+        description: '[INTERNAL] Handle user authentication and verification',
+        parameters: [
+          {
+            name: 'action',
+            type: 'string',
+            required: true,
+            description: 'Auth action: "verify", "challenge", "logout"',
+          },
+          {
+            name: 'address',
+            type: 'string',
+            required: false,
+            description: 'Wallet address for verification',
+          },
+        ],
+        examples: [],
+        isInternal: true,
+      },
+    ];
   }
 
   // === Notification Management ===

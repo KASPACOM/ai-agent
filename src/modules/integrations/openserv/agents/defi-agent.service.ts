@@ -11,6 +11,7 @@ import {
   NetworkConfig,
   SwapQuote,
 } from './models/defi.model';
+import { CapabilityDetail } from '../models/openserv.model';
 
 /**
  * DeFiAgentService
@@ -76,6 +77,167 @@ export class DeFiAgentService {
         },
       },
     };
+  }
+
+  /**
+   * Returns this agent's capabilities for dynamic discovery
+   */
+  getCapabilities(): CapabilityDetail[] {
+    return [
+      {
+        name: 'defi_swap_tokens',
+        description: 'Execute token swaps on DeFi protocols with automatic slippage protection',
+        parameters: [
+          {
+            name: 'fromToken',
+            type: 'string',
+            required: true,
+            description: 'Token address or symbol to swap from',
+          },
+          {
+            name: 'toToken',
+            type: 'string',
+            required: true,
+            description: 'Token address or symbol to swap to',
+          },
+          {
+            name: 'amount',
+            type: 'string',
+            required: true,
+            description: 'Amount to swap in the smallest unit (wei for ETH)',
+          },
+          {
+            name: 'slippagePercent',
+            type: 'number',
+            required: false,
+            description: 'Maximum slippage percentage (default: 0.5%)',
+            default: 0.5,
+          },
+        ],
+        examples: [
+          'swap 100 KAS for USDT',
+          'exchange 1000 NACHO tokens for KAS',
+          'trade my tokens with 1% slippage',
+        ],
+      },
+      {
+        name: 'defi_get_swap_quote',
+        description: 'Get price quote for token swaps without executing',
+        parameters: [
+          {
+            name: 'tokenIn',
+            type: 'string',
+            required: true,
+            description: 'Input token address or symbol',
+          },
+          {
+            name: 'tokenOut',
+            type: 'string',
+            required: true,
+            description: 'Output token address or symbol',
+          },
+          {
+            name: 'amountIn',
+            type: 'string',
+            required: true,
+            description: 'Input amount to quote',
+          },
+        ],
+        examples: [
+          'quote price for swapping 100 KAS to USDT',
+          'how much NACHO would I get for 50 KAS?',
+          'check swap rate before trading',
+        ],
+      },
+      {
+        name: 'defi_add_liquidity',
+        description: 'Add liquidity to pools and earn fees',
+        parameters: [
+          {
+            name: 'tokenA',
+            type: 'string',
+            required: true,
+            description: 'First token address',
+          },
+          {
+            name: 'tokenB',
+            type: 'string',
+            required: true,
+            description: 'Second token address',
+          },
+          {
+            name: 'amountA',
+            type: 'string',
+            required: true,
+            description: 'Amount of token A to provide',
+          },
+          {
+            name: 'amountB',
+            type: 'string',
+            required: true,
+            description: 'Amount of token B to provide',
+          },
+        ],
+        examples: [
+          'add liquidity to KAS/USDT pool',
+          'provide liquidity with my tokens',
+          'become a liquidity provider',
+        ],
+      },
+      {
+        name: 'defi_get_pools',
+        description: 'Get information about available liquidity pools',
+        parameters: [
+          {
+            name: 'limit',
+            type: 'number',
+            required: false,
+            description: 'Maximum number of pools to return',
+            default: 10,
+          },
+        ],
+        examples: [
+          'show me available pools',
+          'list liquidity pools',
+          'what pools can I provide liquidity to?',
+        ],
+      },
+      {
+        name: 'defi_get_user_portfolio',
+        description: 'Get user DeFi portfolio including tokens and liquidity positions',
+        parameters: [
+          {
+            name: 'userAddress',
+            type: 'string',
+            required: true,
+            description: 'User wallet address to check',
+          },
+        ],
+        examples: [
+          'show my DeFi portfolio',
+          'check my liquidity positions',
+          'what DeFi assets do I have?',
+        ],
+      },
+      {
+        name: 'defi_general_query',
+        description: 'Handle general DeFi-related questions and education',
+        parameters: [
+          {
+            name: 'query',
+            type: 'string',
+            required: true,
+            description: 'The DeFi question or topic to address',
+          },
+        ],
+        examples: [
+          'what is DeFi?',
+          'explain liquidity pools',
+          'how does yield farming work?',
+          'what are smart contracts?',
+        ],
+      },
+    ];
   }
 
   // === Token Management APIs ===

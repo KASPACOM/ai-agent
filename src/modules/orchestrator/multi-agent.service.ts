@@ -35,6 +35,12 @@ export class MultiAgentService {
     // Add capabilities for specialized agents
     const tradingCapabilities = [
       {
+        name: 'trading_get_market_data',
+        description: 'Get current market data and trading statistics',
+        agent: 'trading-agent',
+        schema: { ticker: 'string' }, // ticker is optional
+      },
+      {
         name: 'trading_create_sell_order',
         description: 'Create a sell order for tokens',
         agent: 'trading-agent',
@@ -213,6 +219,13 @@ export class MultiAgentService {
     args: any,
   ): Promise<any> {
     switch (capabilityName) {
+      case 'trading_get_market_data':
+        // If ticker is provided, get specific analytics, otherwise get general stats
+        if (args.ticker) {
+          return await this.tradingAgent.getTradingAnalytics(args.ticker);
+        } else {
+          return await this.tradingAgent.getTradeStats();
+        }
       case 'trading_create_sell_order':
         return await this.tradingAgent.createSellOrderV2(
           args.ticker,

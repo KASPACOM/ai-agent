@@ -1,17 +1,20 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import TelegramBot = require('node-telegram-bot-api');
 import { AppConfigService } from '../../core/modules/config/app-config.service';
-import { InputEvent } from '../../orchestrator/models/message.model';
-import { Subject, Observable } from 'rxjs';
+import { AdvancedOrchestratorService } from '../../orchestrator/orchestrator.service';
+import { TelegramPublisherService } from './publisher.service';
 
 @Injectable()
 export class TelegramSubscriberService
   implements OnModuleInit, OnModuleDestroy
 {
   private bot: TelegramBot;
-  private messageSubject = new Subject<InputEvent>();
 
-  constructor(private readonly configService: AppConfigService) {
+  constructor(
+    private readonly configService: AppConfigService,
+    private readonly orchestrator: AdvancedOrchestratorService,
+    private readonly telegramPublisher: TelegramPublisherService,
+  ) {
     console.log(
       'Initializing Telegram listener with token:',
       this.configService.getTelegramBotToken ? 'Token exists' : 'No token',
@@ -37,11 +40,6 @@ export class TelegramSubscriberService
 
   onModuleDestroy() {
     this.stopListener();
-    this.messageSubject.complete();
-  }
-
-  getMessages(): Observable<InputEvent> {
-    return this.messageSubject.asObservable();
   }
 
   private setupHandlers() {
@@ -50,7 +48,7 @@ export class TelegramSubscriberService
     console.log('Configured channel ID:', channelId);
 
     // Handle channel posts
-    this.bot.on('channel_post', (msg) => {
+    this.bot.on('channel_post', async (msg) => {
       // Only process messages from our configured channel
       if (msg.chat.id.toString() !== channelId) {
         return;
@@ -69,30 +67,62 @@ export class TelegramSubscriberService
       });
 
       try {
-        // Convert Telegram message to InputEvent
-        const inputEvent: InputEvent = {
-          chatId: msg.chat.id.toString(),
-          content: msg.text,
-          userId: 'channel',
-          timestamp: new Date(msg.date * 1000),
-          metadata: {
+        // Process message directly through orchestrator
+        console.log('Forwarding message to orchestrator...');
+
+        const orchestratorResponse = await this.orchestrator.processMessage(
+          'channel', // userId
+          msg.text, // message content
+          {
             platform: 'telegram',
             messageId: msg.message_id,
             isChannel: true,
             channelTitle: msg.chat.title,
+            chatId: msg.chat.id.toString(),
           },
-        };
+        );
 
-        // Forward the message to the Agent
-        this.messageSubject.next(inputEvent);
-        console.log('Channel message forwarded to Agent');
+        console.log(
+          `Orchestrator response: "${orchestratorResponse.response.substring(0, 100)}..."`,
+        );
+
+        // Send response back to Telegram
+        await this.telegramPublisher.sendMessage(
+          msg.chat.id.toString(),
+          orchestratorResponse.response,
+        );
+
+        console.log('Response sent back to Telegram');
+
+        // Log action summary if available
+        if (
+          orchestratorResponse.actions &&
+          orchestratorResponse.actions.length > 0
+        ) {
+          const agentsUsed = [
+            ...new Set(orchestratorResponse.actions.map((a) => a.agent)),
+          ];
+          console.log(
+            `Actions executed: ${orchestratorResponse.actions.length}, Agents used: ${agentsUsed.join(', ')}`,
+          );
+        }
       } catch (error) {
         console.error('Error processing channel message:', error);
+
+        // Send error response to user
+        try {
+          await this.telegramPublisher.sendMessage(
+            msg.chat.id.toString(),
+            'I encountered an error processing your request. Please try again.',
+          );
+        } catch (publishError) {
+          console.error('Failed to send error message:', publishError);
+        }
       }
     });
 
     // Handle edited channel posts
-    this.bot.on('edited_channel_post', (msg) => {
+    this.bot.on('edited_channel_post', async (msg) => {
       // Only process messages from our configured channel
       if (msg.chat.id.toString() !== channelId) {
         return;
@@ -111,24 +141,27 @@ export class TelegramSubscriberService
       });
 
       try {
-        // Convert Telegram message to InputEvent
-        const inputEvent: InputEvent = {
-          chatId: msg.chat.id.toString(),
-          content: msg.text,
-          userId: 'channel',
-          timestamp: new Date(msg.edit_date * 1000),
-          metadata: {
+        // Process edited message through orchestrator
+        const orchestratorResponse = await this.orchestrator.processMessage(
+          'channel',
+          msg.text,
+          {
             platform: 'telegram',
             messageId: msg.message_id,
             isChannel: true,
             channelTitle: msg.chat.title,
             isEdited: true,
+            chatId: msg.chat.id.toString(),
           },
-        };
+        );
 
-        // Forward the message to the Agent
-        this.messageSubject.next(inputEvent);
-        console.log('Edited channel message forwarded to Agent');
+        // Send response back to Telegram
+        await this.telegramPublisher.sendMessage(
+          msg.chat.id.toString(),
+          orchestratorResponse.response,
+        );
+
+        console.log('Edited message processed and response sent');
       } catch (error) {
         console.error('Error processing edited channel message:', error);
       }
@@ -140,26 +173,14 @@ export class TelegramSubscriberService
   private async startListener() {
     try {
       console.log('Starting Telegram message listener...');
-      console.log('Listener instance:', this.bot ? 'exists' : 'null');
+      console.log('Listener instance:', this.bot ? 'exists' : 'missing');
 
-      // Verify connection
-      try {
-        console.log('Testing connection...');
-        const botInfo = await this.bot.getMe();
-        console.log('Connection verified for bot:', botInfo.username);
-      } catch (error) {
-        console.error('Failed to verify connection:', error);
-        throw new Error(`Connection verification failed: ${error.message}`);
-      }
-
-      console.log('Telegram message listener started successfully');
+      // Test the connection by checking bot info
+      console.log('Testing connection...');
+      await this.bot.getMe();
+      console.log('Telegram bot connection successful');
     } catch (error) {
-      console.error('Failed to start message listener:', error);
-      console.error('Error details:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-      });
+      console.error('Failed to start Telegram listener:', error);
       throw error;
     }
   }

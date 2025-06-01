@@ -1,11 +1,25 @@
-import { Message } from '../models/message.model';
+/**
+ * Generic LLM message interface - provider agnostic
+ */
+export interface LlmMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+/**
+ * Generic LLM conversation context
+ */
+export interface LlmConversation {
+  messages: LlmMessage[];
+  metadata?: Record<string, any>;
+}
 
 export interface LlmAdapter {
   /**
    * Generate a text completion based on the provided messages
    */
   generateCompletion(
-    messages: Message[],
+    conversation: LlmConversation,
     options?: CompletionOptions,
   ): Promise<string>;
 
@@ -13,7 +27,7 @@ export interface LlmAdapter {
    * Generate a structured response based on the provided messages and response schema
    */
   generateStructuredOutput<T>(
-    messages: Message[],
+    conversation: LlmConversation,
     responseSchema: object,
     options?: CompletionOptions,
   ): Promise<T>;

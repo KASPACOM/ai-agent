@@ -1,9 +1,7 @@
 import { Controller, Post, Body, Res, HttpStatus, Get } from '@nestjs/common';
 import { Response } from 'express';
 import { OpenServSubscriberService } from './subscriber.service';
-import { OpenServPublisherService } from './publisher.service';
 import { MultiAgentService } from '../../orchestrator/multi-agent.service';
-import { AdvancedOrchestratorService } from '../../orchestrator/advanced-orchestrator.service';
 
 interface OpenServAction {
   type: 'do-task' | 'respond-chat-message';

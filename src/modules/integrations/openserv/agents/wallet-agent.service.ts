@@ -11,6 +11,7 @@ import {
   UserHoldingsResponseV2,
   GetSellOrdersResponse,
 } from './models/wallet.model';
+import { CapabilityDetail } from '../models/openserv.model';
 
 /**
  * WalletAgentService
@@ -35,6 +36,147 @@ export class WalletAgentService {
     this.BASEURL =
       this.configService.get<string>('BACKEND_API_BASE_URL') ||
       'https://api.kaspiano.com';
+  }
+
+  /**
+   * Returns this agent's capabilities for dynamic discovery
+   */
+  getCapabilities(): CapabilityDetail[] {
+    return [
+      {
+        name: 'wallet_get_portfolio',
+        description: 'Get complete wallet portfolio including all token balances and values',
+        parameters: [
+          {
+            name: 'walletAddress',
+            type: 'string',
+            required: true,
+            description: 'Wallet address to get portfolio for',
+          },
+        ],
+        examples: [
+          'show my portfolio',
+          'wallet balance',
+          'my token holdings',
+          'portfolio overview',
+        ],
+      },
+      {
+        name: 'wallet_get_token_balance',
+        description: 'Get balance for a specific token in a wallet',
+        parameters: [
+          {
+            name: 'walletAddress',
+            type: 'string',
+            required: true,
+            description: 'Wallet address to check',
+          },
+          {
+            name: 'ticker',
+            type: 'string',
+            required: true,
+            description: 'Token ticker to get balance for (e.g., KAS, NACHO)',
+          },
+        ],
+        examples: [
+          'my KAS balance',
+          'how much NACHO do I have?',
+          'check my token balance',
+        ],
+      },
+      {
+        name: 'wallet_get_activity',
+        description: 'Get wallet activity score and recent activity data',
+        parameters: [
+          {
+            name: 'walletAddress',
+            type: 'string',
+            required: true,
+            description: 'Wallet address to analyze',
+          },
+        ],
+        examples: [
+          'my wallet activity',
+          'wallet activity score',
+          'how active is my wallet?',
+        ],
+      },
+      {
+        name: 'wallet_get_trading_performance',
+        description: 'Get detailed trading performance metrics and statistics',
+        parameters: [
+          {
+            name: 'walletAddress',
+            type: 'string',
+            required: true,
+            description: 'Wallet address to analyze',
+          },
+        ],
+        examples: [
+          'my trading performance',
+          'trading statistics',
+          'portfolio performance',
+        ],
+      },
+      {
+        name: 'wallet_validate_address',
+        description: 'Validate wallet address format and type',
+        parameters: [
+          {
+            name: 'address',
+            type: 'string',
+            required: true,
+            description: 'Wallet address to validate',
+          },
+        ],
+        examples: [
+          'is this wallet address valid?',
+          'check address format',
+          'validate my wallet address',
+        ],
+      },
+      {
+        name: 'wallet_get_transaction_history',
+        description: 'Get recent transaction history for a wallet',
+        parameters: [
+          {
+            name: 'walletAddress',
+            type: 'string',
+            required: true,
+            description: 'Wallet address to get transactions for',
+          },
+          {
+            name: 'limit',
+            type: 'number',
+            required: false,
+            description: 'Maximum number of transactions to return',
+            default: 50,
+          },
+        ],
+        examples: [
+          'my recent transactions',
+          'transaction history',
+          'show my trades',
+        ],
+      },
+      {
+        name: 'wallet_get_insights',
+        description: 'Get portfolio insights, risk analysis, and recommendations',
+        parameters: [
+          {
+            name: 'walletAddress',
+            type: 'string',
+            required: true,
+            description: 'Wallet address to analyze',
+          },
+        ],
+        examples: [
+          'portfolio analysis',
+          'wallet risk assessment',
+          'portfolio recommendations',
+        ],
+      },
+    ];
   }
 
   // === Portfolio Management ===

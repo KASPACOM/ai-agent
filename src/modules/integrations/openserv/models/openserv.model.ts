@@ -109,6 +109,15 @@ export interface AgentCapability {
   schema: Record<string, any>;
 }
 
+export interface RoutingDecision {
+  primaryAgent: string;
+  capability: string;
+  confidence: number;
+  reasoning: string;
+  fallbackAgents?: string[];
+  parameters?: Record<string, any>;
+}
+
 export interface UserSession {
   id: string;
   userId: string;
@@ -118,7 +127,8 @@ export interface UserSession {
   state: UserState;
   createdAt: Date;
   lastActivity: Date;
-  metadata?: Record<string, any>;
+  metadata: Record<string, any>;
+  orchestrationFlows: OrchestrationFlow[];
 }
 
 export interface ConversationContext {
@@ -231,3 +241,75 @@ export interface OpenServChatResponse {
 export type OpenServIntegrationResponse =
   | OpenServTaskResponse
   | OpenServChatResponse;
+
+export interface OrchestrationFlow {
+  id: string;
+  userId: string;
+  originalInput: string;
+  timestamp: Date;
+
+  // Stage 1: Decision
+  decisionStage: {
+    status: 'pending' | 'completed' | 'failed';
+    agentDecisions: AgentDecision[];
+    reasoning: string;
+    error?: string;
+  };
+
+  // Stage 2: Execution
+  executionStage: {
+    status: 'pending' | 'completed' | 'failed';
+    agentResponses: AgentResponse[];
+    errors: string[];
+  };
+
+  // Stage 3: Synthesis
+  synthesisStage: {
+    status: 'pending' | 'completed' | 'failed';
+    finalResponse: string;
+    reasoning: string;
+    error?: string;
+  };
+
+  // Overall flow status
+  overallStatus: 'pending' | 'completed' | 'failed';
+  completedAt?: Date;
+}
+
+export interface AgentDecision {
+  agent: string;
+  capability: string;
+  prompt: string;
+  parameters: Record<string, any>;
+  priority: number;
+}
+
+export interface AgentResponse {
+  agent: string;
+  capability: string;
+  response: any;
+  success: boolean;
+  error?: string;
+  executionTime: number;
+}
+
+export interface AgentCapabilityInfo {
+  agent: string;
+  capabilities: CapabilityDetail[];
+}
+
+export interface CapabilityDetail {
+  name: string;
+  description: string;
+  parameters: ParameterSchema[];
+  examples: string[];
+  isInternal?: boolean;
+}
+
+export interface ParameterSchema {
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array';
+  required: boolean;
+  description: string;
+  default?: any;
+}

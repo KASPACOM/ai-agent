@@ -17,6 +17,7 @@ import {
   BuyDecentralizedOrderResponse,
   SoldOrdersResponse,
 } from './models/trading.model';
+import { CapabilityDetail } from '../models/openserv.model';
 
 /**
  * TradingAgentService
@@ -48,6 +49,161 @@ export class TradingAgentService {
     this.BASEURL =
       this.configService.get<string>('BACKEND_API_BASE_URL') ||
       'https://api.kaspiano.com';
+  }
+
+  /**
+   * Returns this agent's capabilities for dynamic discovery
+   */
+  getCapabilities(): CapabilityDetail[] {
+    return [
+      {
+        name: 'trading_get_market_data',
+        description: 'Get current market prices, trading volume, and market statistics',
+        parameters: [
+          {
+            name: 'ticker',
+            type: 'string',
+            required: false,
+            description: 'Specific token ticker to get data for (e.g., KAS, NACHO)',
+          },
+        ],
+        examples: [
+          'KAS price',
+          'current NACHO price',
+          'market data for token',
+          'show me trading stats',
+        ],
+      },
+      {
+        name: 'trading_get_floor_price',
+        description: 'Get floor price information for specific tokens',
+        parameters: [
+          {
+            name: 'ticker',
+            type: 'string',
+            required: true,
+            description: 'Token ticker to get floor price for',
+          },
+        ],
+        examples: [
+          'floor price for NACHO',
+          'what is the lowest price for KAS?',
+          'cheapest listing price',
+        ],
+      },
+      {
+        name: 'trading_get_orders',
+        description: 'Get buy/sell orders from the marketplace',
+        parameters: [
+          {
+            name: 'orderType',
+            type: 'string',
+            required: true,
+            description: 'Type of orders to fetch: "sell", "buy", or "user"',
+          },
+          {
+            name: 'ticker',
+            type: 'string',
+            required: false,
+            description: 'Filter by specific token ticker',
+          },
+          {
+            name: 'walletAddress',
+            type: 'string',
+            required: false,
+            description: 'Filter by specific wallet address',
+          },
+          {
+            name: 'limit',
+            type: 'number',
+            required: false,
+            description: 'Maximum number of orders to return',
+            default: 10,
+          },
+        ],
+        examples: [
+          'show sell orders for NACHO',
+          'my trading orders',
+          'buy orders available',
+        ],
+      },
+      {
+        name: 'trading_create_order',
+        description: 'Create buy or sell orders on the marketplace',
+        parameters: [
+          {
+            name: 'orderType',
+            type: 'string',
+            required: true,
+            description: 'Order type: "buy" or "sell"',
+          },
+          {
+            name: 'ticker',
+            type: 'string',
+            required: true,
+            description: 'Token ticker to trade',
+          },
+          {
+            name: 'quantity',
+            type: 'number',
+            required: true,
+            description: 'Quantity of tokens to trade',
+          },
+          {
+            name: 'pricePerToken',
+            type: 'number',
+            required: true,
+            description: 'Price per token in KAS',
+          },
+        ],
+        examples: [
+          'sell 100 NACHO tokens at 0.5 KAS each',
+          'create buy order for 50 tokens',
+          'list my tokens for sale',
+        ],
+      },
+      {
+        name: 'trading_get_analytics',
+        description: 'Get detailed trading analytics and market insights',
+        parameters: [
+          {
+            name: 'ticker',
+            type: 'string',
+            required: true,
+            description: 'Token ticker to analyze',
+          },
+          {
+            name: 'timeframe',
+            type: 'string',
+            required: false,
+            description: 'Analysis timeframe: "24h", "7d", "30d"',
+            default: '24h',
+          },
+        ],
+        examples: [
+          'NACHO trading analytics',
+          'market analysis for KAS',
+          'trading volume statistics',
+        ],
+      },
+      {
+        name: 'trading_estimate_gas',
+        description: 'Estimate gas costs for trading operations',
+        parameters: [
+          {
+            name: 'tradeType',
+            type: 'string',
+            required: true,
+            description: 'Type of trade: "BUY", "SELL", or "TRANSFER"',
+          },
+        ],
+        examples: [
+          'estimate gas for buying tokens',
+          'transaction costs for selling',
+          'gas fees for transfer',
+        ],
+      },
+    ];
   }
 
   // === Trading Stats ===
