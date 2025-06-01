@@ -19,4 +19,4 @@ export interface OutputResponse {
   chatId: string;
   content: string;
   metadata?: Record<string, any>;
-} 
+}

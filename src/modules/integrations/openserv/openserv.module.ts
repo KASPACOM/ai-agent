@@ -1,16 +1,38 @@
 import { Module } from '@nestjs/common';
-import { OpenServController } from './openserv.controller';
-import { KaspaCapabilityService } from './capabilities/kaspa-capability.service';
-import { AnalysisCapabilityService } from './capabilities/analysis-capability.service';
-import { OpenServService } from './openserv.service';
+import { ConfigModule } from '@nestjs/config';
+
+// === OpenServ-Specific Services Only ===
+import { OpenServConfigurationService } from './openserv.config';
+import { OpenServSubscriberService } from './subscriber.service';
+import { OpenServPublisherService } from './publisher.service';
+import { SessionStorageService } from './session-storage.service';
+import { IntentRecognitionService } from './intent-recognition.service';
 
 @Module({
+  imports: [ConfigModule],
   providers: [
-    OpenServService,
-    KaspaCapabilityService,
-    AnalysisCapabilityService,
+    // === OpenServ Configuration ===
+    OpenServConfigurationService,
+
+    // === OpenServ Session & Memory Management ===
+    SessionStorageService,
+    IntentRecognitionService,
+
+    // === OpenServ Communication Layer ===
+    OpenServSubscriberService,
+    OpenServPublisherService,
   ],
-  controllers: [OpenServController],
-  exports: [OpenServService],
+  exports: [
+    // === Configuration ===
+    OpenServConfigurationService,
+
+    // === Session & Workflow Management ===
+    SessionStorageService,
+    IntentRecognitionService,
+
+    // === Communication Services ===
+    OpenServSubscriberService,
+    OpenServPublisherService,
+  ],
 })
 export class OpenServModule {}

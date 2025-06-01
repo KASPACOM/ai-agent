@@ -23,13 +23,13 @@ export class MessageBus {
   }
 
   getResponsesForChat(chatId: string): Observable<OutputResponse> {
-    return this.responseSubject.asObservable().pipe(
-      filter(response => response.chatId === chatId)
-    );
+    return this.responseSubject
+      .asObservable()
+      .pipe(filter((response) => response.chatId === chatId));
   }
 
   // Method for publishing responses
   publishResponse(response: OutputResponse): void {
     this.responseSubject.next(response);
   }
-} 
+}

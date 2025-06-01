@@ -60,4 +60,4 @@ export interface GathererPrompt {
 export interface ResponderPrompt {
   system: string;
   guidelines: string[];
-} 
+}
