@@ -43,7 +43,7 @@ export class AgentBuilder {
   private metadata: Partial<AgentMetadata> = {};
   private capabilities: Map<string, AgentCapabilityConfig> = new Map();
   private apiConfigKey: string = 'BACKEND_API_BASE_URL';
-  private fallbackUrl: string = 'https://api.kaspiano.com';
+  private fallbackUrl?: string;
   private logger: Logger;
   private baseUrl: string;
   private isInternal: boolean = false;

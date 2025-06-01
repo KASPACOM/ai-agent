@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 
@@ -49,6 +49,7 @@ const MOCK_FEE_ESTIMATE: FeeEstimate = {
  */
 @Injectable()
 export class KaspaApiService {
+  private readonly logger = new Logger(KaspaApiService.name);
   private readonly baseurl: string;
   private readonly KASPA_TRANSACTION_MASS = 3000;
   private readonly KRC20_TRANSACTION_MASS = 3370;
@@ -63,11 +64,32 @@ export class KaspaApiService {
   }
 
   async getKaspaPrice(): Promise<number> {
+    const logId = `kaspa_price_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.log(`[API-CALL] ${logId} - getKaspaPrice started`);
+
     try {
-      const response = await axios.get(`${this.baseurl}/info/price`);
+      const url = `${this.baseurl}/info/price`;
+      this.logger.debug(`[API-CALL] ${logId} - Making request to: ${url}`);
+
+      const response = await axios.get(url);
+
+      this.logger.log(`[API-CALL] ${logId} - Request successful`);
+      this.logger.debug(
+        `[API-CALL] ${logId} - Response status: ${response.status}`,
+      );
+      this.logger.debug(`[API-CALL] ${logId} - Response data:`, {
+        price: response.data.price,
+      });
+
       return response.data.price;
     } catch (error) {
-      console.error('Error fetching Kaspa price:', error);
+      this.logger.error(`[API-CALL] ${logId} - Failed to fetch Kaspa price`);
+      this.logger.error(`[API-CALL] ${logId} - Error details:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+      });
       throw error;
     }
   }
@@ -83,13 +105,39 @@ export class KaspaApiService {
   }
 
   async fetchWalletBalance(address: string): Promise<number> {
+    const logId = `wallet_balance_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.log(`[API-CALL] ${logId} - fetchWalletBalance started`);
+    this.logger.debug(`[API-CALL] ${logId} - Parameters: address=${address}`);
+
     try {
-      const response = await axios.get(
-        `${this.baseurl}/addresses/${address}/balance`,
+      const url = `${this.baseurl}/addresses/${address}/balance`;
+      this.logger.debug(`[API-CALL] ${logId} - Making request to: ${url}`);
+
+      const response = await axios.get(url);
+
+      const balanceKas = response.data.balance / 1e8;
+
+      this.logger.log(`[API-CALL] ${logId} - Request successful`);
+      this.logger.debug(
+        `[API-CALL] ${logId} - Response status: ${response.status}`,
       );
-      return response.data.balance / 1e8;
+      this.logger.debug(`[API-CALL] ${logId} - Response data:`, {
+        rawBalance: response.data.balance,
+        balanceKas: balanceKas,
+        address: address,
+      });
+
+      return balanceKas;
     } catch (error) {
-      console.error('Error fetching wallet balance:', error);
+      this.logger.error(
+        `[API-CALL] ${logId} - Failed to fetch wallet balance for ${address}`,
+      );
+      this.logger.error(`[API-CALL] ${logId} - Error details:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+      });
       return 0;
     }
   }
@@ -135,6 +183,10 @@ export class KaspaApiService {
   }
 
   async gasEstimator(txType: 'KASPA' | 'TRANSFER' | 'TRADE'): Promise<number> {
+    const logId = `gas_estimator_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.log(`[API-CALL] ${logId} - gasEstimator started`);
+    this.logger.debug(`[API-CALL] ${logId} - Parameters: txType=${txType}`);
+
     try {
       let fee;
       if (txType === 'TRADE') {
@@ -143,15 +195,36 @@ export class KaspaApiService {
         fee = await this.kaspaFeeEstimate();
       }
 
+      let gasEstimate;
       if (txType === 'KASPA') {
-        return this.KASPA_TRANSACTION_MASS * fee;
+        gasEstimate = this.KASPA_TRANSACTION_MASS * fee;
       } else if (txType === 'TRANSFER') {
-        return this.KRC20_TRANSACTION_MASS * fee;
+        gasEstimate = this.KRC20_TRANSACTION_MASS * fee;
       } else {
-        return this.TRADE_TRANSACTION_MASS * fee;
+        gasEstimate = this.TRADE_TRANSACTION_MASS * fee;
       }
+
+      this.logger.log(`[API-CALL] ${logId} - Gas estimation completed`);
+      this.logger.debug(`[API-CALL] ${logId} - Calculation:`, {
+        txType: txType,
+        feeRate: fee,
+        mass:
+          txType === 'KASPA'
+            ? this.KASPA_TRANSACTION_MASS
+            : txType === 'TRANSFER'
+              ? this.KRC20_TRANSACTION_MASS
+              : this.TRADE_TRANSACTION_MASS,
+        gasEstimate: gasEstimate,
+      });
+
+      return gasEstimate;
     } catch (error) {
-      console.error('Error estimating gas:', error);
+      this.logger.error(
+        `[API-CALL] ${logId} - Failed to estimate gas for ${txType}`,
+      );
+      this.logger.error(`[API-CALL] ${logId} - Error details:`, {
+        message: error.message,
+      });
       return 0;
     }
   }
@@ -162,19 +235,43 @@ export class KaspaApiService {
   }
 
   async getWalletUtxos(walletAddress: string): Promise<KaspaApiWalletUtxo[]> {
+    const logId = `wallet_utxos_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.log(`[API-CALL] ${logId} - getWalletUtxos started`);
+    this.logger.debug(
+      `[API-CALL] ${logId} - Parameters: walletAddress=${walletAddress}`,
+    );
+
     try {
+      const url = `${this.baseurl}/addresses/utxos`;
       const payload = {
         addresses: [walletAddress],
       };
 
-      const response = await axios.post(
-        `${this.baseurl}/addresses/utxos`,
-        payload,
+      this.logger.debug(`[API-CALL] ${logId} - Making request to: ${url}`);
+      this.logger.debug(`[API-CALL] ${logId} - Request payload:`, payload);
+
+      const response = await axios.post(url, payload);
+
+      this.logger.log(`[API-CALL] ${logId} - Request successful`);
+      this.logger.debug(
+        `[API-CALL] ${logId} - Response status: ${response.status}`,
       );
+      this.logger.debug(`[API-CALL] ${logId} - Response data:`, {
+        utxoCount: response.data.length,
+        walletAddress: walletAddress,
+      });
 
       return response.data;
     } catch (error) {
-      console.error('Error fetching UTXOs:', error);
+      this.logger.error(
+        `[API-CALL] ${logId} - Failed to fetch UTXOs for ${walletAddress}`,
+      );
+      this.logger.error(`[API-CALL] ${logId} - Error details:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+      });
       throw error;
     }
   }
@@ -216,12 +313,31 @@ export class KaspaApiService {
 
   // Address validation
   isValidKaspaAddress(address: string): boolean {
-    // Basic Kaspa address validation
-    if (!address.startsWith('kaspa:')) return false;
-    if (address.length < 65) return false;
+    const logId = `validate_address_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.log(`[API-CALL] ${logId} - isValidKaspaAddress started`);
+    this.logger.debug(`[API-CALL] ${logId} - Parameters: address=${address}`);
 
-    // Check for valid characters (base58-like)
-    const validChars = /^kaspa:[a-km-z0-9]+$/i;
-    return validChars.test(address);
+    try {
+      // Kaspa addresses start with 'kaspa:' and have specific format
+      const isValid = address.startsWith('kaspa:') && address.length >= 61;
+
+      this.logger.log(`[API-CALL] ${logId} - Address validation completed`);
+      this.logger.debug(`[API-CALL] ${logId} - Validation result:`, {
+        address: address,
+        isValid: isValid,
+        startsWithKaspa: address.startsWith('kaspa:'),
+        correctLength: address.length >= 61,
+      });
+
+      return isValid;
+    } catch (error) {
+      this.logger.error(
+        `[API-CALL] ${logId} - Failed to validate address ${address}`,
+      );
+      this.logger.error(`[API-CALL] ${logId} - Error details:`, {
+        message: error.message,
+      });
+      return false;
+    }
   }
 }

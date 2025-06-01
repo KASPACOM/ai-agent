@@ -7,7 +7,7 @@ import { KaspaApiService } from '../../services/kaspa-api.service';
 
 /**
  * TradingAgentFactory - Creates trading agent with marketplace data and educational guidance
- * 
+ *
  * NOTE: Trading operations requiring wallet authentication are commented out
  * until we implement agent wallet authentication system.
  */
@@ -26,7 +26,7 @@ export class TradingAgentFactory {
         .withDescription('P2P trading marketplace data and gas estimation')
         .withVersion('2.0.0')
         .withCategory('financial')
-        .withApiConfig('BACKEND_API_BASE_URL', 'https://api.kaspiano.com')
+        .withApiConfig('BACKEND_API_BASE_URL')
 
         // === Public Market Data Capabilities (No Auth Required) ===
         .addCapability(

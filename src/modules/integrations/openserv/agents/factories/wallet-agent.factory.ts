@@ -25,7 +25,7 @@ export class WalletAgentFactory {
         .withDescription('Wallet portfolios, activity tracking, and balances')
         .withVersion('2.0.0')
         .withCategory('financial')
-        .withApiConfig('BACKEND_API_BASE_URL', 'https://api.kaspiano.com')
+        .withApiConfig('BACKEND_API_BASE_URL')
 
         // === Portfolio Management Capabilities ===
         .addCapability(
@@ -33,7 +33,7 @@ export class WalletAgentFactory {
           'Get complete wallet portfolio including all token balances and values',
           [
             {
-              name: 'address',
+              name: 'wallet_address',
               type: 'string',
               required: true,
               description: 'Wallet address to get portfolio for',
@@ -59,7 +59,7 @@ export class WalletAgentFactory {
           ],
           async (args) =>
             await this.backendApiService.fetchWalletKRC20TokensBalance(
-              args.address,
+              args.wallet_address,
               args.paginationKey || null,
               (args.direction as 'next' | 'prev') || null,
             ),
@@ -70,7 +70,7 @@ export class WalletAgentFactory {
           'Get balance for a specific token in a wallet',
           [
             {
-              name: 'walletAddress',
+              name: 'wallet_address',
               type: 'string',
               required: true,
               description: 'Wallet address to check',
@@ -89,7 +89,7 @@ export class WalletAgentFactory {
           ],
           async (args) =>
             await this.kasplexKrc20Service.getTokenWalletBalanceInfo(
-              args.walletAddress,
+              args.wallet_address,
               args.ticker,
             ),
         )
@@ -99,7 +99,7 @@ export class WalletAgentFactory {
           'Get native Kaspa balance for a wallet',
           [
             {
-              name: 'address',
+              name: 'wallet_address',
               type: 'string',
               required: true,
               description: 'Wallet address to check Kaspa balance for',
@@ -108,9 +108,9 @@ export class WalletAgentFactory {
           ['my Kaspa balance', 'how much KAS do I have?', 'native balance'],
           async (args) => {
             const balance = await this.kaspaApiService.fetchWalletBalance(
-              args.address,
+              args.wallet_address,
             );
-            return { address: args.address, balance, currency: 'KAS' };
+            return { address: args.wallet_address, balance, currency: 'KAS' };
           },
         )
 
@@ -120,7 +120,7 @@ export class WalletAgentFactory {
           'Get wallet activity and transaction history',
           [
             {
-              name: 'address',
+              name: 'wallet_address',
               type: 'string',
               required: true,
               description: 'Wallet address to analyze',
@@ -145,7 +145,7 @@ export class WalletAgentFactory {
           ],
           async (args) =>
             await this.kasplexKrc20Service.getWalletActivity(
-              args.address,
+              args.wallet_address,
               args.paginationKey || null,
               args.direction || null,
             ),
@@ -156,7 +156,7 @@ export class WalletAgentFactory {
           'Get list of all tokens in a wallet',
           [
             {
-              name: 'address',
+              name: 'wallet_address',
               type: 'string',
               required: true,
               description: 'Wallet address to get token list for',
@@ -177,7 +177,7 @@ export class WalletAgentFactory {
           ['list my tokens', 'what tokens do I have?', 'token inventory'],
           async (args) =>
             await this.kasplexKrc20Service.getWalletTokenList(
-              args.address,
+              args.wallet_address,
               args.paginationKey || null,
               (args.direction as 'next' | 'prev') || null,
             ),
@@ -189,7 +189,7 @@ export class WalletAgentFactory {
           'Validate if a wallet address is properly formatted',
           [
             {
-              name: 'address',
+              name: 'wallet_address',
               type: 'string',
               required: true,
               description: 'Wallet address to validate',
@@ -202,9 +202,9 @@ export class WalletAgentFactory {
           ],
           async (args) => {
             const isValid = this.kaspaApiService.isValidKaspaAddress(
-              args.address,
+              args.wallet_address,
             );
-            return { address: args.address, isValid };
+            return { address: args.wallet_address, isValid };
           },
         )
 
@@ -213,7 +213,7 @@ export class WalletAgentFactory {
           'Get UTXO information for a wallet',
           [
             {
-              name: 'address',
+              name: 'wallet_address',
               type: 'string',
               required: true,
               description: 'Wallet address to get UTXOs for',
@@ -222,12 +222,12 @@ export class WalletAgentFactory {
           ['show my UTXOs', 'wallet UTXO count', 'unspent outputs'],
           async (args) => {
             const utxos = await this.kaspaApiService.getWalletUtxos(
-              args.address,
+              args.wallet_address,
             );
             const count = await this.kaspaApiService.getWalletUtxosCount(
-              args.address,
+              args.wallet_address,
             );
-            return { address: args.address, utxos, count };
+            return { address: args.wallet_address, utxos, count };
           },
         )
 

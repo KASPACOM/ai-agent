@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 
@@ -47,6 +47,7 @@ export interface GetOrderAPIResponse {
  */
 @Injectable()
 export class KasplexKrc20Service {
+  private readonly logger = new Logger(KasplexKrc20Service.name);
   private readonly baseurl: string;
 
   constructor(private readonly configService: ConfigService) {
@@ -59,13 +60,38 @@ export class KasplexKrc20Service {
     ticker: string,
     holders: boolean,
   ): Promise<GetKrc20ApiTokenResponse> {
+    const logId = `token_info_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.log(`[API-CALL] ${logId} - fetchTokenInfo started`);
+    this.logger.debug(
+      `[API-CALL] ${logId} - Parameters: ticker=${ticker}, holders=${holders}`,
+    );
+
     try {
-      const response = await axios.get(
-        `${this.baseurl}/krc20/token/${ticker}?holders=${holders}`,
+      const url = `${this.baseurl}/krc20/token/${ticker}?holders=${holders}`;
+      this.logger.debug(`[API-CALL] ${logId} - Making request to: ${url}`);
+
+      const response = await axios.get(url);
+
+      this.logger.log(`[API-CALL] ${logId} - Request successful`);
+      this.logger.debug(
+        `[API-CALL] ${logId} - Response status: ${response.status}`,
       );
+      this.logger.debug(`[API-CALL] ${logId} - Response data:`, {
+        message: response.data.message,
+        resultCount: response.data.result?.length || 0,
+      });
+
       return response.data;
     } catch (error) {
-      console.error('Error fetching token info:', error);
+      this.logger.error(
+        `[API-CALL] ${logId} - Failed to fetch token info for ${ticker}`,
+      );
+      this.logger.error(`[API-CALL] ${logId} - Error details:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+      });
       throw error;
     }
   }
@@ -92,6 +118,12 @@ export class KasplexKrc20Service {
     paginationKey: string | null = null,
     direction: 'next' | 'prev' | null = null,
   ): Promise<GetTokenListResponse> {
+    const logId = `wallet_token_list_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.log(`[API-CALL] ${logId} - getWalletTokenList started`);
+    this.logger.debug(
+      `[API-CALL] ${logId} - Parameters: address=${address}, paginationKey=${paginationKey}, direction=${direction}`,
+    );
+
     try {
       let queryParam = '';
       if (paginationKey && direction) {
@@ -99,10 +131,31 @@ export class KasplexKrc20Service {
       }
 
       const url = `${this.baseurl}/krc20/address/${address}/tokenlist${queryParam}`;
+      this.logger.debug(`[API-CALL] ${logId} - Making request to: ${url}`);
+
       const response = await axios.get(url);
+
+      this.logger.log(`[API-CALL] ${logId} - Request successful`);
+      this.logger.debug(
+        `[API-CALL] ${logId} - Response status: ${response.status}`,
+      );
+      this.logger.debug(`[API-CALL] ${logId} - Response data:`, {
+        resultCount: response.data.result?.length || 0,
+        hasNext: !!response.data.next,
+        hasPrev: !!response.data.prev,
+      });
+
       return response.data;
     } catch (error) {
-      console.error(`Error fetching token list for address ${address}:`, error);
+      this.logger.error(
+        `[API-CALL] ${logId} - Failed to fetch token list for address ${address}`,
+      );
+      this.logger.error(`[API-CALL] ${logId} - Error details:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+      });
       return { result: [], next: null, prev: null };
     }
   }
@@ -111,23 +164,50 @@ export class KasplexKrc20Service {
     address: string,
     ticker: string,
   ): Promise<GetTokenWalletInfoDto | null> {
+    const logId = `token_wallet_balance_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.log(`[API-CALL] ${logId} - getTokenWalletBalanceInfo started`);
+    this.logger.debug(
+      `[API-CALL] ${logId} - Parameters: address=${address}, ticker=${ticker}`,
+    );
+
     try {
       const url = `${this.baseurl}/krc20/address/${address}/token/${ticker}`;
+      this.logger.debug(`[API-CALL] ${logId} - Making request to: ${url}`);
+
       const response = await axios.get(url);
 
       const results = response.data.result;
-      return results.length > 0
-        ? {
-            address,
-            ...results[0],
-            balance: results[0].balance / 1e8,
-          }
-        : null;
-    } catch (error) {
-      console.error(
-        `Error fetching token info for ${ticker} at address ${address}:`,
-        error,
+      const result =
+        results.length > 0
+          ? {
+              address,
+              ...results[0],
+              balance: results[0].balance / 1e8,
+            }
+          : null;
+
+      this.logger.log(`[API-CALL] ${logId} - Request successful`);
+      this.logger.debug(
+        `[API-CALL] ${logId} - Response status: ${response.status}`,
       );
+      this.logger.debug(`[API-CALL] ${logId} - Response data:`, {
+        hasBalance: !!result,
+        balance: result?.balance || 0,
+        ticker: ticker,
+        address: address,
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error(
+        `[API-CALL] ${logId} - Failed to fetch token info for ${ticker} at address ${address}`,
+      );
+      this.logger.error(`[API-CALL] ${logId} - Error details:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+      });
       return null;
     }
   }
@@ -171,6 +251,12 @@ export class KasplexKrc20Service {
     paginationKey: string | null = null,
     direction: string | null = null,
   ): Promise<FetchWalletActivityResponse> {
+    const logId = `wallet_activity_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.log(`[API-CALL] ${logId} - getWalletActivity started`);
+    this.logger.debug(
+      `[API-CALL] ${logId} - Parameters: address=${address}, paginationKey=${paginationKey}, direction=${direction}`,
+    );
+
     try {
       let queryParam = '';
       if (paginationKey && direction) {
@@ -178,11 +264,17 @@ export class KasplexKrc20Service {
       }
 
       const url = `${this.baseurl}/krc20/oplist?address=${address}${queryParam}`;
+      this.logger.debug(`[API-CALL] ${logId} - Making request to: ${url}`);
+
       const response = await axios.get(url);
 
       const operations = response.data.result;
 
       if (operations.length === 0) {
+        this.logger.log(`[API-CALL] ${logId} - No activity found for address`);
+        this.logger.debug(
+          `[API-CALL] ${logId} - Response status: ${response.status}`,
+        );
         return {
           activityItems: [],
           next: null,

@@ -35,6 +35,28 @@ PARAMETER EXTRACTION GUIDELINES:
 - For price queries: Extract token symbols and timeframes if mentioned
 - For general queries: Extract relevant keywords
 
+IMPORTANT PARAMETER IDENTIFICATION RULES:
+
+🪙 **TOKENS/TICKERS** (for token-related operations):
+- Are SHORT strings (2-10 characters)
+- Examples: "NACHO", "KAS", "KREX", "KASBTC", "PEPE", "ZEAL", "PPKAS", "KANGO", "KASPY", "KACHI", "KOBA", "KEKIUS"
+- Can be uppercase or lowercase: "nacho" = "NACHO" 
+- Never contain colons (:) or long character sequences
+- May be surrounded by quotes: "NACHO" or 'NACHO' (remove quotes)
+- Parameter name: "ticker"
+
+💳 **WALLET ADDRESSES** (for wallet operations):
+- Are LONG strings (usually 60+ characters)
+- Always start with "kaspa:" prefix
+- Example: "kaspa:qp7z8q9x2y3w4v5u6t7r8e9w0q1a2s3d4f5g6h7j8k9l0m1n2b3v4c5x6z7a8s9d0"
+- May be surrounded by quotes: strip them automatically
+- Parameter name: "wallet_address"
+
+🧹 **QUOTE HANDLING**:
+- Remove surrounding quotes from ALL parameters: "NACHO" → NACHO
+- Handle both single and double quotes: 'KAS' → KAS
+- Clean whitespace: " NACHO " → NACHO
+
 Respond in this exact JSON format:
 {
   "decisions": [

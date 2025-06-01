@@ -27,8 +27,8 @@ export class UserManagementAgentFactory {
           'User authentication and account management (auth required)',
         )
         .withVersion('2.0.0')
+        .withApiConfig('USER_API_BASE_URL')
         .withCategory('user')
-        .withApiConfig('USER_API_BASE_URL', 'https://users.kaspiano.com')
 
         /*
         TODO: WALLET-AUTH-REQUIRED USER MANAGEMENT CAPABILITIES

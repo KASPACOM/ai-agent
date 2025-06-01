@@ -27,7 +27,7 @@ export class TokenRegistryAgentFactory {
         .withDescription('Token information, pricing, and metadata')
         .withVersion('2.0.0')
         .withCategory('data')
-        .withApiConfig('BACKEND_API_BASE_URL', 'https://api.kaspa.com')
+        .withApiConfig('BACKEND_API_BASE_URL')
 
         // === Token Information Capabilities ===
         .addCapability(

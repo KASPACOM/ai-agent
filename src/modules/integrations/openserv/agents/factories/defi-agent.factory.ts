@@ -6,7 +6,7 @@ import { BackendApiService } from '../../services/backend-api.service';
 
 /**
  * DeFiAgentFactory - Creates DeFi agent with real backend API capabilities and educational guidance
- * 
+ *
  * NOTE: Smart contract operations requiring wallet authentication are commented out
  * until we implement agent wallet authentication system.
  */
@@ -21,12 +21,10 @@ export class DeFiAgentFactory {
   createAgent(): BuiltAgent {
     return (
       AgentBuilder.create(this.httpService, this.configService, 'defi-agent')
-        .withDescription(
-          'DeFi token and pool management with educational guidance',
-        )
+        .withDescription('DeFi operations and token management')
         .withVersion('2.0.0')
         .withCategory('defi')
-        .withApiConfig('DEFI_API_BASE_URL', 'https://dev-api.kaspa.com/swap')
+        .withApiConfig('DEFI_API_BASE_URL')
 
         // === DeFi Backend API Capabilities (No Auth Required) ===
         .addCapability(
@@ -363,7 +361,8 @@ export class DeFiAgentFactory {
                   'Be aware of gas fees',
                   'Verify token contracts',
                 ],
-                walletAuthRequired: 'Note: Actual swapping requires wallet authentication - coming soon!',
+                walletAuthRequired:
+                  'Note: Actual swapping requires wallet authentication - coming soon!',
               };
             }
 

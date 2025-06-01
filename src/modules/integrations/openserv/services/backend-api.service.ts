@@ -74,9 +74,16 @@ export class BackendApiService {
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
   ) {
-    this.BASEURL =
-      this.configService.get<string>('BACKEND_API_BASE_URL') ||
-      'https://api.kaspiano.com';
+    this.BASEURL = this.configService.get<string>('BACKEND_API_BASE_URL');
+
+    if (!this.BASEURL) {
+      throw new Error(
+        'BACKEND_API_BASE_URL environment variable is required but not set. ' +
+          'Please check your environment configuration.',
+      );
+    }
+
+    this.logger.log(`BackendApiService initialized with URL: ${this.BASEURL}`);
   }
 
   async getContactInfo(): Promise<ContactInfoResponse> {
@@ -209,6 +216,12 @@ export class BackendApiService {
     order: string | null = null,
     direction: string | null = null,
   ): Promise<TokenListItemResponse[]> {
+    const logId = `token_list_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.log(`[API-CALL] ${logId} - fetchAllTokens started`);
+    this.logger.debug(
+      `[API-CALL] ${logId} - Parameters: limit=${limit}, skip=${skip}, timeInterval=${timeInterval}, order=${order}, direction=${direction}`,
+    );
+
     try {
       const params: any = {
         skip: skip.toString(),
@@ -219,15 +232,35 @@ export class BackendApiService {
       if (order) params.order = order;
       if (direction) params.direction = direction;
 
+      const url = `${this.BASEURL}/${this.KRC20CONTROLLER}`;
+      this.logger.debug(`[API-CALL] ${logId} - Making request to: ${url}`);
+      this.logger.debug(`[API-CALL] ${logId} - Request params:`, params);
+
       const response = await firstValueFrom(
-        this.httpService.get<TokenListItemResponse[]>(
-          `${this.BASEURL}/${this.KRC20CONTROLLER}`,
-          { params },
-        ),
+        this.httpService.get<TokenListItemResponse[]>(url, {
+          params,
+          ...this.getAuthorizedOptions(),
+        }),
       );
+
+      this.logger.log(`[API-CALL] ${logId} - Request successful`);
+      this.logger.debug(
+        `[API-CALL] ${logId} - Response status: ${response.status}`,
+      );
+      this.logger.debug(`[API-CALL] ${logId} - Response data:`, {
+        tokensCount: (response.data as any)?.length || 0,
+        firstToken: (response.data as any)?.[0]?.ticker || 'none',
+      });
+
       return response.data;
     } catch (error) {
-      this.logger.error('Failed to fetch all tokens', error);
+      this.logger.error(`[API-CALL] ${logId} - Failed to fetch all tokens`);
+      this.logger.error(`[API-CALL] ${logId} - Error details:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+      });
       return [];
     }
   }
@@ -237,20 +270,47 @@ export class BackendApiService {
     wallet?: string,
     refresh = false,
   ): Promise<BackendTokenResponse> {
+    const logId = `token_info_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.log(`[API-CALL] ${logId} - fetchTokenByTicker started`);
+    this.logger.debug(
+      `[API-CALL] ${logId} - Parameters: ticker=${ticker}, wallet=${wallet}, refresh=${refresh}`,
+    );
+
     try {
-      const params: any = {};
-      if (refresh) params.refresh = 'true';
-      if (wallet) params.wallet = wallet;
+      const url = `${this.BASEURL}/${this.KRC20CONTROLLER}/${ticker}`;
+      const params = {
+        ...(wallet && { wallet }),
+        ...(refresh && { refresh: refresh.toString() }),
+      };
+
+      this.logger.debug(`[API-CALL] ${logId} - Making request to: ${url}`);
+      this.logger.debug(`[API-CALL] ${logId} - Request params:`, params);
 
       const response = await firstValueFrom(
-        this.httpService.get<BackendTokenResponse>(
-          `${this.BASEURL}/${this.KRC20CONTROLLER}/${ticker.toUpperCase()}`,
-          { params },
-        ),
+        this.httpService.get<BackendTokenResponse>(url, { params }),
       );
+
+      this.logger.log(`[API-CALL] ${logId} - Request successful`);
+      this.logger.debug(
+        `[API-CALL] ${logId} - Response status: ${response.status}`,
+      );
+      this.logger.debug(`[API-CALL] ${logId} - Response data:`, {
+        ticker: (response.data as any)?.ticker,
+        price: (response.data as any)?.price,
+        holders: (response.data as any)?.holders,
+      });
+
       return response.data;
     } catch (error) {
-      this.logger.error(`Failed to fetch token by ticker: ${ticker}`, error);
+      this.logger.error(
+        `[API-CALL] ${logId} - Failed to fetch token by ticker ${ticker}`,
+      );
+      this.logger.error(`[API-CALL] ${logId} - Error details:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+      });
       throw error;
     }
   }
@@ -279,18 +339,45 @@ export class BackendApiService {
   }
 
   async getFloorPrice(ticker: string): Promise<number> {
+    const logId = `floor_price_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.log(`[API-CALL] ${logId} - getFloorPrice started`);
+    this.logger.debug(`[API-CALL] ${logId} - Parameters: ticker=${ticker}`);
+
     try {
-      const params = { ticker };
+      const url = `${this.BASEURL}/${this.P2P_DATA_CONTROLLER}/floor-price/${ticker}`;
+
+      this.logger.debug(`[API-CALL] ${logId} - Making request to: ${url}`);
 
       const response = await firstValueFrom(
-        this.httpService.get<FloorPriceResponse[]>(
-          `${this.BASEURL}/${this.P2P_DATA_CONTROLLER}/floor-price`,
-          { params },
-        ),
+        this.httpService.get<FloorPriceResponse>(url),
       );
-      return response.data[0]?.floor_price ?? 0;
+
+      this.logger.log(`[API-CALL] ${logId} - Request successful`);
+      this.logger.debug(
+        `[API-CALL] ${logId} - Response status: ${response.status}`,
+      );
+      this.logger.debug(`[API-CALL] ${logId} - Response data:`, {
+        floorPrice:
+          (response.data as any)?.floor_price ||
+          (response.data as any)?.floorPrice,
+        ticker: (response.data as any)?.ticker,
+      });
+
+      return (
+        (response.data as any)?.floor_price ||
+        (response.data as any)?.floorPrice ||
+        0
+      );
     } catch (error) {
-      this.logger.error(`Failed to get floor price for ${ticker}`, error);
+      this.logger.error(
+        `[API-CALL] ${logId} - Failed to get floor price for ${ticker}`,
+      );
+      this.logger.error(`[API-CALL] ${logId} - Error details:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+      });
       return 0;
     }
   }
@@ -314,41 +401,61 @@ export class BackendApiService {
     paginationKey: string | null = null,
     direction: 'next' | 'prev' | null = null,
   ): Promise<FetchWalletPortfolioResponse> {
-    try {
-      const params: any = {};
+    const logId = `wallet_portfolio_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.log(
+      `[API-CALL] ${logId} - fetchWalletKRC20TokensBalance started`,
+    );
+    this.logger.debug(
+      `[API-CALL] ${logId} - Parameters: address=${address}, paginationKey=${paginationKey}, direction=${direction}`,
+    );
 
-      if (paginationKey && direction) {
-        params[direction] = paginationKey;
-      }
+    try {
+      const url = `${this.BASEURL}/${this.P2PCONTROLLER}/${address}/portfolio`;
+      const params = {
+        ...(paginationKey && { paginationKey }),
+        ...(direction && { direction }),
+      };
+
+      this.logger.debug(`[API-CALL] ${logId} - Making request to: ${url}`);
+      this.logger.debug(`[API-CALL] ${logId} - Request params:`, params);
 
       const response = await firstValueFrom(
-        this.httpService.get<any>(
-          `${this.BASEURL}/${this.KRC20CONTROLLER}/address/${address}/tokenlist`,
-          { params },
-        ),
+        this.httpService.get<FetchWalletPortfolioResponse>(url, {
+          params,
+          ...this.getAuthorizedOptions(),
+        }),
       );
 
-      const portfolioItems = response.data.result.map((item: any) => ({
-        ticker: item.tick,
-        balance: parseInt(item.balance) / 1e8,
-        logoUrl: '',
-      }));
+      this.logger.log(`[API-CALL] ${logId} - Request successful`);
+      this.logger.debug(
+        `[API-CALL] ${logId} - Response status: ${response.status}`,
+      );
+      this.logger.debug(`[API-CALL] ${logId} - Response data:`, {
+        tokensCount:
+          (response.data as any)?.result?.length ||
+          (response.data as any)?.tokens?.length ||
+          0,
+        hasNextPage:
+          (response.data as any)?.next ||
+          (response.data as any)?.pagination?.hasNextPage,
+        hasPrevPage:
+          (response.data as any)?.prev ||
+          (response.data as any)?.pagination?.hasPrevPage,
+        totalValue: (response.data as any)?.totalValue,
+      });
 
-      return {
-        portfolioItems,
-        next: response.data.next || null,
-        prev: response.data.prev || null,
-      };
+      return response.data;
     } catch (error) {
       this.logger.error(
-        `Failed to fetch wallet KRC20 tokens balance for ${address}`,
-        error,
+        `[API-CALL] ${logId} - Failed to fetch wallet KRC20 tokens balance`,
       );
-      return {
-        portfolioItems: [],
-        next: null,
-        prev: null,
-      };
+      this.logger.error(`[API-CALL] ${logId} - Error details:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+      });
+      throw error;
     }
   }
 
@@ -413,28 +520,58 @@ export class BackendApiService {
     ticker: string,
     timeFrame: string,
   ): Promise<TradeStatsResponse> {
-    try {
-      const params: any = { ticker };
+    const logId = `trade_stats_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.log(`[API-CALL] ${logId} - getTradeStats started`);
+    this.logger.debug(
+      `[API-CALL] ${logId} - Parameters: ticker=${ticker}, timeFrame=${timeFrame}`,
+    );
 
-      if (timeFrame.toLowerCase() !== 'all') {
-        params.timeFrame = timeFrame;
-      }
+    try {
+      const url = `${this.BASEURL}/${this.P2P_DATA_CONTROLLER}/trade-analytics`;
+      const params = {
+        ticker,
+        timeFrame,
+      };
+
+      this.logger.debug(`[API-CALL] ${logId} - Making request to: ${url}`);
+      this.logger.debug(`[API-CALL] ${logId} - Request params:`, params);
 
       const response = await firstValueFrom(
-        this.httpService.get<TradeStatsResponse>(
-          `${this.BASEURL}/${this.P2P_DATA_CONTROLLER}/trade-stats`,
-          { params },
-        ),
+        this.httpService.get<TradeStatsResponse>(url, { params }),
       );
+
+      this.logger.log(`[API-CALL] ${logId} - Request successful`);
+      this.logger.debug(
+        `[API-CALL] ${logId} - Response status: ${response.status}`,
+      );
+      this.logger.debug(`[API-CALL] ${logId} - Response data:`, {
+        ticker: (response.data as any)?.ticker,
+        totalTrades:
+          (response.data as any)?.totalTrades ||
+          (response.data as any)?.total_trades,
+        totalVolumeKas:
+          (response.data as any)?.totalVolumeKas ||
+          (response.data as any)?.total_volume_kas,
+        totalVolumeUsd:
+          (response.data as any)?.totalVolumeUsd ||
+          (response.data as any)?.total_volume_usd,
+        timeFrame:
+          (response.data as any)?.timeFrame ||
+          (response.data as any)?.time_frame,
+      });
+
       return response.data;
     } catch (error) {
-      this.logger.error(`Failed to get trade stats for ${ticker}`, error);
-      return {
-        totalTradesKaspiano: 0,
-        totalVolumeKasKaspiano: 0.0,
-        totalVolumeUsdKaspiano: 0.0,
-        tokens: [],
-      };
+      this.logger.error(
+        `[API-CALL] ${logId} - Failed to get trade stats for ${ticker}`,
+      );
+      this.logger.error(`[API-CALL] ${logId} - Error details:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+      });
+      throw error;
     }
   }
 
@@ -443,24 +580,56 @@ export class BackendApiService {
     pagination: PaginationParams,
     sort: SortParams,
   ): Promise<GetSellOrdersResponse> {
+    const logId = `sell_orders_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.log(`[API-CALL] ${logId} - getSellOrders started`);
+    this.logger.debug(
+      `[API-CALL] ${logId} - Parameters: ticker=${ticker}, pagination=`,
+      pagination,
+      'sort=',
+      sort,
+    );
+
     try {
-      const url = `${this.BASEURL}/${this.P2PV2CONTROLLER}/sell-orders`;
-      const params = { ticker };
+      const url = `${this.BASEURL}/${this.P2PCONTROLLER}`;
+      const params = {
+        ...(ticker && { ticker }),
+        limit: pagination.limit.toString(),
+        skip: pagination.offset.toString(),
+        sortBy: sort.field,
+        direction: sort.direction,
+      };
+
+      this.logger.debug(`[API-CALL] ${logId} - Making request to: ${url}`);
+      this.logger.debug(`[API-CALL] ${logId} - Request params:`, params);
 
       const response = await firstValueFrom(
-        this.httpService.post<GetSellOrdersResponse>(
-          url,
-          { pagination, sort },
-          { ...this.getAuthorizedOptions(), params },
-        ),
+        this.httpService.get<GetSellOrdersResponse>(url, { params }),
       );
+
+      this.logger.log(`[API-CALL] ${logId} - Request successful`);
+      this.logger.debug(
+        `[API-CALL] ${logId} - Response status: ${response.status}`,
+      );
+      this.logger.debug(`[API-CALL] ${logId} - Response data:`, {
+        ordersCount:
+          (response.data as any)?.orders?.length ||
+          (response.data as any)?.result?.length ||
+          0,
+        totalOrders:
+          (response.data as any)?.total || (response.data as any)?.count,
+        ticker: ticker || 'all',
+      });
+
       return response.data;
     } catch (error) {
-      this.logger.error(`Failed to get sell orders for ${ticker}`, error);
-      return {
-        orders: [],
-        totalCount: 0,
-      };
+      this.logger.error(`[API-CALL] ${logId} - Failed to get sell orders`);
+      this.logger.error(`[API-CALL] ${logId} - Error details:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+      });
+      throw error;
     }
   }
 
@@ -641,6 +810,23 @@ export class BackendApiService {
     return {
       ...options,
       withCredentials: true,
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        Accept: 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+        'Sec-Ch-Ua':
+          '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
+        ...options?.headers,
+      },
     };
   }
 }
