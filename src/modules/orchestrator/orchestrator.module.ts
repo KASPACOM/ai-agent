@@ -10,6 +10,9 @@ import { WorkflowEngineService } from './workflow-engine.service';
 // === LLM Services ===
 import { OpenAiAdapter } from './llms/openai.service';
 
+// === Configuration ===
+import { OrchestratorConfigurationService } from './orchestrator.config';
+
 // === Prompt Management ===
 import { PromptBuilderModule } from '../prompt-builder/prompt-builder.module';
 
@@ -18,9 +21,6 @@ import { AppConfigModule } from '../core/modules/config/app-config.module';
 
 // === MultiAgent Integration (provides AgentFactory and all agent services) ===
 import { MultiAgentModule } from '../multiagent/multiagent.module';
-
-// === OpenServ Integration (just pub/sub) ===
-import { OpenServModule } from '../integrations/openserv/openserv.module';
 
 // === Orchestrator Intelligence Services ===
 import { IntentRecognitionService } from './intent-recognition.service';
@@ -34,9 +34,11 @@ import { SessionStorageService } from './session-storage.service';
     AppConfigModule, // Import AppConfig for OpenAI configuration
     PromptBuilderModule, // Import PromptBuilder for centralized prompt management
     MultiAgentModule, // Import MultiAgent for AgentFactory and all agent services
-    OpenServModule, // Import OpenServ for pub/sub only
   ],
   providers: [
+    // === Configuration ===
+    OrchestratorConfigurationService,
+
     // === LLM Services ===
     OpenAiAdapter,
 
@@ -51,6 +53,9 @@ import { SessionStorageService } from './session-storage.service';
     SessionStorageService,
   ],
   exports: [
+    // === Configuration ===
+    OrchestratorConfigurationService,
+
     // === LLM Services ===
     OpenAiAdapter,
 

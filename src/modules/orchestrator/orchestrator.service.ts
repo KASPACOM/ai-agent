@@ -3,9 +3,9 @@ import { ConfigService } from '@nestjs/config';
 
 // === Import configurations ===
 import {
-  OpenServConfigurationService,
-  OpenServAdvancedConfig,
-} from '../integrations/openserv/openserv.config';
+  OrchestratorConfigurationService,
+  OrchestratorConfig,
+} from './orchestrator.config';
 
 // === OpenServ Models (for communication protocol) ===
 import {
@@ -45,17 +45,17 @@ import { LlmConversation } from './llms/llm-adapter.interface';
 export class AdvancedOrchestratorService implements OnModuleInit {
   private readonly logger = new Logger(AdvancedOrchestratorService.name);
   private readonly sessions = new Map<string, UserSession>();
-  private readonly config: OpenServAdvancedConfig;
+  private readonly config: OrchestratorConfig;
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly openServConfig: OpenServConfigurationService,
+    private readonly orchestratorConfig: OrchestratorConfigurationService,
     private readonly sessionStorageService: SessionStorageService,
     private readonly multiAgentService: MultiAgentService,
     private readonly promptBuilder: PromptBuilderService,
     private readonly openaiAdapter: OpenAiAdapter,
   ) {
-    this.config = this.openServConfig.getAdvancedConfig();
+    this.config = this.orchestratorConfig.getOrchestratorConfig();
   }
 
   async onModuleInit() {

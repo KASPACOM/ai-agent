@@ -10,6 +10,9 @@ import { OpenServController } from './openserv.controller';
 import { OpenServSubscriberService } from './subscriber.service';
 import { OpenServPublisherService } from './publisher.service';
 
+// === Orchestrator Module (for MultiAgentService) ===
+import { OrchestratorModule } from '../../orchestrator/orchestrator.module';
+
 /**
  * OpenServModule
  *
@@ -27,6 +30,7 @@ import { OpenServPublisherService } from './publisher.service';
       maxRedirects: 5,
     }),
     ConfigModule,
+    OrchestratorModule, // Import for MultiAgentService access
   ],
   controllers: [OpenServController],
   providers: [

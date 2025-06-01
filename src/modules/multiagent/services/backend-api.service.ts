@@ -287,7 +287,10 @@ export class BackendApiService {
       this.logger.debug(`[API-CALL] ${logId} - Request params:`, params);
 
       const response = await firstValueFrom(
-        this.httpService.get<BackendTokenResponse>(url, { params }),
+        this.httpService.get<BackendTokenResponse>(
+          url,
+          this.getAuthorizedOptions({ params }),
+        ),
       );
 
       this.logger.log(`[API-CALL] ${logId} - Request successful`);
@@ -349,7 +352,10 @@ export class BackendApiService {
       this.logger.debug(`[API-CALL] ${logId} - Making request to: ${url}`);
 
       const response = await firstValueFrom(
-        this.httpService.get<FloorPriceResponse>(url),
+        this.httpService.get<FloorPriceResponse>(
+          url,
+          this.getAuthorizedOptions(),
+        ),
       );
 
       this.logger.log(`[API-CALL] ${logId} - Request successful`);
@@ -537,7 +543,10 @@ export class BackendApiService {
       this.logger.debug(`[API-CALL] ${logId} - Request params:`, params);
 
       const response = await firstValueFrom(
-        this.httpService.get<TradeStatsResponse>(url, { params }),
+        this.httpService.get<TradeStatsResponse>(
+          url,
+          this.getAuthorizedOptions({ params }),
+        ),
       );
 
       this.logger.log(`[API-CALL] ${logId} - Request successful`);
@@ -603,7 +612,10 @@ export class BackendApiService {
       this.logger.debug(`[API-CALL] ${logId} - Request params:`, params);
 
       const response = await firstValueFrom(
-        this.httpService.get<GetSellOrdersResponse>(url, { params }),
+        this.httpService.get<GetSellOrdersResponse>(
+          url,
+          this.getAuthorizedOptions({ params }),
+        ),
       );
 
       this.logger.log(`[API-CALL] ${logId} - Request successful`);
