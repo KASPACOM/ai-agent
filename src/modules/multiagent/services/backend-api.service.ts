@@ -522,10 +522,7 @@ export class BackendApiService {
     }
   }
 
-  async getTradeStats(
-    ticker: string,
-    timeFrame: string,
-  ): Promise<TradeStatsResponse> {
+  async getTradeStats(ticker: string, timeFrame: string): Promise<any> {
     const logId = `trade_stats_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     this.logger.log(`[API-CALL] ${logId} - getTradeStats started`);
     this.logger.debug(
@@ -533,42 +530,25 @@ export class BackendApiService {
     );
 
     try {
-      const url = `${this.BASEURL}/${this.P2P_DATA_CONTROLLER}/${ticker}/trade-stats`;
-      const params = {
-        timeFrame,
-      };
-
-      this.logger.debug(`[API-CALL] ${logId} - Making request to: ${url}`);
-      this.logger.debug(`[API-CALL] ${logId} - Request params:`, params);
-
-      const response = await firstValueFrom(
-        this.httpService.get<TradeStatsResponse>(
-          url,
-          this.getAuthorizedOptions({ params }),
-        ),
+      // Use the working fetchTokenByTicker endpoint instead of non-existent trade-stats
+      this.logger.debug(
+        `[API-CALL] ${logId} - Using fetchTokenByTicker as fallback for trade stats`,
       );
+      const tokenData = await this.fetchTokenByTicker(ticker);
 
       this.logger.log(`[API-CALL] ${logId} - Request successful`);
-      this.logger.debug(
-        `[API-CALL] ${logId} - Response status: ${response.status}`,
-      );
       this.logger.debug(`[API-CALL] ${logId} - Response data:`, {
-        ticker: (response.data as any)?.ticker,
-        totalTrades:
-          (response.data as any)?.totalTrades ||
-          (response.data as any)?.total_trades,
-        totalVolumeKas:
-          (response.data as any)?.totalVolumeKas ||
-          (response.data as any)?.total_volume_kas,
-        totalVolumeUsd:
-          (response.data as any)?.totalVolumeUsd ||
-          (response.data as any)?.total_volume_usd,
-        timeFrame:
-          (response.data as any)?.timeFrame ||
-          (response.data as any)?.time_frame,
+        ticker: tokenData?.ticker,
+        price: tokenData?.price,
+        holders: tokenData?.holders,
       });
 
-      return response.data;
+      // Return the token data with market information
+      return {
+        ...tokenData,
+        timeFrame: timeFrame,
+        message: `Market data for ${ticker} (using token info endpoint)`,
+      };
     } catch (error) {
       this.logger.error(
         `[API-CALL] ${logId} - Failed to get trade stats for ${ticker}`,
