@@ -124,9 +124,11 @@ export class NFTAgentFactory {
             try {
               const collections =
                 await this.backendApiService.fetchAllNFTCollections();
-              
+
               // Apply limit if specified
-              const limitedCollections = args.limit ? collections.slice(0, args.limit) : collections;
+              const limitedCollections = args.limit
+                ? collections.slice(0, args.limit)
+                : collections;
               
               return {
                 collections: limitedCollections,
@@ -172,17 +174,18 @@ export class NFTAgentFactory {
             try {
               // Get both collection details and trading stats
               const [details, tradeStats] = await Promise.allSettled([
-                this.backendApiService.fetchNFTCollectionStats(args.ticker),
-                this.backendApiService.fetchNFTCollectionTradeStats(args.ticker),
+                this.backendApiService.fetchNFTCollectionStats(
+                  args.ticker,
+                ),
+                this.backendApiService.fetchNFTCollectionTradeStats(
+                  args.ticker,
+                ),
               ]);
 
               return {
                 collection: args.ticker,
                 timeFrame: args.timeFrame,
-                details:
-                  details.status === 'fulfilled'
-                    ? details.value
-                    : null,
+                details: details.status === 'fulfilled' ? details.value : null,
                 tradeStats:
                   tradeStats.status === 'fulfilled' ? tradeStats.value : null,
                 message: 'NFT collection statistics retrieved',

@@ -1,12 +1,14 @@
 # Kasparebro: AI-Powered Multi-Agent DeFi System
 
-A production-ready **factory-based multi-agent system** for the Kaspa ecosystem featuring **real OpenAI LLM integration**, intelligent orchestration, and **28 production capabilities** across 5 specialized domain agents.
+A production-ready **factory-based multi-agent system** for the Kaspa ecosystem featuring **real OpenAI LLM integration**, intelligent orchestration, and **32 production capabilities** across 6 specialized domain agents.
 
 ## 🏆 Key Achievements
 
-- ✅ **28 Production Capabilities** - All working with real APIs, zero mocks
+- ✅ **32 Production Capabilities** - All working with real APIs, zero mocks
+- ✅ **6 Specialized Agents** - Trading, Wallet, DeFi, Token Registry, User Management, NFT
 - ✅ **Factory-Based Architecture** - Dynamic agent creation with capability injection
 - ✅ **3-Stage LLM Orchestration** - Decision → Execution → Synthesis workflow
+- ✅ **Transformers Architecture** - Type-safe data transformation layer
 - ✅ **Clean Module Separation** - MultiAgent, Orchestrator, and Integration layers
 - ✅ **Live Telegram Integration** - Working conversational AI bot
 - ✅ **Provider-Agnostic LLM** - Easy to switch between OpenAI, Claude, etc.
@@ -21,9 +23,14 @@ A production-ready **factory-based multi-agent system** for the Kaspa ecosystem 
 - Template-based prompt management (`PromptBuilderService`)
 
 ### **No Mock Implementations**
-- All 28 capabilities use real APIs (Kaspa, Kasplex, Backend)
+- All 32 capabilities use real APIs (Kaspa, Kasplex, Backend)
 - Missing features throw clear errors with implementation TODOs
 - Authentication-aware design with public/private capability separation
+
+### **Type-Safe Transformers**
+- Dedicated transformer layer for data consistency
+- Eliminates `any` types with proper interfaces
+- `MarketDataResponse`, `TokenStatsItem`, `WalletBalanceResponse` models
 
 ### **Modular Architecture**
 - Clean separation: MultiAgent ↔ Orchestrator ↔ Integrations
@@ -31,7 +38,7 @@ A production-ready **factory-based multi-agent system** for the Kaspa ecosystem 
 - Easy to add new agents, capabilities, or integrations
 
 ### **SOLID Principles**
-- **S**: Each agent handles single domain (Trading, Wallet, DeFi, etc.)
+- **S**: Each agent handles single domain (Trading, Wallet, DeFi, NFT, etc.)
 - **O**: Agent factory allows extending without modifying existing code
 - **L**: All agents implement common interfaces
 - **I**: Segregated interfaces for different agent types
@@ -65,7 +72,14 @@ graph TB
             FACTORY_W[WalletAgentFactory<br/>9 capabilities]
             FACTORY_D[DeFiAgentFactory<br/>5 capabilities]
             FACTORY_TR[TokenRegistryAgentFactory<br/>10 capabilities]
+            FACTORY_N[NFTAgentFactory<br/>4 capabilities]
             FACTORY_U[UserManagementAgentFactory<br/>0 active*]
+        end
+        
+        subgraph "Transformers Layer"
+            TRANS_T[TradingTransformer]
+            TRANS_W[WalletTransformer]
+            TRANS_TR[TokenRegistryTransformer]
         end
         
         subgraph "Core Services"
@@ -118,7 +132,12 @@ graph TB
     FACTORY --> FACTORY_W
     FACTORY --> FACTORY_D
     FACTORY --> FACTORY_TR
+    FACTORY --> FACTORY_N
     FACTORY --> FACTORY_U
+    
+    FACTORY_T --> TRANS_T
+    FACTORY_W --> TRANS_W
+    FACTORY_TR --> TRANS_TR
     
     FACTORY_T --> BACKEND
     FACTORY_T --> KASPA
@@ -128,6 +147,7 @@ graph TB
     FACTORY_D --> BACKEND
     FACTORY_TR --> BACKEND
     FACTORY_TR --> KASPLEX
+    FACTORY_N --> BACKEND
     
     BACKEND --> BACKEND_API
     KASPA --> KASPA_API
@@ -138,7 +158,7 @@ graph TB
 
 ## 📊 Current Capability Matrix
 
-### **📈 Total: 28 Active Capabilities**
+### **📈 Total: 32 Active Capabilities**
 
 | Agent | Active | Status | Authentication |
 |-------|--------|--------|----------------|
@@ -146,8 +166,9 @@ graph TB
 | **Wallet Agent** | 9 | ✅ Production | Blockchain read-only |
 | **DeFi Agent** | 5 | ✅ Production | Backend APIs |
 | **Token Registry Agent** | 10 | ✅ Production | Public data |
+| **NFT Agent** | 4 | ✅ Production | Backend APIs |
 | **User Management Agent** | 0 | 🔐 Auth Required | Wallet authentication |
-| **TOTAL** | **28** | **All Real APIs** | **Zero Mocks** |
+| **TOTAL** | **32** | **All Real APIs** | **Zero Mocks** |
 
 ### 🔄 **Trading Agent (4 capabilities)**
 ```typescript
@@ -191,6 +212,14 @@ token_count_total          // Total token counts
 token_get_kasplex_info     // Kasplex token data
 token_check_deployment     // Deployment verification
 token_get_mint_status      // Minting status check
+```
+
+### 🖼️ **NFT Agent (4 capabilities)**
+```typescript
+nft_get_collection_info    // KRC721 collection details and metadata
+nft_get_floor_price        // NFT collection floor prices
+nft_list_collections       // All available NFT collections
+nft_get_collection_stats   // Trading volume and holder statistics
 ```
 
 ## 🔄 3-Stage LLM Orchestration Flow
