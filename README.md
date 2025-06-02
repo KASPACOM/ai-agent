@@ -18,7 +18,7 @@ A production-ready **factory-based multi-agent system** for the Kaspa ecosystem 
 ## 🎯 Design Principles
 
 ### **Single Source of Truth**
-- One orchestrator service (`AdvancedOrchestratorService`)
+- One orchestrator service (`OrchestratorService`)
 - Centralized capability registry (`AgentFactory`)
 - Template-based prompt management (`PromptBuilderService`)
 
@@ -55,7 +55,7 @@ graph TB
     end
     
     subgraph "Orchestrator Module"
-        ORCH[AdvancedOrchestratorService<br/>3-Stage LLM Processing]
+        ORCH[OrchestratorService<br/>3-Stage LLM Processing]
         INTENT[IntentRecognitionService<br/>Pattern-based Intent Analysis]
         ROUTER[LLMRouterService<br/>Intelligent Agent Routing]
         SESSION[SessionStorageService<br/>Conversation Memory]
@@ -228,7 +228,7 @@ nft_get_collection_stats   // Trading volume and holder statistics
 sequenceDiagram
     participant User
     participant TG as Telegram Bot
-    participant ORCH as AdvancedOrchestrator
+    participant ORCH as Orchestrator
     participant PROMPT as PromptBuilder
     participant LLM as OpenAI Adapter
     participant MULTI as MultiAgentService

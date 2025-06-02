@@ -33,7 +33,7 @@ import { OpenAiAdapter } from './llms/openai.service';
 import { LlmConversation } from './llms/llm-adapter.interface';
 
 /**
- * AdvancedOrchestratorService
+ * OrchestratorService
  *
  * Unified orchestrator with 3-stage LLM processing:
  * - User session management with memory persistence
@@ -42,8 +42,8 @@ import { LlmConversation } from './llms/llm-adapter.interface';
  * - Stage 3: Response Synthesis Agent (LLM) combines responses
  */
 @Injectable()
-export class AdvancedOrchestratorService implements OnModuleInit {
-  private readonly logger = new Logger(AdvancedOrchestratorService.name);
+export class OrchestratorService implements OnModuleInit {
+  private readonly logger = new Logger(OrchestratorService.name);
   private readonly sessions = new Map<string, UserSession>();
   private readonly config: OrchestratorConfig;
 

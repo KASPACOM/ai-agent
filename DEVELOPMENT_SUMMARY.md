@@ -90,7 +90,7 @@
 ## 🎯 Design Principles Achieved
 
 ### **Single Source of Truth** ✅
-- One orchestrator service (`AdvancedOrchestratorService`)
+- One orchestrator service (`OrchestratorService`)
 - Centralized capability registry (`AgentFactory`)
 - Template-based prompt management (`PromptBuilderService`)
 - No duplicate services or conflicting implementations

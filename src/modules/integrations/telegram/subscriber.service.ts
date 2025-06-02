@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import TelegramBot = require('node-telegram-bot-api');
 import { AppConfigService } from '../../core/modules/config/app-config.service';
-import { AdvancedOrchestratorService } from '../../orchestrator/orchestrator.service';
+import { OrchestratorService } from '../../orchestrator/orchestrator.service';
 import { TelegramPublisherService } from './publisher.service';
 
 @Injectable()
@@ -12,7 +12,7 @@ export class TelegramSubscriberService
 
   constructor(
     private readonly configService: AppConfigService,
-    private readonly orchestrator: AdvancedOrchestratorService,
+    private readonly orchestrator: OrchestratorService,
     private readonly telegramPublisher: TelegramPublisherService,
   ) {
     console.log(

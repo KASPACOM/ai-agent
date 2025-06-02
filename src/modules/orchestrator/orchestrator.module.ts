@@ -4,7 +4,7 @@ import { HttpModule } from '@nestjs/axios';
 
 // === Core Orchestration Services ===
 import { MultiAgentService } from './multi-agent.service';
-import { AdvancedOrchestratorService } from './orchestrator.service';
+import { OrchestratorService } from './orchestrator.service';
 import { WorkflowEngineService } from './workflow-engine.service';
 
 // === LLM Services ===
@@ -44,7 +44,7 @@ import { SessionStorageService } from './session-storage.service';
 
     // === Core Orchestration ===
     MultiAgentService,
-    AdvancedOrchestratorService,
+    OrchestratorService,
     WorkflowEngineService,
 
     // === Orchestrator Intelligence Services ===
@@ -60,7 +60,7 @@ import { SessionStorageService } from './session-storage.service';
     OpenAiAdapter,
 
     // === Primary Orchestration Service ===
-    AdvancedOrchestratorService,
+    OrchestratorService,
 
     // === Multi-Agent Coordination ===
     MultiAgentService,

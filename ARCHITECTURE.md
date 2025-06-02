@@ -27,7 +27,7 @@ Kasparebro follows **SOLID principles** and **Clean Architecture** patterns with
 ┌─────────────────────────────────────────────────────────────┐
 │                 Orchestrator Module                         │
 │  ┌─────────────────────────────────────────────────────────┐ │
-│  │           AdvancedOrchestratorService                   │ │
+│  │                OrchestratorService                      │ │
 │  │         3-Stage LLM Processing Engine                   │ │
 │  └─────────────────────────────────────────────────────────┘ │
 │  ┌──────────────┐  ┌──────────────┐  ┌─────────────────────┐ │
@@ -307,7 +307,7 @@ async executeCapability(name: string, args: any, user?: AuthenticatedUser) {
    - Authentication-aware design
 
 2. **Single Source of Truth**
-   - One orchestrator service (`AdvancedOrchestratorService`)
+   - One orchestrator service (`OrchestratorService`)
    - Centralized capability registry (`AgentFactory`)
    - Template-based prompt management
 
