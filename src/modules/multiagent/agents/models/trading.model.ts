@@ -3,8 +3,35 @@ export interface TradeStatsResponse {
   totalTradesKaspiano: number;
   totalVolumeKasKaspiano: number;
   totalVolumeUsdKaspiano: number;
-  tokens?: any[];
-  items?: any[];
+  tokens?: TokenStatsItem[];
+  items?: TradeStatsItem[];
+}
+
+export interface TokenStatsItem {
+  ticker: string;
+  volume: number;
+  trades: number;
+  price: number;
+  change24h?: number;
+}
+
+export interface TradeStatsItem {
+  timestamp: string;
+  volume: number;
+  price: number;
+  trades: number;
+}
+
+export interface MarketDataResponse {
+  ticker: string;
+  price: number;
+  volume24h?: number;
+  trades24h?: number;
+  marketCap?: number;
+  holders?: number;
+  change24h?: number;
+  timeFrame: string;
+  message?: string;
 }
 
 export interface FloorPriceResponse {
@@ -23,14 +50,37 @@ export interface SortParams {
 }
 
 export interface GetSellOrdersResponse {
-  orders: any[];
+  orders: SellOrder[];
   totalCount: number;
 }
 
+export interface SellOrder {
+  id: string;
+  ticker: string;
+  quantity: number;
+  totalPrice: number;
+  pricePerToken: number;
+  sellerAddress: string;
+  status: 'active' | 'sold' | 'cancelled';
+  createdAt: string;
+  expiresAt?: string;
+}
+
 export interface GetUserOrdersResponse {
-  orders: any[];
+  orders: UserOrder[];
   totalCount: number;
   allTickers: string[];
+}
+
+export interface UserOrder {
+  id: string;
+  ticker: string;
+  quantity: number;
+  totalPrice: number;
+  pricePerToken: number;
+  type: 'buy' | 'sell';
+  status: 'pending' | 'completed' | 'cancelled';
+  createdAt: string;
 }
 
 export interface BuyTokenResponse {

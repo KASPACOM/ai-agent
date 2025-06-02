@@ -23,14 +23,15 @@ import {
 } from '../agents/models/wallet.model';
 import {
   FloorPriceResponse,
-  TradeStatsResponse,
   PaginationParams,
   SortParams,
   BuyTokenResponse,
   ConfirmBuyOrderResponse,
   ConfirmBuyOrderRequest,
   GetSellOrdersResponse,
+  MarketDataResponse,
 } from '../agents/models/trading.model';
+import { transformToMarketData } from '../agents/transformers';
 
 /**
  * BackendApiService
@@ -388,17 +389,20 @@ export class BackendApiService {
     }
   }
 
-  async fetchTokenInfo(ticker: string, holders: any): Promise<any> {
+  async fetchTokenInfo(
+    ticker: string,
+    holders: boolean,
+  ): Promise<TokenInfoResponse> {
     try {
       const response = await firstValueFrom(
-        this.httpService.get<any>(
+        this.httpService.get<TokenInfoResponse>(
           `${this.BASEURL}/${this.KRC20CONTROLLER}/token/${ticker}?holders=${holders}`,
         ),
       );
       return response.data;
     } catch (error) {
       this.logger.error(`Failed to fetch token info for ${ticker}`, error);
-      return null;
+      throw error;
     }
   }
 
@@ -522,7 +526,20 @@ export class BackendApiService {
     }
   }
 
-  async getTradeStats(ticker: string, timeFrame: string): Promise<any> {
+  /**
+   * Transform BackendTokenResponse to MarketDataResponse using transformer
+   */
+  private transformToMarketData(
+    tokenData: BackendTokenResponse,
+    timeFrame: string,
+  ): MarketDataResponse {
+    return transformToMarketData(tokenData, timeFrame);
+  }
+
+  async getTradeStats(
+    ticker: string,
+    timeFrame: string,
+  ): Promise<MarketDataResponse> {
     const logId = `trade_stats_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     this.logger.log(`[API-CALL] ${logId} - getTradeStats started`);
     this.logger.debug(
@@ -543,12 +560,8 @@ export class BackendApiService {
         holders: tokenData?.holders,
       });
 
-      // Return the token data with market information
-      return {
-        ...tokenData,
-        timeFrame: timeFrame,
-        message: `Market data for ${ticker} (using token info endpoint)`,
-      };
+      // Transform and return the market data
+      return this.transformToMarketData(tokenData, timeFrame);
     } catch (error) {
       this.logger.error(
         `[API-CALL] ${logId} - Failed to get trade stats for ${ticker}`,
@@ -733,17 +746,22 @@ export class BackendApiService {
     }
   }
 
-  async getGasEstimator(): Promise<any> {
+  async getGasEstimator(): Promise<GasEstimatorResponse> {
     try {
       const response = await firstValueFrom(
-        this.httpService.get<any>(
+        this.httpService.get<GasEstimatorResponse>(
           `${this.BASEURL}/${this.P2PCONTROLLER}/feeRate`,
         ),
       );
       return response.data;
     } catch (error) {
       this.logger.error('Failed to get gas estimator', error);
-      return { confirmed: false };
+      return {
+        feeRate: 1000,
+        estimatedFee: 1000,
+        networkCongestion: 'medium',
+        confirmed: false,
+      };
     }
   }
 
@@ -798,7 +816,9 @@ export class BackendApiService {
     }
   }
 
-  private getAuthorizedOptions(options?: any): any {
+  private getAuthorizedOptions(
+    options?: Partial<AuthorizedOptions>,
+  ): AuthorizedOptions {
     return {
       ...options,
       withCredentials: true,
@@ -821,4 +841,217 @@ export class BackendApiService {
       },
     };
   }
+
+  // === NFT/KRC721 Operations ===
+  async fetchAllNFTCollections(): Promise<any[]> {
+    const logId = `nft_collections_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.log(`[API-CALL] ${logId} - fetchAllNFTCollections started`);
+
+    try {
+      const url = `${this.BASEURL}/${this.KRC721CONTROLLER}`;
+      this.logger.debug(`[API-CALL] ${logId} - Making request to: ${url}`);
+
+      const response = await firstValueFrom(
+        this.httpService.get<{ items: any[]; totalCount: number }>(
+          url,
+          this.getAuthorizedOptions(),
+        ),
+      );
+
+      this.logger.log(`[API-CALL] ${logId} - Request successful`);
+      this.logger.debug(
+        `[API-CALL] ${logId} - Response status: ${response.status}`,
+      );
+      this.logger.debug(`[API-CALL] ${logId} - Response data:`, {
+        collectionsCount:
+          response.data?.items?.length || (response.data as any)?.length || 0,
+        totalCount: response.data?.totalCount,
+      });
+
+      // Return the items array if it exists, otherwise return the data directly
+      return response.data?.items || (response.data as any) || [];
+    } catch (error) {
+      this.logger.error(
+        `[API-CALL] ${logId} - Failed to fetch NFT collections`,
+      );
+      this.logger.error(`[API-CALL] ${logId} - Error details:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+      });
+      return [];
+    }
+  }
+
+  async fetchNFTCollectionDetails(ticker: string): Promise<any> {
+    const logId = `nft_collection_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.log(`[API-CALL] ${logId} - fetchNFTCollectionDetails started`);
+    this.logger.debug(`[API-CALL] ${logId} - Parameters: ticker=${ticker}`);
+
+    try {
+      // Get all collections and filter for the specific ticker
+      const allCollections = await this.fetchAllNFTCollections();
+      const collection = allCollections.find(
+        (col) => col.ticker?.toLowerCase() === ticker.toLowerCase(),
+      );
+
+      if (!collection) {
+        throw new Error(`Collection with ticker "${ticker}" not found`);
+      }
+
+      this.logger.log(`[API-CALL] ${logId} - Collection found successfully`);
+      this.logger.debug(`[API-CALL] ${logId} - Collection data:`, {
+        ticker: collection.ticker,
+        totalSupply: collection.totalSupply,
+        totalHolders: collection.totalHolders,
+        volume24h: collection.volume24h,
+        price: collection.price,
+      });
+
+      return collection;
+    } catch (error) {
+      this.logger.error(
+        `[API-CALL] ${logId} - Failed to fetch NFT collection details for ${ticker}`,
+      );
+      this.logger.error(`[API-CALL] ${logId} - Error details:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+      });
+      throw error;
+    }
+  }
+
+  async fetchNFTCollectionStats(ticker: string): Promise<any> {
+    const logId = `nft_stats_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.log(`[API-CALL] ${logId} - fetchNFTCollectionStats started`);
+    this.logger.debug(`[API-CALL] ${logId} - Parameters: ticker=${ticker}`);
+
+    try {
+      // Use the collection details that include stats
+      const collection = await this.fetchNFTCollectionDetails(ticker);
+
+      const stats = {
+        ticker: collection.ticker,
+        totalSupply: collection.totalSupply,
+        totalMinted: collection.totalMinted,
+        totalHolders: collection.totalHolders,
+        mintPrice: collection.mintPrice,
+        volume24h: collection.volume24h,
+        totalVolume: collection.totalVolume,
+        price: collection.price,
+        floorPrice: collection.price, // Use price as floor price
+        creationDate: collection.creationDate,
+        changeStats: {
+          changeTotalHolders: collection.changeTotalHolders,
+          changePrice: collection.changePrice,
+          changeVolume24h: collection.changeVolume24h,
+          changeMarketCap: collection.changeMarketCap,
+        },
+      };
+
+      this.logger.log(`[API-CALL] ${logId} - Request successful`);
+      this.logger.debug(`[API-CALL] ${logId} - Stats data:`, {
+        ticker: stats.ticker,
+        volume24h: stats.volume24h,
+        totalHolders: stats.totalHolders,
+        price: stats.price,
+      });
+
+      return stats;
+    } catch (error) {
+      this.logger.error(
+        `[API-CALL] ${logId} - Failed to fetch NFT collection stats for ${ticker}`,
+      );
+      this.logger.error(`[API-CALL] ${logId} - Error details:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+      });
+      throw error;
+    }
+  }
+
+  async fetchNFTCollectionTradeStats(ticker: string): Promise<any> {
+    const logId = `nft_trade_stats_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.logger.log(
+      `[API-CALL] ${logId} - fetchNFTCollectionTradeStats started`,
+    );
+    this.logger.debug(`[API-CALL] ${logId} - Parameters: ticker=${ticker}`);
+
+    try {
+      // Use the same collection data for trade stats
+      const collection = await this.fetchNFTCollectionDetails(ticker);
+
+      const tradeStats = {
+        ticker: collection.ticker,
+        volume24h: collection.volume24h,
+        totalVolume: collection.totalVolume,
+        price: collection.price,
+        changeVolume24h: collection.changeVolume24h,
+        changePrice: collection.changePrice,
+        totalHolders: collection.totalHolders,
+        changeTotalHolders: collection.changeTotalHolders,
+        timestamp: collection.currentTimestamp || collection.historyTimestamp,
+      };
+
+      this.logger.log(`[API-CALL] ${logId} - Request successful`);
+      this.logger.debug(`[API-CALL] ${logId} - Trade stats data:`, {
+        ticker: tradeStats.ticker,
+        volume24h: tradeStats.volume24h,
+        totalVolume: tradeStats.totalVolume,
+        price: tradeStats.price,
+      });
+
+      return tradeStats;
+    } catch (error) {
+      this.logger.error(
+        `[API-CALL] ${logId} - Failed to fetch NFT collection trade stats for ${ticker}`,
+      );
+      this.logger.error(`[API-CALL] ${logId} - Error details:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+      });
+      throw error;
+    }
+  }
+}
+
+// Additional interfaces for backend API
+export interface GasEstimatorResponse {
+  feeRate: number;
+  estimatedFee: number;
+  networkCongestion: 'low' | 'medium' | 'high';
+  confirmed: boolean;
+}
+
+export interface TokenInfoResponse {
+  ticker: string;
+  name?: string;
+  description?: string;
+  totalSupply?: string;
+  holders: number;
+  price?: number;
+  marketCap?: number;
+  website?: string;
+  social?: {
+    twitter?: string;
+    telegram?: string;
+    discord?: string;
+  };
+}
+
+export interface RequestParams {
+  [key: string]: string | number | boolean;
+}
+
+export interface AuthorizedOptions {
+  params?: RequestParams;
+  headers?: Record<string, string>;
+  withCredentials?: boolean;
 }

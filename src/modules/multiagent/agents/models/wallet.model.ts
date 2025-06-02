@@ -7,6 +7,15 @@ export interface FetchWalletPortfolioResponse {
   }>;
   next: string | null;
   prev: string | null;
+  orders: WalletOrder[];
+  totalValue?: number;
+  tokens?: WalletPortfolioToken[];
+  pagination?: {
+    hasNext: boolean;
+    hasPrev: boolean;
+    nextKey?: string;
+    prevKey?: string;
+  };
 }
 
 export interface TickerPortfolioBackend {
@@ -31,13 +40,89 @@ export interface WalletActivityResponse {
   };
   tradeVolume: number;
   totalTrades: number;
-  topTradedTokens: any[];
-  topTradedNftTokens: any[];
+  topTradedTokens: TradedToken[];
+  topTradedNftTokens: TradedNftToken[];
   scoreFromReferrals: number;
 }
 
+export interface TradedToken {
+  ticker: string;
+  volume: number;
+  trades: number;
+  lastTradeDate: string;
+  averagePrice: number;
+}
+
+export interface TradedNftToken {
+  collectionId: string;
+  collectionName: string;
+  volume: number;
+  trades: number;
+  lastTradeDate: string;
+  floorPrice?: number;
+}
+
 export interface WalletTradingDataResponse {
-  [key: string]: any;
+  [key: string]: TradingDataEntry;
+}
+
+export interface TradingDataEntry {
+  volume: number;
+  trades: number;
+  profitLoss?: number;
+  averagePrice?: number;
+}
+
+export interface WalletPortfolioToken {
+  ticker: string;
+  balance: string;
+  value?: number;
+  price?: number;
+  change24h?: number;
+  metadata?: TokenMetadata;
+}
+
+export interface TokenMetadata {
+  name?: string;
+  symbol?: string;
+  description?: string;
+  image?: string;
+  website?: string;
+  totalSupply?: string;
+  decimals?: number;
+}
+
+export interface WalletNftToken {
+  tokenId: string;
+  collectionTicker: string;
+  collectionName?: string;
+  metadata?: NftMetadata;
+}
+
+export interface NftMetadata {
+  name?: string;
+  description?: string;
+  image?: string;
+  attributes?: NftAttribute[];
+  rarity?: number;
+}
+
+export interface NftAttribute {
+  trait_type: string;
+  value: string | number;
+  rarity?: number;
+}
+
+export interface WalletOrder {
+  id: string;
+  ticker: string;
+  type: 'buy' | 'sell';
+  quantity: number;
+  price: number;
+  totalValue: number;
+  status: 'pending' | 'completed' | 'cancelled';
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface UserHoldingsResponse {

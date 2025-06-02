@@ -9,6 +9,7 @@ import { WalletAgentFactory } from './factories/wallet-agent.factory';
 import { DeFiAgentFactory } from './factories/defi-agent.factory';
 import { TokenRegistryAgentFactory } from './factories/token-registry-agent.factory';
 import { UserManagementAgentFactory } from './factories/user-management-agent.factory';
+import { NFTAgentFactory } from './factories/nft-agent.factory';
 
 /**
  * AgentFactory - Main factory that orchestrates all individual agent factories
@@ -29,6 +30,7 @@ export class AgentFactory {
     private readonly defiAgentFactory: DeFiAgentFactory,
     private readonly tokenRegistryAgentFactory: TokenRegistryAgentFactory,
     private readonly userManagementAgentFactory: UserManagementAgentFactory,
+    private readonly nftAgentFactory: NFTAgentFactory,
   ) {}
 
   /**
@@ -41,6 +43,7 @@ export class AgentFactory {
       this.defiAgentFactory.createAgent(),
       this.tokenRegistryAgentFactory.createAgent(),
       this.userManagementAgentFactory.createAgent(),
+      this.nftAgentFactory.createAgent(),
     ];
   }
 
@@ -67,6 +70,10 @@ export class AgentFactory {
     return this.userManagementAgentFactory.createAgent();
   }
 
+  createNFTAgent(): BuiltAgent {
+    return this.nftAgentFactory.createAgent();
+  }
+
   /**
    * Get agent by name
    */
@@ -82,6 +89,8 @@ export class AgentFactory {
         return this.createTokenRegistryAgent();
       case 'user-management-agent':
         return this.createUserManagementAgent();
+      case 'nft-agent':
+        return this.createNFTAgent();
       default:
         return null;
     }
@@ -97,6 +106,7 @@ export class AgentFactory {
       'defi-agent',
       'token-registry-agent',
       'user-management-agent',
+      'nft-agent',
     ];
   }
 
