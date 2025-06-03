@@ -22,9 +22,7 @@ import { AppConfigModule } from '../core/modules/config/app-config.module';
 // === MultiAgent Integration (provides AgentFactory and all agent services) ===
 import { MultiAgentModule } from '../multiagent/multiagent.module';
 
-// === Orchestrator Intelligence Services ===
-import { IntentRecognitionService } from './intent-recognition.service';
-import { LLMRouterService } from './llm-router.service';
+// === Session Storage ===
 import { SessionStorageService } from './session-storage.service';
 
 @Module({
@@ -47,9 +45,7 @@ import { SessionStorageService } from './session-storage.service';
     OrchestratorService,
     WorkflowEngineService,
 
-    // === Orchestrator Intelligence Services ===
-    IntentRecognitionService,
-    LLMRouterService,
+    // === Session Management ===
     SessionStorageService,
   ],
   exports: [
@@ -66,9 +62,7 @@ import { SessionStorageService } from './session-storage.service';
     MultiAgentService,
     WorkflowEngineService,
 
-    // === Orchestrator Intelligence Services ===
-    IntentRecognitionService,
-    LLMRouterService,
+    // === Session Management ===
     SessionStorageService,
   ],
 })

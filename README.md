@@ -47,111 +47,27 @@ A production-ready **factory-based multi-agent system** for the Kaspa ecosystem 
 ## 🏗️ Architecture Overview
 
 ```mermaid
-graph TB
-    subgraph "Client Layer"
-        TG[Telegram Bot]
-        OS[OpenServ Platform]
-        API[Future Integrations]
-    end
+graph TD
+    A[User Input] --> B[OrchestratorService]
+    B --> C[3-Stage LLM Processing]
     
-    subgraph "Orchestrator Module"
-        ORCH[OrchestratorService<br/>3-Stage LLM Processing]
-        INTENT[IntentRecognitionService<br/>Pattern-based Intent Analysis]
-        ROUTER[LLMRouterService<br/>Intelligent Agent Routing]
-        SESSION[SessionStorageService<br/>Conversation Memory]
-        PROMPT[PromptBuilderService<br/>Template Management]
-        LLM[OpenAI Adapter<br/>Provider Abstraction]
-    end
+    C --> D[Stage 1: Decision Agent]
+    D --> E[PromptBuilderService]
+    E --> F[OpenAI LLM Call]
+    F --> G[Agent Selection]
     
-    subgraph "MultiAgent Module"
-        MULTI[MultiAgentService<br/>Agent Coordination]
-        FACTORY[AgentFactory<br/>Dynamic Agent Creation]
-        
-        subgraph "Agent Factories"
-            FACTORY_T[TradingAgentFactory<br/>4 capabilities]
-            FACTORY_W[WalletAgentFactory<br/>9 capabilities]
-            FACTORY_D[DeFiAgentFactory<br/>5 capabilities]
-            FACTORY_TR[TokenRegistryAgentFactory<br/>10 capabilities]
-            FACTORY_N[NFTAgentFactory<br/>4 capabilities]
-            FACTORY_U[UserManagementAgentFactory<br/>0 active*]
-        end
-        
-        subgraph "Transformers Layer"
-            TRANS_T[TradingTransformer]
-            TRANS_W[WalletTransformer]
-            TRANS_TR[TokenRegistryTransformer]
-        end
-        
-        subgraph "Core Services"
-            KASPA[KaspaApiService]
-            KASPLEX[KasplexKrc20Service]
-            BACKEND[BackendApiService]
-        end
-    end
+    G --> H[Stage 2: Agent Execution]
+    H --> I[MultiAgentService]
+    I --> J[Agent Factories]
+    J --> K[Real API Calls]
     
-    subgraph "Integration Modules"
-        subgraph "Telegram Integration"
-            TG_BOT[TelegramBotService]
-            TG_ORCH[TelegramOrchestratorBridge]
-        end
-        
-        subgraph "OpenServ Integration"
-            OS_PUB[OpenServPublisherService]
-            OS_SUB[OpenServSubscriberService]
-            OS_CONFIG[OpenServConfigurationService]
-        end
-    end
+    K --> L[Stage 3: Response Synthesis]
+    L --> M[PromptBuilderService]
+    M --> N[OpenAI LLM Call]
+    N --> O[Final Response]
     
-    subgraph "External APIs"
-        OPENAI[OpenAI GPT API]
-        KASPA_API[Kaspa Blockchain]
-        KASPLEX_API[Kasplex KRC20]
-        BACKEND_API[Kaspiano Backend]
-    end
-    
-    TG --> TG_BOT
-    OS --> OS_SUB
-    API --> ORCH
-    
-    TG_BOT --> TG_ORCH
-    TG_ORCH --> ORCH
-    OS_SUB --> ORCH
-    
-    ORCH --> INTENT
-    ORCH --> ROUTER
-    ORCH --> SESSION
-    ORCH --> PROMPT
-    ORCH --> LLM
-    ORCH --> MULTI
-    
-    PROMPT --> LLM
-    LLM --> OPENAI
-    
-    MULTI --> FACTORY
-    FACTORY --> FACTORY_T
-    FACTORY --> FACTORY_W
-    FACTORY --> FACTORY_D
-    FACTORY --> FACTORY_TR
-    FACTORY --> FACTORY_N
-    FACTORY --> FACTORY_U
-    
-    FACTORY_T --> TRANS_T
-    FACTORY_W --> TRANS_W
-    FACTORY_TR --> TRANS_TR
-    
-    FACTORY_T --> BACKEND
-    FACTORY_T --> KASPA
-    FACTORY_W --> BACKEND
-    FACTORY_W --> KASPA
-    FACTORY_W --> KASPLEX
-    FACTORY_D --> BACKEND
-    FACTORY_TR --> BACKEND
-    FACTORY_TR --> KASPLEX
-    FACTORY_N --> BACKEND
-    
-    BACKEND --> BACKEND_API
-    KASPA --> KASPA_API
-    KASPLEX --> KASPLEX_API
+    P[SessionStorageService] --> B
+    Q[6 Specialized Agents] --> I
 ```
 
 *UserManagementAgentFactory has 0 active capabilities (all require wallet authentication)*

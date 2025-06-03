@@ -85,12 +85,3 @@ export interface CapabilityRequest {
   userId?: string;
   context?: Record<string, any>;
 }
-
-export interface RoutingDecision {
-  primaryAgent: string;
-  capability: string;
-  confidence: number;
-  reasoning: string;
-  fallbackAgents?: string[];
-  parameters?: Record<string, any>;
-}

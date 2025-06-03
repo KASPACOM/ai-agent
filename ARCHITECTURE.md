@@ -17,26 +17,26 @@ Kasparebro follows **SOLID principles** and **Clean Architecture** patterns with
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Client Integrations                      │
+│                      Client Layer                           │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │  Telegram   │  │  OpenServ   │  │  Future (Discord,   │  │
-│  │ Integration │  │ Integration │  │  Slack, Web, etc.)  │  │
+│  │  Telegram   │  │   OpenServ  │  │  Future Platform    │  │
+│  │    Bot      │  │  Platform   │  │   Integrations      │  │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
                              │
 ┌─────────────────────────────────────────────────────────────┐
-│                 Orchestrator Module                         │
+│                  Orchestrator Module                        │
 │  ┌─────────────────────────────────────────────────────────┐ │
 │  │                OrchestratorService                      │ │
 │  │         3-Stage LLM Processing Engine                   │ │
 │  └─────────────────────────────────────────────────────────┘ │
-│  ┌──────────────┐  ┌──────────────┐  ┌─────────────────────┐ │
-│  │    Intent    │  │   Session    │  │     LLM Router      │ │
-│  │ Recognition  │  │   Storage    │  │     Service         │ │
-│  └──────────────┘  └──────────────┘  └─────────────────────┘ │
+│  ┌──────────────┐  ┌─────────────────────────────────────────┐ │
+│  │   Session    │  │         PromptBuilderService           │ │
+│  │   Storage    │  │      Template-Based Prompt Engine      │ │
+│  └──────────────┘  └─────────────────────────────────────────┘ │
 │  ┌─────────────────────────────────────────────────────────┐ │
-│  │              PromptBuilderService                       │ │
-│  │            Template-Based Prompt Engine                 │ │
+│  │                 OpenAI Adapter                          │ │
+│  │           Provider-Agnostic LLM Interface               │ │
 │  └─────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
                              │

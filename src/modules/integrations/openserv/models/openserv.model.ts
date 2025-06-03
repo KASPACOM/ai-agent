@@ -1,8 +1,7 @@
 // Import agent models from multiagent module
 import {
-  AgentDecision,
   AgentResponse,
-  RoutingDecision,
+  AgentDecision,
 } from '../../../multiagent/models/agent.model';
 
 export interface OpenServAgentConfig {

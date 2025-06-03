@@ -39,15 +39,6 @@ export interface SynthesisPromptContext extends PromptContext {
   session: UserSession;
 }
 
-export interface RoutingPromptContext extends PromptContext {
-  message: string;
-  context?: {
-    conversationHistory?: string[];
-    userPreferences?: Record<string, any>;
-    recentActions?: string[];
-  };
-}
-
 // Re-export types for convenience
 export type {
   CapabilityDetail,

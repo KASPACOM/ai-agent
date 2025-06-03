@@ -5,13 +5,11 @@ import {
   BuiltPrompt,
   DecisionPromptContext,
   SynthesisPromptContext,
-  RoutingPromptContext,
 } from './models/prompt.interfaces';
 
 // Import prompt templates
 import { DECISION_AGENT_PROMPT } from './prompts/orchestrator/decision-agent.prompt';
 import { SYNTHESIS_AGENT_PROMPT } from './prompts/orchestrator/synthesis-agent.prompt';
-import { ROUTING_AGENT_PROMPT } from './prompts/openserv/routing-agent.prompt';
 
 @Injectable()
 export class PromptBuilderService {
@@ -24,11 +22,7 @@ export class PromptBuilderService {
 
   private loadTemplates(): void {
     // Register all prompt templates
-    const templates = [
-      DECISION_AGENT_PROMPT,
-      SYNTHESIS_AGENT_PROMPT,
-      ROUTING_AGENT_PROMPT,
-    ];
+    const templates = [DECISION_AGENT_PROMPT, SYNTHESIS_AGENT_PROMPT];
 
     templates.forEach((template) => {
       this.templates.set(template.name, template);
@@ -121,27 +115,7 @@ export class PromptBuilderService {
   }
 
   /**
-   * Build routing agent prompt for openserv
-   */
-  buildRoutingPrompt(context: RoutingPromptContext): BuiltPrompt {
-    const conversationHistory =
-      context.context?.conversationHistory?.join('\n') || 'None';
-    const userPreferences = JSON.stringify(
-      context.context?.userPreferences || {},
-    );
-    const recentActions = context.context?.recentActions?.join('\n') || 'None';
-
-    return this.buildPrompt('routing-agent', {
-      message: context.message,
-      capabilitiesText: 'To be populated by caller',
-      conversationHistory,
-      userPreferences,
-      recentActions,
-    });
-  }
-
-  /**
-   * Get available template names
+   * Get all available templates
    */
   getAvailableTemplates(): string[] {
     return Array.from(this.templates.keys());
