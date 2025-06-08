@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
-import { AdvancedOrchestratorService } from '../../../src/modules/orchestrator/orchestrator.service';
+import { OrchestratorService } from '../../../src/modules/orchestrator/orchestrator.service';
 import { OpenServConfigurationService } from '../../../src/modules/integrations/openserv/openserv.config';
 import { SessionStorageService } from '../../../src/modules/integrations/openserv/session-storage.service';
 import { MultiAgentService } from '../../../src/modules/orchestrator/multi-agent.service';
@@ -13,14 +13,14 @@ import { TokenRegistryAgentService } from '../../../src/modules/integrations/ope
 import { UserManagementAgentService } from '../../../src/modules/integrations/openserv/agents/user-management-agent.service';
 
 describe('Advanced Orchestrator (Three-Stage Architecture)', () => {
-  let orchestrator: AdvancedOrchestratorService;
+  let orchestrator: OrchestratorService;
   let promptBuilder: PromptBuilderService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       imports: [HttpModule, ConfigModule],
       providers: [
-        AdvancedOrchestratorService,
+        OrchestratorService,
         OpenServConfigurationService,
         SessionStorageService,
         MultiAgentService,
@@ -33,9 +33,7 @@ describe('Advanced Orchestrator (Three-Stage Architecture)', () => {
       ],
     }).compile();
 
-    orchestrator = module.get<AdvancedOrchestratorService>(
-      AdvancedOrchestratorService,
-    );
+    orchestrator = module.get<OrchestratorService>(OrchestratorService);
     promptBuilder = module.get<PromptBuilderService>(PromptBuilderService);
   });
 

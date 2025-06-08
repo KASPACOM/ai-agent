@@ -199,10 +199,9 @@ src/modules/
 ├── orchestrator/               # 🎭 Orchestration Intelligence
 │   ├── orchestrator.service.ts          # Main 3-stage orchestrator
 │   ├── multi-agent.service.ts           # Agent coordination
-│   ├── intent-recognition.service.ts    # Pattern-based intent analysis
-│   ├── llm-router.service.ts           # LLM-based routing
 │   ├── session-storage.service.ts      # Conversation memory
-│   ├── workflow-engine.service.ts      # Workflow execution
+│   ├── message-bus.service.ts          # Event messaging
+│   ├── orchestrator.config.ts          # Configuration management
 │   └── llms/
 │       └── openai.service.ts           # OpenAI adapter
 
@@ -356,7 +355,7 @@ npm run test -- --testPathPattern=trading-agent
 
 ### 🚧 **In Progress**
 - Enhanced LLM decision accuracy
-- Advanced workflow engine
+- Advanced orchestration flow optimization
 - Performance optimization
 
 ### 📅 **Planned (Future Phases)**

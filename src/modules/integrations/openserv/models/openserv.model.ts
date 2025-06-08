@@ -130,7 +130,6 @@ export interface UserSession {
 
 export interface ConversationContext {
   messages: ContextMessage[];
-  activeWorkflow?: MultiAgentWorkflow;
   userIntent?: string;
   currentFocus?: string;
   currentIntent?: string;
@@ -184,29 +183,6 @@ export interface ActionHistory {
   error?: string;
 }
 
-export interface MultiAgentWorkflow {
-  id: string;
-  name: string;
-  status: 'active' | 'completed' | 'failed' | 'paused';
-  steps: WorkflowStep[];
-  currentStepIndex: number;
-  currentStep?: number;
-  results: Record<string, any>;
-  metadata?: Record<string, any>;
-}
-
-export interface WorkflowStep {
-  id: string;
-  name: string;
-  agent: string;
-  capability: string;
-  parameters: Record<string, any>;
-  dependencies?: string[];
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  result?: any;
-  error?: string;
-}
-
 export interface CapabilityExecution {
   agent: string;
   capability: string;
@@ -219,7 +195,6 @@ export interface OpenServResponse {
   response: string;
   actions: ActionHistory[];
   suggestions?: string[];
-  workflowStatus?: MultiAgentWorkflow;
 }
 
 // Task and Chat response types for OpenServ integration

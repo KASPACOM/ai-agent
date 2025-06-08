@@ -41,6 +41,10 @@ development.env
 *.log
 logs/
 
+# Documentation files (private/sensitive)
+defi.md
+kaspacom.md
+
 # OS
 .DS_Store
 Thumbs.db 
