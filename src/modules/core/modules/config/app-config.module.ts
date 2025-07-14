@@ -18,6 +18,31 @@ import { AppConfigService } from './app-config.service';
         LOG_LEVEL: Joi.string().default('debug'),
         PORT: Joi.number().port().default(8080),
         SALT: Joi.number().integer().positive(),
+
+        // Qdrant Vector Database
+        QDRANT_URL: Joi.string().uri().optional(),
+        QDRANT_API_KEY: Joi.string().allow('').optional(),
+        QDRANT_COLLECTION_NAME: Joi.string().optional(),
+
+        // Twitter/X Data Collection
+        TWITTER_ACCOUNTS_CONFIG: Joi.string().optional().default('[]'),
+        TWITTER_USERNAME: Joi.string().optional(),
+        TWITTER_PASSWORD: Joi.string().optional(),
+        TWITTER_EMAIL: Joi.string().optional(),
+        OPENAI_EMBEDDING_MODEL: Joi.string().optional(),
+        OPENAI_EMBEDDING_DIMENSIONS: Joi.number()
+          .integer()
+          .positive()
+          .optional(),
+
+        // ETL and Cron Configuration
+        ETL_SCHEDULE_INTERVAL: Joi.string().optional(),
+        ETL_ENABLED: Joi.string()
+          .valid('true', 'false')
+          .optional()
+          .default('false'),
+        ETL_BATCH_SIZE: Joi.number().integer().positive().optional(),
+        ETL_MAX_HISTORICAL_DAYS: Joi.number().integer().positive().optional(),
       }),
       validationOptions: {
         abortEarly: true,
