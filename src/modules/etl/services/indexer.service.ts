@@ -3,7 +3,7 @@ import { TwitterScraperService } from './twitter-scraper.service';
 import { TwitterListenerService } from './twitter-listener.service';
 import { EmbeddingService } from './embedding.service';
 import { EtlConfigService } from '../config/etl.config';
-import { QdrantRepositoryService } from '../../database/qdrant/services/qdrant-repository.service';
+import { QdrantRepository } from '../../database/qdrant/services/qdrant.repository';
 import { ETLStatus, TweetProcessingStatus } from '../models/etl.enums';
 import { Tweet } from '../models/tweet.model';
 import { EmbeddingRequest } from '../models/embedding.model';
@@ -51,7 +51,7 @@ export class IndexerService {
     private readonly twitterScraper: TwitterScraperService,
     private readonly twitterListener: TwitterListenerService,
     private readonly embeddingService: EmbeddingService,
-    private readonly qdrantRepository: QdrantRepositoryService,
+    private readonly qdrantRepository: QdrantRepository,
     private readonly etlConfig: EtlConfigService,
   ) {}
 
@@ -467,6 +467,7 @@ export class IndexerService {
       const tweetVectorBatch: TweetVectorBatchItem[] = embeddedTweets.map(
         (tweet) => {
           const metadata: TweetVectorMetadata = {
+            originalTweetId: tweet.id,
             author: tweet.author,
             authorHandle: tweet.authorHandle,
             text: tweet.text,

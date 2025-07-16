@@ -174,6 +174,7 @@ export interface TweetVectorBatchItem {
  * Metadata stored with tweet vectors in Qdrant
  */
 export interface TweetVectorMetadata {
+  originalTweetId: string; // Original Twitter ID (stored in metadata)
   author: string;
   authorHandle: string;
   text: string;
