@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { AppConfigService } from '../config/app-config.service';
 import { IndexerService } from '../../../etl/services/indexer.service';
-import { QdrantRepositoryService } from '../../../database/qdrant/services/qdrant-repository.service';
+import { QdrantRepository } from '../../../database/qdrant/services/qdrant.repository';
 import {
   SchedulerStatus,
   SchedulerConfiguration,
@@ -31,7 +31,7 @@ export class SchedulerService {
   constructor(
     private readonly configService: AppConfigService,
     private readonly indexerService: IndexerService,
-    private readonly qdrantRepositoryService: QdrantRepositoryService,
+    private readonly QdrantRepository: QdrantRepository,
   ) {
     this.logger.log('SchedulerService initialized');
     this.logger.log(`ETL enabled: ${this.configService.getEtlEnabled}`);
@@ -142,7 +142,7 @@ export class SchedulerService {
       this.logger.debug('Running health check');
 
       // Check Qdrant health
-      const qdrantHealth = await this.qdrantRepositoryService.checkHealth();
+      const qdrantHealth = await this.QdrantRepository.checkHealth();
 
       if (!qdrantHealth.isHealthy) {
         this.logger.warn('Qdrant health check failed', {

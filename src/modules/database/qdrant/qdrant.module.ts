@@ -8,7 +8,7 @@ import { AppConfigModule } from '../../core/modules/config/app-config.module';
 // === Qdrant Services ===
 import { QdrantClientService } from './services/qdrant-client.service';
 import { QdrantCollectionService } from './services/qdrant-collection.service';
-import { QdrantRepositoryService } from './services/qdrant-repository.service';
+import { QdrantRepositoryService } from './services/qdrant.repository';
 
 // === Qdrant Configuration ===
 import { QdrantConfigService } from './config/qdrant.config';

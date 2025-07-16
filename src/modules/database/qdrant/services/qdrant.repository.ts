@@ -3,6 +3,7 @@ import { QdrantClientService } from './qdrant-client.service';
 import { QdrantCollectionService } from './qdrant-collection.service';
 import { QdrantConfigService } from '../config/qdrant.config';
 import { QdrantPoint, QdrantSearchResult } from '../models/qdrant.model';
+import { v5 as uuidv5 } from 'uuid';
 
 /**
  * Qdrant Repository Service
@@ -11,14 +12,23 @@ import { QdrantPoint, QdrantSearchResult } from '../models/qdrant.model';
  * Provides tweet-specific operations for the ETL pipeline
  */
 @Injectable()
-export class QdrantRepositoryService {
-  private readonly logger = new Logger(QdrantRepositoryService.name);
+export class QdrantRepository {
+  private readonly logger = new Logger(QdrantRepository.name);
+  private readonly UUID_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'; // Standard UUID namespace for tweets
 
   constructor(
     private readonly qdrantClient: QdrantClientService,
     private readonly qdrantCollection: QdrantCollectionService,
     private readonly qdrantConfig: QdrantConfigService,
   ) {}
+
+  /**
+   * Generate a UUID from a Twitter ID
+   * This ensures Qdrant compatibility while maintaining deterministic IDs
+   */
+  private generateUuidFromTwitterId(twitterId: string): string {
+    return uuidv5(twitterId, this.UUID_NAMESPACE);
+  }
 
   /**
    * Store tweet vector with metadata
@@ -40,10 +50,11 @@ export class QdrantRepositoryService {
 
       // Prepare point for insertion
       const point = {
-        id: tweetId,
+        id: this.generateUuidFromTwitterId(tweetId), // Use UUID for Qdrant compatibility
         vector: vector,
         payload: {
           ...metadata,
+          originalTweetId: tweetId, // Keep original Twitter ID in metadata
           stored_at: new Date().toISOString(),
           vector_dimensions: vector.length,
         },
@@ -108,10 +119,11 @@ export class QdrantRepositoryService {
 
       // Prepare all points
       const points = tweets.map((tweet) => ({
-        id: tweet.tweetId,
+        id: this.generateUuidFromTwitterId(tweet.tweetId), // Use UUID for Qdrant compatibility
         vector: tweet.vector,
         payload: {
           ...tweet.metadata,
+          originalTweetId: tweet.tweetId, // Keep original Twitter ID in metadata
           stored_at: new Date().toISOString(),
           vector_dimensions: tweet.vector.length,
         },
@@ -319,14 +331,15 @@ export class QdrantRepositoryService {
   }
 
   /**
-   * Get tweet by ID
+   * Get tweet by UUID (Qdrant point ID)
    */
   async getTweetById(tweetId: string): Promise<QdrantPoint | null> {
     try {
-      this.logger.debug(`Getting tweet by ID: ${tweetId}`);
+      this.logger.debug(`Getting tweet by UUID: ${tweetId}`);
 
       const collectionName = this.qdrantConfig.getCollectionName();
-      const result = await this.qdrantClient.getPoint(collectionName, tweetId);
+      const uuid = this.generateUuidFromTwitterId(tweetId);
+      const result = await this.qdrantClient.getPoint(collectionName, uuid);
 
       if (!result) {
         return null;
@@ -339,6 +352,38 @@ export class QdrantRepositoryService {
       };
     } catch (error) {
       this.logger.error(`Failed to get tweet ${tweetId}: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Get tweet by original Twitter ID
+   */
+  async getTweetByOriginalId(
+    originalTweetId: string,
+  ): Promise<QdrantPoint | null> {
+    try {
+      this.logger.debug(
+        `Getting tweet by original Twitter ID: ${originalTweetId}`,
+      );
+
+      const collectionName = this.qdrantConfig.getCollectionName();
+      const uuid = this.generateUuidFromTwitterId(originalTweetId);
+      const result = await this.qdrantClient.getPoint(collectionName, uuid);
+
+      if (!result) {
+        return null;
+      }
+
+      return {
+        id: result.id,
+        vector: result.vector,
+        payload: result.payload,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to get tweet by original ID ${originalTweetId}: ${error.message}`,
+      );
       return null;
     }
   }
@@ -378,15 +423,16 @@ export class QdrantRepositoryService {
   }
 
   /**
-   * Delete tweet vector
+   * Delete tweet vector by original Twitter ID
    */
   async deleteTweetVector(tweetId: string): Promise<boolean> {
     try {
       this.logger.debug(`Deleting tweet vector: ${tweetId}`);
 
       const collectionName = this.qdrantConfig.getCollectionName();
+      const uuid = this.generateUuidFromTwitterId(tweetId);
       const result = await this.qdrantClient.deletePoints(collectionName, [
-        tweetId,
+        uuid,
       ]);
 
       if (result) {
