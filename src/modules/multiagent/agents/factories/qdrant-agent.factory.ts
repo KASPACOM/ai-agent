@@ -3,14 +3,14 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { AgentBuilder } from '../agent-builder.service';
 import { BuiltAgent } from '../../models/agent.model';
-import { QdrantRepositoryService } from '../../../database/qdrant/services/qdrant-repository.service';
+import { QdrantRepository } from '../../../database/qdrant/services/qdrant.repository';
 
 @Injectable()
 export class QdrantAgentFactory {
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
-    private readonly qdrantRepository: QdrantRepositoryService,
+    private readonly qdrantRepository: QdrantRepository,
   ) {}
 
   createAgent(): BuiltAgent {

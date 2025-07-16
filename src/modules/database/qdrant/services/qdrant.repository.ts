@@ -563,4 +563,76 @@ export class QdrantRepository {
       };
     }
   }
+
+  /**
+   * List all Qdrant collections
+   */
+  async listCollections(): Promise<any[]> {
+    try {
+      this.logger.debug('Listing all Qdrant collections');
+      return await this.qdrantClient.getCollections();
+    } catch (error) {
+      this.logger.error(`Failed to list collections: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get information about a specific Qdrant collection
+   */
+  async getCollectionInfo(collectionName: string): Promise<any> {
+    try {
+      this.logger.debug(`Getting info for collection: ${collectionName}`);
+      return await this.qdrantClient.getCollectionInfo(collectionName);
+    } catch (error) {
+      this.logger.error(`Failed to get collection info for ${collectionName}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get statistics for a specific Qdrant collection
+   */
+  async getCollectionStats(collectionName: string): Promise<any> {
+    try {
+      this.logger.debug(`Getting stats for collection: ${collectionName}`);
+      return await this.qdrantClient.getCollectionStats(collectionName);
+    } catch (error) {
+      this.logger.error(`Failed to get collection stats for ${collectionName}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Search for similar vectors in a Qdrant collection
+   */
+  async searchVectors(collectionName: string, queryVector: number[], limit: number = 10, filters?: any): Promise<any[]> {
+    try {
+      this.logger.debug(`Searching vectors in collection: ${collectionName} (limit: ${limit})`);
+      const searchParams = {
+        vector: queryVector,
+        limit: Math.min(limit, 100),
+        with_payload: true,
+        with_vector: false,
+        filter: filters || undefined,
+      };
+      return await this.qdrantClient.searchPoints(collectionName, searchParams);
+    } catch (error) {
+      this.logger.error(`Failed to search vectors in ${collectionName}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get a vector and its metadata by ID from a Qdrant collection
+   */
+  async getVectorById(collectionName: string, id: string): Promise<any> {
+    try {
+      this.logger.debug(`Getting vector by ID: ${id} from collection: ${collectionName}`);
+      return await this.qdrantClient.getPoint(collectionName, id);
+    } catch (error) {
+      this.logger.error(`Failed to get vector by ID ${id} from ${collectionName}: ${error.message}`);
+      throw error;
+    }
+  }
 }
