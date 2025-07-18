@@ -169,9 +169,13 @@ export class IndexerService {
       for (const account of accounts) {
         this.logger.log(`Scraping historical tweets for account: ${account}`);
 
+        // Query database for the latest tweet to start from
+        const startFromDate = await this.getStartDate(account, maxDays);
+
         const accountBatch = await this.twitterScraper.scrapeHistoricalTweets(
           [account],
           maxDays,
+          startFromDate,
         );
 
         if (accountBatch.tweets.length > 0) {
@@ -232,6 +236,24 @@ export class IndexerService {
     }
   }
 
+  private async getStartDate(account: string, maxDays: number): Promise<Date> {
+    const latestTweetInDb = await this.qdrantRepository.getLatestTweetByAccount(account);
+        let startFromDate: Date | undefined;
+        
+        if (latestTweetInDb) {
+          startFromDate = new Date(latestTweetInDb.payload.createdAt);
+          this.logger.log(
+            `Found latest tweet in database for ${account}: ${latestTweetInDb.payload.originalTweetId} at ${startFromDate.toISOString()}`,
+          );
+        } else {
+          // If no tweets in database, use maxDays as fallback
+          startFromDate = new Date(Date.now() - maxDays * 24 * 60 * 60 * 1000);
+          this.logger.log(
+            `No previous tweets found in database for ${account}, starting from ${startFromDate.toISOString()}`,
+          );
+        }
+        return startFromDate;
+      }
   /**
    * Process tweets in account-based batches
    * Shared logic for both listener and scraper operations

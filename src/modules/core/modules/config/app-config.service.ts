@@ -80,6 +80,10 @@ export class AppConfigService {
     return this.configService.get('TWITTER_EMAIL');
   }
 
+  get getTwitterBearerToken(): string {
+    return this.configService.get('TWITTER_BEARER_TOKEN');
+  }
+
   get getOpenAiEmbeddingModel(): string {
     return (
       this.configService.get('OPENAI_EMBEDDING_MODEL') ||

@@ -65,6 +65,7 @@ export class TwitterScraperService {
   async scrapeHistoricalTweets(
     accounts: string[],
     maxDays: number = 30,
+    startFromDate?: Date,
   ): Promise<TweetBatch> {
     this.logger.log(
       `Starting historical scrape for ${accounts.length} accounts (max ${maxDays} days)`,
@@ -75,7 +76,7 @@ export class TwitterScraperService {
 
     const batchId = `historical_${Date.now()}`;
     const allTweets: Tweet[] = [];
-    const cutoffDate = new Date(Date.now() - maxDays * 24 * 60 * 60 * 1000);
+    const cutoffDate = startFromDate || new Date(Date.now() - maxDays * 24 * 60 * 60 * 1000);
 
     try {
       for (const account of accounts) {
@@ -85,6 +86,7 @@ export class TwitterScraperService {
           const accountTweets = await this.scrapeAccountTweets(
             account,
             maxDays,
+            startFromDate,
           );
           allTweets.push(...accountTweets);
 
@@ -143,11 +145,12 @@ export class TwitterScraperService {
   async scrapeAccountTweets(
     account: string,
     maxDays: number = 30,
+    startFromDate?: Date,
   ): Promise<Tweet[]> {
     this.logger.log(`Scraping tweets from account: ${account}`);
 
     const tweets: Tweet[] = [];
-    const cutoffDate = new Date(Date.now() - maxDays * 24 * 60 * 60 * 1000);
+    const cutoffDate = startFromDate || new Date(Date.now() - maxDays * 24 * 60 * 60 * 1000);
     const maxTweets = this.etlConfig.getBatchSize(); // Use configured batch size
 
     try {
@@ -159,7 +162,18 @@ export class TwitterScraperService {
         const tweetDate = new Date(
           scrapedTweet.timeParsed || scrapedTweet.timestamp,
         );
-        if (tweetDate < cutoffDate) {
+        
+        // If we're using startFromDate (latest tweet in DB), we want to skip tweets
+        // that are older than or equal to that date
+        if (startFromDate && tweetDate <= cutoffDate) {
+          this.logger.log(
+            `Reached latest tweet in database for ${account}, stopping scrape`,
+          );
+          break;
+        }
+        
+        // If we're using maxDays fallback, stop when we reach the cutoff date
+        if (!startFromDate && tweetDate < cutoffDate) {
           this.logger.log(
             `Reached cutoff date for ${account}, stopping scrape`,
           );

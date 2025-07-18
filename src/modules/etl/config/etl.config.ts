@@ -41,6 +41,13 @@ export class EtlConfigService {
   }
 
   /**
+   * Get Twitter API Bearer Token
+   */
+  getTwitterBearerToken(): string {
+    return this.appConfig.getTwitterBearerToken;
+  }
+
+  /**
    * Get ETL scheduling configuration
    */
   getScheduleInterval(): string {

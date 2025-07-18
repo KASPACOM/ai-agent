@@ -3,6 +3,7 @@ import { Scraper } from '@the-convocation/twitter-scraper';
 import { Tweet } from '../models/tweet.model';
 import { TweetSource, TweetProcessingStatus } from '../models/etl.enums';
 import { EtlConfigService } from '../config/etl.config';
+import { QdrantRepository } from '../../database/qdrant/services/qdrant.repository';
 
 /**
  * Twitter Listener Service
@@ -22,7 +23,10 @@ export class TwitterListenerService {
     lastPoll: null as Date | null,
   };
 
-  constructor(private readonly etlConfig: EtlConfigService) {
+  constructor(
+    private readonly etlConfig: EtlConfigService,
+    private readonly qdrantRepository: QdrantRepository,
+  ) {
     // Initialize the scraper for live monitoring
     this.scraper = new Scraper();
     this.logger.log('TwitterListenerService initialized');
@@ -124,15 +128,30 @@ export class TwitterListenerService {
 
   /**
    * Check for new tweets from a specific account
-   * Compares against last known tweet ID to detect new content
+   * Queries database for latest tweet timestamp and scrapes from there
    */
   async checkAccountForNewTweets(account: string): Promise<Tweet[]> {
     this.logger.log(`Checking account for new tweets: ${account}`);
 
     const newTweets: Tweet[] = [];
-    const lastKnownId = this.getLastTweetId(account);
 
     try {
+      // First, query the database for the latest tweet for this account
+      const latestTweetInDb = await this.qdrantRepository.getLatestTweetByAccount(account);
+      
+      let lastKnownId: string | undefined;
+      let lastKnownTimestamp: Date | undefined;
+
+      if (latestTweetInDb) {
+        lastKnownId = latestTweetInDb.payload.originalTweetId;
+        lastKnownTimestamp = new Date(latestTweetInDb.payload.createdAt);
+        this.logger.log(
+          `Found latest tweet in database for ${account}: ${lastKnownId} at ${lastKnownTimestamp.toISOString()}`,
+        );
+      } else {
+        this.logger.log(`No previous tweets found in database for ${account}`);
+      }
+
       // Get the latest tweets from the account
       const latestTweet = await this.scraper.getLatestTweet(account);
 
@@ -143,10 +162,12 @@ export class TwitterListenerService {
 
       // Check if this is a new tweet
       const latestTweetId = latestTweet.id || (latestTweet as any).id_str;
+      const latestTweetTimestamp = new Date(latestTweet.timeParsed || latestTweet.timestamp || new Date());
 
-      if (lastKnownId && latestTweetId === lastKnownId) {
+      // If we have a latest tweet in database and the current latest tweet is not newer, skip
+      if (lastKnownTimestamp && latestTweetTimestamp <= lastKnownTimestamp) {
         this.logger.log(
-          `No new tweets for ${account} (latest ID: ${latestTweetId})`,
+          `No new tweets for ${account} (latest timestamp: ${latestTweetTimestamp.toISOString()}, last known: ${lastKnownTimestamp.toISOString()})`,
         );
         return [];
       }
@@ -156,9 +177,10 @@ export class TwitterListenerService {
 
       for (const tweet of recentTweets) {
         const tweetId = tweet.id || tweet.id_str;
+        const tweetTimestamp = new Date(tweet.timeParsed || tweet.timestamp || new Date());
 
-        // Stop when we reach the last known tweet
-        if (lastKnownId && tweetId === lastKnownId) {
+        // Stop when we reach a tweet that's older than or equal to the last known timestamp
+        if (lastKnownTimestamp && tweetTimestamp <= lastKnownTimestamp) {
           break;
         }
 
@@ -167,12 +189,12 @@ export class TwitterListenerService {
         newTweets.push(transformedTweet);
       }
 
-      // Update the last known tweet ID
+      // Update the last known tweet ID in memory for fallback
       if (newTweets.length > 0) {
         const mostRecentTweet = newTweets[0];
         this.updateLastTweetId(account, mostRecentTweet.id);
         this.logger.log(
-          `Updated last tweet ID for ${account}: ${mostRecentTweet.id}`,
+          `Found ${newTweets.length} new tweets for ${account}`,
         );
       }
 

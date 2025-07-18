@@ -12,6 +12,7 @@ export enum TweetSource {
   HISTORICAL = 'historical',
   LIVE = 'live',
   MANUAL = 'manual',
+  API = 'api',
 }
 
 /**
