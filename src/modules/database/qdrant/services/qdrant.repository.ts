@@ -521,6 +521,101 @@ export class QdrantRepository {
   }
 
   /**
+   * Get latest tweet by timestamp (globally or by account)
+   */
+  async getLatestTweetByTimestamp(
+    account?: string,
+  ): Promise<QdrantSearchResult | null> {
+    try {
+      this.logger.debug(
+        `Getting latest tweet by timestamp${account ? ` for account: ${account}` : ' globally'}`,
+      );
+
+      const collectionName = this.qdrantConfig.getCollectionName();
+
+      // Build filter for account if specified
+      const filter = account
+        ? {
+            must: [
+              {
+                key: 'authorHandle',
+                match: { value: account },
+              },
+            ],
+          }
+        : undefined;
+
+      // Use zero vector for filtering-only query
+      const zeroVector = new Array(
+        this.qdrantConfig.getCollectionConfig().vectors.size,
+      ).fill(0);
+
+      const searchParams = {
+        vector: zeroVector,
+        limit: 1, // We only want the latest one
+        score_threshold: 0, // Accept all scores for filtering-only queries
+        with_payload: true,
+        with_vector: false,
+        filter: filter,
+      };
+
+      const result = await this.qdrantClient.searchPoints(
+        collectionName,
+        searchParams,
+      );
+
+      if (!result || result.length === 0) {
+        this.logger.debug(
+          `No tweets found${account ? ` for account: ${account}` : ' globally'}`,
+        );
+        return null;
+      }
+
+      // Sort by createdAt descending to get the latest
+      const sortedResults = result.sort((a: any, b: any) => {
+        const dateA = new Date(a.payload.createdAt);
+        const dateB = new Date(b.payload.createdAt);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      const latestTweet = sortedResults[0];
+
+      this.logger.debug(
+        `Found latest tweet${account ? ` for account: ${account}` : ' globally'}: ${latestTweet.payload.originalTweetId} at ${latestTweet.payload.createdAt}`,
+      );
+
+      return {
+        id: latestTweet.id,
+        version: latestTweet.version || 0,
+        score: latestTweet.score,
+        payload: latestTweet.payload,
+        vector: latestTweet.vector,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to get latest tweet${account ? ` for account: ${account}` : ' globally'}: ${error.message}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Get latest tweet by account (convenience method)
+   */
+  async getLatestTweetByAccount(
+    account: string,
+  ): Promise<QdrantSearchResult | null> {
+    return this.getLatestTweetByTimestamp(account);
+  }
+
+  /**
+   * Get latest tweet globally (convenience method)
+   */
+  async getLatestTweetGlobally(): Promise<QdrantSearchResult | null> {
+    return this.getLatestTweetByTimestamp();
+  }
+
+  /**
    * Check repository health
    */
   async checkHealth(): Promise<{

@@ -5,7 +5,7 @@ import { QdrantCollectionConfig } from '../models/qdrant.model';
 
 /**
  * Qdrant Configuration Service
- * 
+ *
  * Centralized configuration for Qdrant vector database operations
  */
 @Injectable()
@@ -89,4 +89,4 @@ export class QdrantConfigService {
       requestTimeout: 30000,
     };
   }
-} 
+}

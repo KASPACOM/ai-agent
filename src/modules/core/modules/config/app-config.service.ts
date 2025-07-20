@@ -80,6 +80,10 @@ export class AppConfigService {
     return this.configService.get('TWITTER_EMAIL');
   }
 
+  get getTwitterBearerToken(): string {
+    return this.configService.get('TWITTER_BEARER_TOKEN');
+  }
+
   get getOpenAiEmbeddingModel(): string {
     return (
       this.configService.get('OPENAI_EMBEDDING_MODEL') ||
@@ -92,6 +96,23 @@ export class AppConfigService {
       this.configService.get('OPENAI_EMBEDDING_DIMENSIONS') || '1536',
       10,
     );
+  }
+
+  // Twitter API v2 config
+  get getTwitterClientId(): string {
+    return this.configService.get('TWITTER_CLIENT_ID');
+  }
+
+  get getTwitterClientSecret(): string {
+    return this.configService.get('TWITTER_CLIENT_SECRET');
+  }
+
+  get getTwitterAccessToken(): string {
+    return this.configService.get('TWITTER_ACCESS_TOKEN');
+  }
+
+  get getTwitterAccessTokenSecret(): string {
+    return this.configService.get('TWITTER_ACCESS_TOKEN_SECRET');
   }
 
   // ETL and Cron config

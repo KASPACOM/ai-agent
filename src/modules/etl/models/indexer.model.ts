@@ -2,7 +2,7 @@ import { ETLStatus } from './etl.enums';
 
 /**
  * Indexer Result Interface
- * 
+ *
  * Standard result format for indexing operations
  */
 export interface IndexingResult {
@@ -15,7 +15,7 @@ export interface IndexingResult {
 
 /**
  * Indexing Operation Results Interface
- * 
+ *
  * Detailed results from an indexing operation
  */
 export interface IndexingOperationResults {
@@ -31,7 +31,7 @@ export interface IndexingOperationResults {
 
 /**
  * Processing Results Interface
- * 
+ *
  * Results from batch processing operations
  */
 export interface ProcessingResults {
@@ -43,7 +43,7 @@ export interface ProcessingResults {
 
 /**
  * Account Processing Result Interface
- * 
+ *
  * Results from processing a specific account's tweets
  */
 export interface AccountProcessingResult {
@@ -55,7 +55,7 @@ export interface AccountProcessingResult {
 
 /**
  * Storage Result Interface
- * 
+ *
  * Results from vector storage operations
  */
 export interface StorageResult {
@@ -65,7 +65,7 @@ export interface StorageResult {
 
 /**
  * Account Statistics Interface
- * 
+ *
  * Statistics for individual Twitter accounts
  */
 export interface AccountStatistics {
@@ -77,7 +77,7 @@ export interface AccountStatistics {
 
 /**
  * Indexing Statistics Interface
- * 
+ *
  * Comprehensive statistics for indexing operations
  */
 export interface IndexingStatistics {
@@ -94,7 +94,7 @@ export interface IndexingStatistics {
 
 /**
  * Indexing Configuration Interface
- * 
+ *
  * Configuration settings for indexing operations
  */
 export interface IndexingConfiguration {
@@ -106,7 +106,7 @@ export interface IndexingConfiguration {
 
 /**
  * Indexing Statistics Public Interface
- * 
+ *
  * Public view of indexing statistics (without sensitive data)
  */
 export interface IndexingStatisticsPublic {
@@ -122,7 +122,7 @@ export interface IndexingStatisticsPublic {
 
 /**
  * Indexing Status Interface
- * 
+ *
  * Current status of the indexing service
  */
 export interface IndexingStatus {
@@ -135,7 +135,7 @@ export interface IndexingStatus {
 
 /**
  * Health Services Interface
- * 
+ *
  * Health status of dependent services
  */
 export interface HealthServices {
@@ -147,7 +147,7 @@ export interface HealthServices {
 
 /**
  * Indexing Health Interface
- * 
+ *
  * Health status of the indexing service
  */
 export interface IndexingHealth {
@@ -159,7 +159,7 @@ export interface IndexingHealth {
 
 /**
  * Tweet Vector Batch Item Interface
- * 
+ *
  * Individual item for batch vector storage operations
  */
 export interface TweetVectorBatchItem {
@@ -170,7 +170,7 @@ export interface TweetVectorBatchItem {
 
 /**
  * Tweet Vector Metadata Interface
- * 
+ *
  * Metadata stored with tweet vectors in Qdrant
  */
 export interface TweetVectorMetadata {
@@ -189,4 +189,4 @@ export interface TweetVectorMetadata {
   mentions: string[];
   links: string[];
   source: string;
-} 
+}

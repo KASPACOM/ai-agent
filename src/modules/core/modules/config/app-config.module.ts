@@ -29,6 +29,14 @@ import { AppConfigService } from './app-config.service';
         TWITTER_USERNAME: Joi.string().optional(),
         TWITTER_PASSWORD: Joi.string().optional(),
         TWITTER_EMAIL: Joi.string().optional(),
+
+        // Twitter API v2 Configuration
+        TWITTER_CLIENT_ID: Joi.string().optional(),
+        TWITTER_CLIENT_SECRET: Joi.string().optional(),
+        TWITTER_BEARER_TOKEN: Joi.string().optional(),
+        TWITTER_ACCESS_TOKEN: Joi.string().optional(),
+        TWITTER_ACCESS_TOKEN_SECRET: Joi.string().optional(),
+
         OPENAI_EMBEDDING_MODEL: Joi.string().optional(),
         OPENAI_EMBEDDING_DIMENSIONS: Joi.number()
           .integer()

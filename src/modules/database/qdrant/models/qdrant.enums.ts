@@ -1,6 +1,6 @@
 /**
  * Qdrant Enums
- * 
+ *
  * Following DEVELOPMENT_RULES.md: Use enums for string options instead of union types
  */
 
@@ -77,4 +77,4 @@ export enum QdrantQuantization {
   SCALAR = 'scalar',
   PRODUCT = 'product',
   BINARY = 'binary',
-} 
+}

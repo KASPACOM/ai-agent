@@ -2,7 +2,7 @@ import { TweetSource, TweetProcessingStatus } from './etl.enums';
 
 /**
  * Tweet Interface
- * 
+ *
  * Represents a tweet with all metadata needed for vector storage and search
  */
 export interface Tweet {
@@ -24,7 +24,7 @@ export interface Tweet {
   source: TweetSource;
   processingStatus: TweetProcessingStatus;
   processedAt?: Date;
-  
+
   // === Embedding Data ===
   embedding?: number[];
   embeddingModel?: string;
@@ -39,11 +39,11 @@ export interface Tweet {
   mentions: string[];
   links: string[];
   language?: string;
-  
+
   // === Kaspa-specific Tags ===
   kaspaRelated: boolean;
   kaspaTopics: string[];
-  
+
   // === Error Handling ===
   errors?: TweetError[];
   retryCount?: number;
@@ -52,7 +52,7 @@ export interface Tweet {
 
 /**
  * Tweet Error Interface
- * 
+ *
  * Tracks errors that occurred during tweet processing
  */
 export interface TweetError {
@@ -64,7 +64,7 @@ export interface TweetError {
 
 /**
  * Tweet Processing Result
- * 
+ *
  * Result of processing a tweet through the ETL pipeline
  */
 export interface TweetProcessingResult {
@@ -77,7 +77,7 @@ export interface TweetProcessingResult {
 
 /**
  * Tweet Batch
- * 
+ *
  * Collection of tweets for batch processing
  */
 export interface TweetBatch {
@@ -94,7 +94,7 @@ export interface TweetBatch {
 
 /**
  * Tweet Search Filters
- * 
+ *
  * Filters for searching tweets in the vector database
  */
 export interface TweetSearchFilters {
@@ -111,11 +111,11 @@ export interface TweetSearchFilters {
 
 /**
  * Tweet Search Result
- * 
+ *
  * Result of semantic search in tweet vectors
  */
 export interface TweetSearchResult {
   tweet: Tweet;
   similarity: number;
   relevantText: string;
-} 
+}

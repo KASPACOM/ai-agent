@@ -8,20 +8,20 @@ import { AppConfigModule } from '../../core/modules/config/app-config.module';
 // === Qdrant Services ===
 import { QdrantClientService } from './services/qdrant-client.service';
 import { QdrantCollectionService } from './services/qdrant-collection.service';
-import { QdrantRepository } from './services/qdrant.repository'
+import { QdrantRepository } from './services/qdrant.repository';
 
 // === Qdrant Configuration ===
 import { QdrantConfigService } from './config/qdrant.config';
 
 /**
  * Qdrant Integration Module
- * 
+ *
  * Provides vector database integration with Qdrant:
  * - HTTP client for Qdrant API
  * - Collection management and configuration
  * - High-level repository for domain operations
  * - Vector storage, retrieval, and search
- * 
+ *
  * This module encapsulates all Qdrant-specific operations and provides
  * a clean interface for the rest of the application.
  */
@@ -53,4 +53,4 @@ import { QdrantConfigService } from './config/qdrant.config';
     QdrantRepository,
   ],
 })
-export class QdrantModule {} 
+export class QdrantModule {}

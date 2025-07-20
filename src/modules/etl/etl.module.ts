@@ -1,34 +1,54 @@
 import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 
 // === Core Configuration ===
 import { AppConfigModule } from '../core/modules/config/app-config.module';
 
 // === ETL Services ===
 import { TwitterScraperService } from './services/twitter-scraper.service';
-import { TwitterListenerService } from './services/twitter-listener.service';
+import { TwitterApiService } from './services/twitter-api.service';
 import { EmbeddingService } from './services/embedding.service';
-import { IndexerService } from './services/indexer.service';
+import { BaseIndexerService } from './services/base-indexer.service';
+import { TwitterIndexerService } from './services/twitter-indexer.service';
+import { TelegramIndexerService } from './services/telegram-indexer.service';
+import { IndexerProviderService } from './providers/indexer.provider';
+import { EtlSchedulerService } from './services/etl-scheduler.service';
+
+// === Controllers ===
+import { IndexerSchedulerController } from './controllers/indexer-scheduler.controller';
 
 // === ETL Configuration ===
 import { EtlConfigService } from './config/etl.config';
 
 // === Transformers ===
 import { TweetTransformer } from './transformers/tweet.transformer';
+import { BaseMessageTransformer } from './transformers/base-message.transformer';
+import { TwitterMessageTransformer } from './transformers/twitter-message.transformer';
+import { TelegramMessageTransformer } from './transformers/telegram-message.transformer';
 
 // === Database Integration ===
 import { DatabaseModule } from '../database/database.module';
 
 /**
  * ETL Module
- * 
+ *
  * Handles all Extract, Transform, Load operations for Kaspa ecosystem data:
- * - Twitter data extraction (historical + live)
+ * - Twitter data extraction via API (historical + incremental)
+ * - Telegram data extraction (planned implementation)
  * - Text embedding generation via OpenAI
  * - Data transformation and normalization
- * - Indexing coordination with separate scraper and listener processes
- * 
+ * - Unified indexing architecture with base indexer and specialized services
+ * - Scheduled indexing operations via controller
+ *
+ * Architecture:
+ * - BaseIndexerService: Abstract base with common Qdrant operations
+ * - TwitterIndexerService: Twitter-specific indexing logic
+ * - TelegramIndexerService: Telegram-specific indexing logic (stub)
+ * - IndexerProviderService: Coordinates all indexing operations
+ * - IndexerSchedulerController: Handles scheduling and manual triggers
+ *
  * This module is separate from integrations to maintain clear separation
  * between data processing logic and integration concerns.
  */
@@ -41,6 +61,7 @@ import { DatabaseModule } from '../database/database.module';
     ConfigModule,
     AppConfigModule,
     DatabaseModule, // For vector storage integration
+    ScheduleModule.forRoot(), // Enable cron job scheduling
   ],
   providers: [
     // === Configuration ===
@@ -48,25 +69,37 @@ import { DatabaseModule } from '../database/database.module';
 
     // === Core ETL Services ===
     TwitterScraperService,
-    TwitterListenerService,
+    TwitterApiService,
     EmbeddingService,
-    IndexerService,
+    TwitterIndexerService,
+    TelegramIndexerService,
+    IndexerProviderService,
+    EtlSchedulerService,
 
     // === Transformers ===
     TweetTransformer,
+    BaseMessageTransformer,
+    TwitterMessageTransformer,
+    TelegramMessageTransformer,
   ],
+  controllers: [IndexerSchedulerController],
   exports: [
     // === Configuration ===
     EtlConfigService,
 
     // === Core ETL Services ===
     TwitterScraperService,
-    TwitterListenerService,
+    TwitterApiService,
     EmbeddingService,
-    IndexerService,
+    TwitterIndexerService,
+    TelegramIndexerService,
+    IndexerProviderService,
 
     // === Transformers ===
     TweetTransformer,
+    BaseMessageTransformer,
+    TwitterMessageTransformer,
+    TelegramMessageTransformer,
   ],
 })
-export class EtlModule {} 
+export class EtlModule {}
