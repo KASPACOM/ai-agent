@@ -9,6 +9,8 @@ import { AppConfigModule } from '../core/modules/config/app-config.module';
 // === ETL Services ===
 import { TwitterScraperService } from './services/twitter-scraper.service';
 import { TwitterApiService } from './services/twitter-api.service';
+import { TelegramApiService } from './services/telegram-api.service';
+import { TelegramMTProtoService } from './services/telegram-mtproto.service';
 import { EmbeddingService } from './services/embedding.service';
 import { BaseIndexerService } from './services/base-indexer.service';
 import { TwitterIndexerService } from './services/twitter-indexer.service';
@@ -70,6 +72,8 @@ import { DatabaseModule } from '../database/database.module';
     // === Core ETL Services ===
     TwitterScraperService,
     TwitterApiService,
+    TelegramApiService,
+    TelegramMTProtoService,
     EmbeddingService,
     TwitterIndexerService,
     TelegramIndexerService,

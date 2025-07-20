@@ -134,4 +134,26 @@ export class AppConfigService {
       10,
     );
   }
+
+  // Additional Telegram Bot API config
+  get getTelegramApiId(): string {
+    return this.configService.get('TELEGRAM_API_ID');
+  }
+
+  get getTelegramApiHash(): string {
+    return this.configService.get('TELEGRAM_API_HASH');
+  }
+
+  get getTelegramChannelsConfig(): any[] {
+    const channels = this.configService.get('TELEGRAM_CHANNELS_CONFIG');
+    if (!channels) return [];
+    
+    try {
+      return JSON.parse(channels);
+    } catch (error) {
+      throw new Error(
+        `Failed to parse TELEGRAM_CHANNELS_CONFIG: ${error.message}. Expected valid JSON array format.`,
+      );
+    }
+  }
 }

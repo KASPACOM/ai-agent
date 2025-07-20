@@ -176,8 +176,10 @@ export class IndexerSchedulerController {
   @Get('scheduler/status')
   getSchedulerStatus(): {
     hasRunOnce: boolean;
-    isRunning: boolean;
-    nextRun: string;
+    isTwitterRunning: boolean;
+    isTelegramRunning: boolean;
+    twitterSchedule: string;
+    telegramSchedule: string;
   } {
     return this.etlScheduler.getStatus();
   }

@@ -218,4 +218,45 @@ export class EtlConfigService {
       spamKeywords: ['spam', 'scam', 'fake', 'phishing'],
     };
   }
+
+  /**
+   * Get Telegram Bot Token
+   */
+  getTelegramBotToken(): string {
+    return this.appConfig.getTelegramBotToken;
+  }
+
+  /**
+   * Get Telegram API ID
+   */
+  getTelegramApiId(): string {
+    return this.appConfig.getTelegramApiId;
+  }
+
+  /**
+   * Get Telegram API Hash
+   */
+  getTelegramApiHash(): string {
+    return this.appConfig.getTelegramApiHash;
+  }
+
+  /**
+   * Get Telegram channels configuration
+   */
+  getTelegramChannelsConfig(): any[] {
+    return this.appConfig.getTelegramChannelsConfig;
+  }
+
+  /**
+   * Get specific channel by username or id
+   */
+  getTelegramChannel(identifier: string | number): any | null {
+    const channels = this.getTelegramChannelsConfig();
+    return channels.find(
+      channel => 
+        channel.username === identifier || 
+        channel.id === identifier ||
+        channel.id === parseInt(String(identifier))
+    ) || null;
+  }
 }

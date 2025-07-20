@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { IndexerProviderService } from '../providers/indexer.provider';
 import { EtlConfigService } from '../config/etl.config';
 
@@ -13,7 +13,8 @@ import { EtlConfigService } from '../config/etl.config';
 export class EtlSchedulerService {
   private readonly logger = new Logger(EtlSchedulerService.name);
   private hasRunOnce = false;
-  private isRunning = false;
+  private isTwitterRunning = false;
+  private isTelegramRunning = false;
 
   constructor(
     private readonly indexerProvider: IndexerProviderService,
@@ -23,58 +24,86 @@ export class EtlSchedulerService {
   }
 
   /**
-   * Scheduled indexer execution
-   * Currently runs once per minute but stops after first successful run
-   * TODO: Modify cron expression and remove hasRunOnce logic for recurring schedules
+   * Scheduled Twitter indexer execution
+   * Runs every 15 minutes to align with Twitter API rate limit reset window
+   * Handles stateful processing with request limit management
    */
-  @Cron(CronExpression.EVERY_MINUTE, {
-    name: 'etl-indexer',
+  @Cron('0 */15 * * * *', {
+    name: 'twitter-indexer',
     timeZone: 'UTC',
   })
-  async runScheduledIndexing(): Promise<void> {
-    // Only run once for now
-    if (this.hasRunOnce) {
+  async runScheduledTwitterIndexing(): Promise<void> {
+    if (this.isTwitterRunning) {
+      this.logger.warn(
+        'Twitter indexing already in progress, skipping this run',
+      );
       return;
     }
 
-    if (this.isRunning) {
-      this.logger.warn('ETL indexing already in progress, skipping this run');
-      return;
-    }
-
-    this.logger.log('Starting scheduled ETL indexing run');
-    this.isRunning = true;
-    this.hasRunOnce = true;
+    this.logger.log('Starting scheduled Twitter indexing run (15min cycle)');
+    this.isTwitterRunning = true;
 
     try {
-      // Run all indexers
-      const results = await this.indexerProvider.runAllIndexers();
+      // Run Twitter indexer with rate limit aware processing
+      const result = await this.indexerProvider.runTwitterIndexer();
 
-      this.logger.log('Scheduled ETL indexing completed successfully', {
-        twitter: {
-          success: results.twitter.success,
-          processed: results.twitter.processed,
-          stored: results.twitter.stored,
-          errors: results.twitter.errors.length,
-        },
-        telegram: {
-          success: results.telegram.success,
-          processed: results.telegram.processed,
-          stored: results.telegram.stored,
-          errors: results.telegram.errors.length,
-        },
-        totalProcessed: results.twitter.processed + results.telegram.processed,
-        totalStored: results.twitter.stored + results.telegram.stored,
-        totalErrors:
-          results.twitter.errors.length + results.telegram.errors.length,
+      this.logger.log('Scheduled Twitter indexing completed', {
+        success: result.success,
+        processed: result.processed,
+        stored: result.stored,
+        errors: result.errors.length,
+        rateLimited: result.rateLimited,
+        nextRunWillContinue: result.hasMoreData,
       });
     } catch (error) {
-      this.logger.error('Scheduled ETL indexing failed', {
+      this.logger.error('Scheduled Twitter indexing failed', {
         error: error.message,
         stack: error.stack,
       });
     } finally {
-      this.isRunning = false;
+      this.isTwitterRunning = false;
+    }
+  }
+
+  /**
+   * Scheduled Telegram indexer execution
+   * Runs every minute for testing (change to hourly later)
+   * Processes all configured Telegram channels and forum topics
+   */
+  @Cron('0 * * * * *', {
+    name: 'telegram-indexer',
+    timeZone: 'UTC',
+  })
+  async runScheduledTelegramIndexing(): Promise<void> {
+    if (this.isTelegramRunning) {
+      this.logger.warn(
+        'Telegram indexing already in progress, skipping this run',
+      );
+      return;
+    }
+
+    this.logger.log(
+      'Starting scheduled Telegram indexing run (1min cycle - testing)',
+    );
+    this.isTelegramRunning = true;
+
+    try {
+      // Run Telegram indexer
+      const result = await this.indexerProvider.runTelegramIndexer();
+
+      this.logger.log('Scheduled Telegram indexing completed', {
+        success: result.success,
+        processed: result.processed,
+        stored: result.stored,
+        errors: result.errors.length,
+      });
+    } catch (error) {
+      this.logger.error('Scheduled Telegram indexing failed', {
+        error: error.message,
+        stack: error.stack,
+      });
+    } finally {
+      this.isTelegramRunning = false;
     }
   }
 
@@ -97,10 +126,10 @@ export class EtlSchedulerService {
   }
 
   /**
-   * Check if scheduler is currently running
+   * Check if any scheduler is currently running
    */
   public isCurrentlyRunning(): boolean {
-    return this.isRunning;
+    return this.isTwitterRunning || this.isTelegramRunning;
   }
 
   /**
@@ -108,13 +137,17 @@ export class EtlSchedulerService {
    */
   public getStatus(): {
     hasRunOnce: boolean;
-    isRunning: boolean;
-    nextRun: string;
+    isTwitterRunning: boolean;
+    isTelegramRunning: boolean;
+    twitterSchedule: string;
+    telegramSchedule: string;
   } {
     return {
       hasRunOnce: this.hasRunOnce,
-      isRunning: this.isRunning,
-      nextRun: this.hasRunOnce ? 'Completed (run-once mode)' : 'Next minute',
+      isTwitterRunning: this.isTwitterRunning,
+      isTelegramRunning: this.isTelegramRunning,
+      twitterSchedule: 'Every 15 minutes',
+      telegramSchedule: 'Every minute (testing)',
     };
   }
 }

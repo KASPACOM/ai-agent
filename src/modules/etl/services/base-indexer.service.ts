@@ -76,9 +76,18 @@ export abstract class BaseIndexerService {
   protected abstract transformMessageForStorage(message: BaseMessage): any;
 
   /**
-   * Run the indexing process
+   * Main indexer entry point
+   * Each service implements its own account/channel processing logic
    */
-  async runIndexer(): Promise<IndexingResult> {
+  abstract runIndexer(): Promise<IndexingResult>;
+
+  /**
+   * Common indexer execution pattern
+   * Used by implementations to handle timing, logging, and error handling
+   */
+  protected async executeIndexingProcess(
+    processFunction: () => Promise<MessageProcessingResult>,
+  ): Promise<IndexingResult> {
     if (this.isRunning) {
       this.logger.warn(`${this.serviceName} indexer is already running`);
       return this.createFailureResult(
@@ -95,7 +104,7 @@ export abstract class BaseIndexerService {
     try {
       this.logger.log(`Starting ${this.serviceName} indexing process`);
 
-      const result = await this.processAllAccounts();
+      const result = await processFunction();
       const endTime = Date.now();
       const processingTime = endTime - startTime;
 
@@ -112,75 +121,29 @@ export abstract class BaseIndexerService {
       const endTime = Date.now();
       const processingTime = endTime - startTime;
 
-      this.updateStatistics(
-        {
-          success: false,
-          processed: 0,
-          embedded: 0,
-          stored: 0,
-          errors: [error.message],
-          messages: [],
-        },
-        processingTime,
-        false,
-      );
+      const failureResult = {
+        success: false,
+        processed: 0,
+        embedded: 0,
+        stored: 0,
+        errors: [error.message],
+        messages: [],
+      };
 
+      this.updateStatistics(failureResult, processingTime, false);
       return this.createFailureResult(error.message, startTime, endTime);
     } finally {
       this.isRunning = false;
     }
   }
 
-  /**
-   * Process all accounts configured for this service
-   */
-  private async processAllAccounts(): Promise<MessageProcessingResult> {
-    const allErrors: string[] = [];
-    let totalProcessed = 0;
-    let totalEmbedded = 0;
-    let totalStored = 0;
-    const allMessages: BaseMessage[] = [];
 
-    this.logger.log(`Processing ${this.config.accounts.length} accounts`);
-
-    for (const account of this.config.accounts) {
-      try {
-        this.logger.log(`Processing account: ${account}`);
-        const result = await this.processAccount(account);
-
-        totalProcessed += result.processed;
-        totalEmbedded += result.embedded;
-        totalStored += result.stored;
-        allMessages.push(...result.messages);
-
-        if (result.errors.length > 0) {
-          allErrors.push(...result.errors);
-        }
-
-        this.logger.log(
-          `Completed processing account ${account}: ${result.processed} processed`,
-        );
-      } catch (error) {
-        const errorMsg = `Failed to process account ${account}: ${error.message}`;
-        this.logger.error(errorMsg);
-        allErrors.push(errorMsg);
-      }
-    }
-
-    return {
-      success: allErrors.length === 0,
-      processed: totalProcessed,
-      embedded: totalEmbedded,
-      stored: totalStored,
-      errors: allErrors,
-      messages: allMessages,
-    };
-  }
 
   /**
-   * Process a single account
+   * Process a single account/channel/entity
+   * Used by specific implementations for processing individual items
    */
-  private async processAccount(
+  protected async processAccount(
     account: string,
   ): Promise<MessageProcessingResult> {
     const errors: string[] = [];
@@ -237,7 +200,7 @@ export abstract class BaseIndexerService {
   ): Promise<Date | undefined> {
     try {
       const latestMessage =
-        await this.qdrantRepository.getLatestTweetByAccount(account);
+        await this.qdrantRepository.getLatestTweetByAccount(account, this.config.collectionName);
 
       if (latestMessage) {
         const date = new Date(latestMessage.payload.createdAt);
@@ -405,7 +368,7 @@ export abstract class BaseIndexerService {
       });
 
       const result =
-        await this.qdrantRepository.storeTweetVectorsBatch(vectorBatch);
+        await this.qdrantRepository.storeTweetVectorsBatch(vectorBatch, this.config.collectionName);
 
       return {
         stored: result.stored,

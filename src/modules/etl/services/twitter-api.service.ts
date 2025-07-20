@@ -36,6 +36,13 @@ export class TwitterApiService {
   }
 
   /**
+   * Utility method to add delays between requests
+   */
+  private async delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
    * Initialize Twitter API client with authentication
    */
   private initializeTwitterClient(): TwitterApiReadOnly {
@@ -65,15 +72,14 @@ export class TwitterApiService {
 
   /**
    * Fetch tweets from specified accounts using Twitter API
+   * Uses the new ETL strategy: query down to latest indexed date
    */
   async fetchTweetsFromAccounts(
     accounts: string[],
-    maxResults: number = 100,
-    startTime?: Date,
-    endTime?: Date,
+    getLatestIndexedDateForAccount?: (username: string) => Promise<Date | undefined>,
   ): Promise<TweetBatch> {
     this.logger.log(
-      `Fetching tweets from ${accounts.length} accounts via Twitter API`,
+      `Fetching new tweets from ${accounts.length} accounts via Twitter API`,
     );
 
     this.apiStats.isRunning = true;
@@ -84,19 +90,22 @@ export class TwitterApiService {
 
     try {
       for (const account of accounts) {
-        this.logger.log(`Fetching tweets from account: ${account}`);
+        this.logger.log(`Fetching new tweets from account: ${account}`);
 
         try {
+          // Get the latest indexed date for this account if function provided
+          const latestIndexedDate = getLatestIndexedDateForAccount 
+            ? await getLatestIndexedDateForAccount(account)
+            : undefined;
+
           const accountTweets = await this.fetchAccountTweets(
             account,
-            maxResults,
-            startTime,
-            endTime,
+            latestIndexedDate,
           );
           allTweets.push(...accountTweets);
 
           this.logger.log(
-            `Successfully fetched ${accountTweets.length} tweets from ${account}`,
+            `Successfully fetched ${accountTweets.length} new tweets from ${account}`,
           );
         } catch (error) {
           const errorMsg = `Failed to fetch tweets from account ${account}: ${error.message}`;
@@ -141,98 +150,114 @@ export class TwitterApiService {
 
   /**
    * Fetch tweets from a specific account using Twitter API
+   * Queries newest first and stops when hitting already-indexed tweets
    */
   async fetchAccountTweets(
     username: string,
-    maxResults: number = 100,
-    startTime?: Date,
-    endTime?: Date,
+    latestIndexedDate?: Date, // Latest tweet we already have in DB
   ): Promise<Tweet[]> {
-    this.logger.log(`Fetching tweets from account: ${username}`);
+    this.logger.log(`Fetching new tweets from account: ${username}${latestIndexedDate ? ` since ${latestIndexedDate.toISOString()}` : ' (all tweets)'}`);
 
-    const tweets: Tweet[] = [];
+    const allNewTweets: Tweet[] = [];
+    let paginationToken: string | undefined = undefined;
+    let shouldContinue = true;
 
     try {
       // Get user by username first
       const user = await this.getUserByUsername(username);
-      if (!user) {
-        throw new Error(`User not found: ${username}`);
-      }
 
-      // Prepare timeline options
-      const timelineOptions: any = {
-        max_results: Math.min(maxResults, 100), // API limit is 100 per request
-        'tweet.fields': [
-          'id',
-          'text',
-          'author_id',
-          'created_at',
-          'public_metrics',
-          'lang',
-          'context_annotations',
-          'entities',
-          'referenced_tweets',
-        ],
-        'user.fields': ['id', 'name', 'username', 'verified'],
-        expansions: ['author_id', 'referenced_tweets.id'],
-      };
+                           while (shouldContinue) {
+         try {
+           // Add delay between requests to respect rate limits (Basic: 10 req/15min = ~90s between requests)
+           await this.delay(2000); // 2 second delay between requests
+           
+           // Query with max batch size of 100 (Twitter API limit)
+           const timeline = await this.twitterClient.v2.userTimeline(user.id, {
+             max_results: 100,
+             'tweet.fields': ['created_at', 'public_metrics', 'context_annotations', 'entities'],
+             pagination_token: paginationToken,
+           });
 
-      // Add time filters if provided
-      if (startTime) {
-        timelineOptions.start_time = startTime.toISOString();
-      }
-      if (endTime) {
-        timelineOptions.end_time = endTime.toISOString();
-      }
+           // Handle the response properly - it's timeline.data.data and timeline.data.meta!
+           const resultCount = timeline.data?.meta?.result_count || 0;
+           const tweetsData = timeline.data?.data || [];
 
-      // Fetch user timeline
-      this.apiStats.apiCalls++;
-      const timeline = await this.twitterClient.v2.userTimeline(
-        user.id,
-        timelineOptions,
-      );
+           this.logger.debug(`Retrieved ${resultCount} tweets, tweets array length: ${tweetsData.length} for ${username}`);
 
-      // Process tweets  
-      const timelineData = Array.isArray(timeline.data) ? timeline.data : [];
-      for (const tweet of timelineData) {
-        const transformedTweet = TwitterTransformer.transformApiTweet(
-          tweet,
-          user,
-        );
-        tweets.push(transformedTweet);
-      }
+           if (resultCount === 0 || tweetsData.length === 0) {
+             this.logger.debug(`No more tweets found for ${username}. Result count: ${resultCount}, array length: ${tweetsData.length}`);
+             break;
+           }
 
-      this.logger.log(`Fetched ${tweets.length} tweets from ${username}`);
-      return tweets;
+           // Process tweets from this batch
+           for (const tweet of tweetsData) {
+             const tweetDate = new Date(tweet.created_at);
+             
+             // If we hit a tweet older than our latest indexed date, stop processing
+             if (latestIndexedDate && tweetDate <= latestIndexedDate) {
+               this.logger.log(`Reached already indexed tweets for ${username}. Stopping at tweet from ${tweetDate.toISOString()}`);
+               shouldContinue = false;
+               break;
+             }
+
+             // Process this new tweet using the transformer
+             const transformedTweet = TwitterTransformer.transformApiTweet(tweet, user);
+             allNewTweets.push(transformedTweet);
+           }
+
+           // Check if we should continue paginating
+           if (shouldContinue && timeline.data?.meta?.next_token) {
+             paginationToken = timeline.data.meta.next_token;
+             this.logger.debug(`Continuing pagination for ${username}. Total new tweets so far: ${allNewTweets.length}`);
+           } else {
+             shouldContinue = false;
+           }
+
+         } catch (error) {
+           // Handle rate limiting errors
+           if (error.code === 429 || error.status === 429) {
+             const resetTime = error.rateLimit?.reset || Date.now() + (15 * 60 * 1000); // Default to 15 min
+             const waitTime = Math.max(resetTime * 1000 - Date.now(), 60000); // Wait at least 1 minute
+             
+             this.logger.warn(`Rate limit exceeded for ${username}. Waiting ${Math.round(waitTime / 1000)} seconds before retry...`);
+             await this.delay(waitTime);
+             
+             // Continue the loop to retry
+             continue;
+           } else {
+             this.logger.error(`Error fetching tweets for ${username}:`, error);
+             throw error;
+           }
+         }
+       }
+
+      // Since Twitter API returns newest first, our array is already in correct order (newest to oldest)
+      this.logger.log(`Successfully fetched ${allNewTweets.length} new tweets from ${username}`);
+      return allNewTweets;
+
     } catch (error) {
-      // Handle rate limiting
-      if (error.code === 429) {
-        this.apiStats.rateLimitHits++;
-        this.logger.warn(
-          `Rate limit hit for ${username}. Waiting before retry...`,
-        );
-        await this.handleRateLimit(error);
-        throw error;
-      }
-
-      this.logger.error(
-        `Failed to fetch tweets from ${username}: ${error.message}`,
-      );
-      throw error;
+      this.logger.error(`Error fetching tweets from ${username}:`, error);
+      throw new Error(`Failed to fetch tweets for ${username}: ${error.message}`);
     }
   }
 
   /**
    * Get user information by username
    */
-  async getUserByUsername(username: string): Promise<UserV2 | null> {
+  async getUserByUsername(username: string): Promise<UserV2> {
     try {
       this.apiStats.apiCalls++;
       const user = await this.twitterClient.v2.userByUsername(username);
-      return user.data || null;
+      
+      if (!user.data) {
+        throw new Error(`User not found: ${username}`);
+      }
+      
+      return user.data;
     } catch (error) {
       this.logger.error(`Failed to get user ${username}: ${error.message}`);
-      return null;
+      this.apiStats.errors.push(`User lookup failed: ${error.message}`);
+      throw error; // ✅ Properly propagate error instead of returning null
     }
   }
 

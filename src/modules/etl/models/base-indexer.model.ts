@@ -26,6 +26,11 @@ export interface IndexingResult {
   processingTime: number;
   startTime: Date;
   endTime: Date;
+  // Rate limiting specific fields for Twitter API
+  rateLimited?: boolean;
+  hasMoreData?: boolean;
+  requestsUsed?: number;
+  nextContinuationPoint?: string; // For stateful resume
 }
 
 /**
@@ -84,6 +89,10 @@ export interface MessageProcessingResult {
   stored: number;
   errors: string[];
   messages: any[];
+  // Rate limiting specific fields
+  rateLimited?: boolean;
+  hasMoreData?: boolean;
+  requestsUsed?: number;
 }
 
 /**

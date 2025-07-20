@@ -37,11 +37,12 @@ export class QdrantRepository {
     tweetId: string,
     vector: number[],
     metadata: any,
+    collectionName?: string,
   ): Promise<boolean> {
     try {
-      this.logger.debug(`Storing tweet vector: ${tweetId}`);
+      this.logger.debug(`Storing tweet vector: ${tweetId} in collection: ${collectionName || 'default'}`);
 
-      const collectionName = this.qdrantConfig.getCollectionName();
+      const targetCollection = collectionName || this.qdrantConfig.getCollectionName();
 
       // Ensure collection exists before storing
       if (!this.qdrantCollection.isCollectionInitialized()) {
@@ -61,7 +62,7 @@ export class QdrantRepository {
       };
 
       // Store the vector
-      const result = await this.qdrantClient.upsertPoints(collectionName, [
+      const result = await this.qdrantClient.upsertPoints(targetCollection, [
         point,
       ]);
 
@@ -88,6 +89,7 @@ export class QdrantRepository {
       vector: number[];
       metadata: any;
     }>,
+    collectionName?: string,
   ): Promise<{
     success: boolean;
     stored: number;
@@ -108,9 +110,8 @@ export class QdrantRepository {
     }
 
     try {
-      this.logger.log(`Storing ${tweets.length} tweet vectors in batch`);
-
-      const collectionName = this.qdrantConfig.getCollectionName();
+      const targetCollection = collectionName || this.qdrantConfig.getCollectionName();
+      this.logger.log(`Storing ${tweets.length} tweet vectors in batch to collection: ${targetCollection}`);
 
       // Ensure collection exists
       if (!this.qdrantCollection.isCollectionInitialized()) {
@@ -131,7 +132,7 @@ export class QdrantRepository {
 
       // Store all vectors in batch
       const batchResult = await this.qdrantClient.upsertPoints(
-        collectionName,
+        targetCollection,
         points,
       );
 
@@ -525,13 +526,13 @@ export class QdrantRepository {
    */
   async getLatestTweetByTimestamp(
     account?: string,
+    collectionName?: string,
   ): Promise<QdrantSearchResult | null> {
     try {
+      const targetCollection = collectionName || this.qdrantConfig.getCollectionName();
       this.logger.debug(
-        `Getting latest tweet by timestamp${account ? ` for account: ${account}` : ' globally'}`,
+        `Getting latest tweet by timestamp${account ? ` for account: ${account}` : ' globally'} in collection: ${targetCollection}`,
       );
-
-      const collectionName = this.qdrantConfig.getCollectionName();
 
       // Build filter for account if specified
       const filter = account
@@ -560,7 +561,7 @@ export class QdrantRepository {
       };
 
       const result = await this.qdrantClient.searchPoints(
-        collectionName,
+        targetCollection,
         searchParams,
       );
 
@@ -604,15 +605,156 @@ export class QdrantRepository {
    */
   async getLatestTweetByAccount(
     account: string,
+    collectionName?: string,
   ): Promise<QdrantSearchResult | null> {
-    return this.getLatestTweetByTimestamp(account);
+    return this.getLatestTweetByTimestamp(account, collectionName);
   }
 
   /**
    * Get latest tweet globally (convenience method)
    */
-  async getLatestTweetGlobally(): Promise<QdrantSearchResult | null> {
-    return this.getLatestTweetByTimestamp();
+  async getLatestTweetGlobally(collectionName?: string): Promise<QdrantSearchResult | null> {
+    return this.getLatestTweetByTimestamp(undefined, collectionName);
+  }
+
+  /**
+   * Get the earliest tweet date for a specific account
+   * Used for historical backfill boundary detection
+   */
+  async getEarliestTweetByAccount(
+    account: string,
+  ): Promise<QdrantSearchResult | null> {
+    try {
+      this.logger.debug(`Getting earliest tweet for account: ${account}`);
+      
+      const collectionName = this.qdrantConfig.getCollectionName();
+      
+      const searchParams = {
+        vector: new Array(
+          this.qdrantConfig.getCollectionConfig().vectors.size,
+        ).fill(0),
+        filter: {
+          must: [
+            {
+              key: 'author',
+              match: { value: account },
+            },
+          ],
+        },
+        limit: 1,
+        with_payload: true,
+        with_vector: false,
+        // Sort by created_at ascending to get earliest
+        params: {
+          exact: false,
+        },
+      };
+
+      // Search and manually sort by created_at since Qdrant doesn't have native sorting
+      const largerResult = await this.qdrantClient.searchPoints(
+        collectionName,
+        {
+          ...searchParams,
+          limit: 100, // Get more results to sort manually
+        },
+      );
+
+      if (!largerResult || largerResult.length === 0) {
+        this.logger.debug(`No tweets found for account: ${account}`);
+        return null;
+      }
+
+      // Sort by created_at ascending and take the first (earliest)
+      const sortedResults = largerResult.sort((a, b) => {
+        const dateA = new Date(a.payload?.created_at as string).getTime();
+        const dateB = new Date(b.payload?.created_at as string).getTime();
+        return dateA - dateB;
+      });
+
+      const earliestTweet = sortedResults[0];
+      this.logger.debug(
+        `Found earliest tweet for ${account}: ${earliestTweet.payload?.created_at}`,
+      );
+
+      return {
+        id: earliestTweet.id as string,
+        version: earliestTweet.version || 0,
+        score: earliestTweet.score || 0,
+        payload: earliestTweet.payload || {},
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to get earliest tweet for account ${account}: ${error.message}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Get tweet date boundaries (earliest and latest) for an account
+   * Returns both in one query for efficiency
+   */
+  async getTweetBoundariesForAccount(account: string, collectionName?: string): Promise<{
+    earliest: Date | null;
+    latest: Date | null;
+    hasData: boolean;
+  }> {
+    try {
+      const targetCollection = collectionName || this.qdrantConfig.getCollectionName();
+      this.logger.debug(`Getting tweet boundaries for account: ${account} in collection: ${targetCollection}`);
+      
+      const searchParams = {
+        vector: new Array(
+          this.qdrantConfig.getCollectionConfig().vectors.size,
+        ).fill(0),
+        filter: {
+          must: [
+            {
+              key: 'author',
+              match: { value: account },
+            },
+          ],
+        },
+        limit: 1000, // Get enough results to find true boundaries
+        with_payload: true,
+        with_vector: false,
+        params: {
+          exact: false,
+        },
+      };
+
+      const results = await this.qdrantClient.searchPoints(targetCollection, searchParams);
+
+      if (!results || results.length === 0) {
+        this.logger.debug(`No tweets found for account: ${account}`);
+        return { earliest: null, latest: null, hasData: false };
+      }
+
+      // Extract all created_at dates and find min/max
+      const dates = results
+        .map(r => r.payload?.created_at as string)
+        .filter(Boolean)
+        .map(dateStr => new Date(dateStr))
+        .sort((a, b) => a.getTime() - b.getTime());
+
+      const earliest = dates[0] || null;
+      const latest = dates[dates.length - 1] || null;
+
+      this.logger.debug(
+        `Found boundaries for ${account}: earliest=${earliest?.toISOString()}, latest=${latest?.toISOString()}, count=${results.length}`,
+      );
+
+      return {
+        earliest,
+        latest,
+        hasData: results.length > 0,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to get tweet boundaries for account ${account}: ${error.message}`,
+      );
+      return { earliest: null, latest: null, hasData: false };
+    }
   }
 
   /**

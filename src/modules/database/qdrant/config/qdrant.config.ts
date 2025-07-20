@@ -27,18 +27,20 @@ export class QdrantConfigService {
   }
 
   /**
-   * Get collection name for tweets
+   * Get default collection name for tweets (backwards compatibility)
    */
   getCollectionName(): string {
     return this.appConfig.getQdrantCollectionName;
   }
 
   /**
-   * Get collection configuration for tweet vectors
+   * Get collection configuration for any collection
    */
-  getCollectionConfig(): QdrantCollectionConfig {
+  getCollectionConfig(collectionName?: string): QdrantCollectionConfig {
+    const name = collectionName || this.getCollectionName();
+
     return {
-      name: this.getCollectionName(),
+      name: name,
       vectors: {
         size: this.appConfig.getOpenAiEmbeddingDimensions,
         distance: QdrantDistance.COSINE,
