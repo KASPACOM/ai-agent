@@ -76,7 +76,8 @@ export class TwitterScraperService {
 
     const batchId = `historical_${Date.now()}`;
     const allTweets: Tweet[] = [];
-    const cutoffDate = startFromDate || new Date(Date.now() - maxDays * 24 * 60 * 60 * 1000);
+    const cutoffDate =
+      startFromDate || new Date(Date.now() - maxDays * 24 * 60 * 60 * 1000);
 
     try {
       for (const account of accounts) {
@@ -150,7 +151,8 @@ export class TwitterScraperService {
     this.logger.log(`Scraping tweets from account: ${account}`);
 
     const tweets: Tweet[] = [];
-    const cutoffDate = startFromDate || new Date(Date.now() - maxDays * 24 * 60 * 60 * 1000);
+    const cutoffDate =
+      startFromDate || new Date(Date.now() - maxDays * 24 * 60 * 60 * 1000);
     const maxTweets = this.etlConfig.getBatchSize(); // Use configured batch size
 
     try {
@@ -162,7 +164,7 @@ export class TwitterScraperService {
         const tweetDate = new Date(
           scrapedTweet.timeParsed || scrapedTweet.timestamp,
         );
-        
+
         // If we're using startFromDate (latest tweet in DB), we want to skip tweets
         // that are older than or equal to that date
         if (startFromDate && tweetDate <= cutoffDate) {
@@ -171,7 +173,7 @@ export class TwitterScraperService {
           );
           break;
         }
-        
+
         // If we're using maxDays fallback, stop when we reach the cutoff date
         if (!startFromDate && tweetDate < cutoffDate) {
           this.logger.log(

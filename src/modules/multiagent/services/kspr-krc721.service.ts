@@ -89,7 +89,9 @@ export class KsprKrc721Service {
 
       return response.data || [];
     } catch (error) {
-      this.logger.error(`[API-CALL] ${logId} - Failed to fetch NFT collections`);
+      this.logger.error(
+        `[API-CALL] ${logId} - Failed to fetch NFT collections`,
+      );
       this.logger.error(`[API-CALL] ${logId} - Error details:`, {
         message: error.message,
         status: error.response?.status,
@@ -100,7 +102,9 @@ export class KsprKrc721Service {
     }
   }
 
-  async fetchCollectionDetails(ticker: string): Promise<KRC721CollectionResponse> {
+  async fetchCollectionDetails(
+    ticker: string,
+  ): Promise<KRC721CollectionResponse> {
     const logId = `nft_collection_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     this.logger.log(`[API-CALL] ${logId} - fetchCollectionDetails started`);
     this.logger.debug(`[API-CALL] ${logId} - Parameters: ticker=${ticker}`);
@@ -136,7 +140,10 @@ export class KsprKrc721Service {
     }
   }
 
-  async fetchTokenDetails(ticker: string, tokenId: string): Promise<KRC721TokenResponse> {
+  async fetchTokenDetails(
+    ticker: string,
+    tokenId: string,
+  ): Promise<KRC721TokenResponse> {
     const logId = `nft_token_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     this.logger.log(`[API-CALL] ${logId} - fetchTokenDetails started`);
     this.logger.debug(
@@ -208,7 +215,10 @@ export class KsprKrc721Service {
     }
   }
 
-  async fetchAddressHoldings(address: string, ticker?: string): Promise<KRC721TokenResponse[]> {
+  async fetchAddressHoldings(
+    address: string,
+    ticker?: string,
+  ): Promise<KRC721TokenResponse[]> {
     const logId = `nft_holdings_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     this.logger.log(`[API-CALL] ${logId} - fetchAddressHoldings started`);
     this.logger.debug(
@@ -291,7 +301,10 @@ export class KsprKrc721Service {
     }
   }
 
-  async fetchOwnershipHistory(ticker: string, tokenId: string): Promise<KRC721OperationResponse[]> {
+  async fetchOwnershipHistory(
+    ticker: string,
+    tokenId: string,
+  ): Promise<KRC721OperationResponse[]> {
     const logId = `nft_history_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     this.logger.log(`[API-CALL] ${logId} - fetchOwnershipHistory started`);
     this.logger.debug(
@@ -326,4 +339,4 @@ export class KsprKrc721Service {
       return [];
     }
   }
-} 
+}

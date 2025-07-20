@@ -1,6 +1,6 @@
 /**
  * ETL Enums
- * 
+ *
  * Following DEVELOPMENT_RULES.md: Use enums for string options instead of union types
  * This provides better IDE support, refactoring safety, and compile-time checking
  */
@@ -66,4 +66,4 @@ export enum TweetProcessingStatus {
   EMBEDDED = 'embedded',
   STORED = 'stored',
   FAILED = 'failed',
-} 
+}

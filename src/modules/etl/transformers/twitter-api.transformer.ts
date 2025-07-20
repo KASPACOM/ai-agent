@@ -1,9 +1,9 @@
 import { TweetV2, UserV2 } from 'twitter-api-v2';
-import { TweetSource, TweetProcessingStatus } from "../models/etl.enums";
-import { Tweet } from "../models/tweet.model";
+import { TweetSource, TweetProcessingStatus } from '../models/etl.enums';
+import { Tweet } from '../models/tweet.model';
 
 export class TwitterTransformer {
-    /**
+  /**
    * Transform Twitter API tweet to our Tweet interface
    */
   public static transformApiTweet(apiTweet: TweetV2, author?: UserV2): Tweet {
@@ -50,7 +50,7 @@ export class TwitterTransformer {
    */
   public static extractHashtags(hashtags?: any[]): string[] {
     if (!hashtags) return [];
-    return hashtags.map(tag => `#${tag.tag.toLowerCase()}`);
+    return hashtags.map((tag) => `#${tag.tag.toLowerCase()}`);
   }
 
   /**
@@ -58,7 +58,7 @@ export class TwitterTransformer {
    */
   public static extractMentions(mentions?: any[]): string[] {
     if (!mentions) return [];
-    return mentions.map(mention => `@${mention.username.toLowerCase()}`);
+    return mentions.map((mention) => `@${mention.username.toLowerCase()}`);
   }
 
   /**
@@ -66,7 +66,7 @@ export class TwitterTransformer {
    */
   public static extractLinks(urls?: any[]): string[] {
     if (!urls) return [];
-    return urls.map(url => url.expanded_url || url.url);
+    return urls.map((url) => url.expanded_url || url.url);
   }
 
   /**

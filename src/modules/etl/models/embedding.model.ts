@@ -2,26 +2,26 @@ import { EmbeddingModel } from './etl.enums';
 
 /**
  * Embedding Vector Interface
- * 
+ *
  * Represents a vector embedding with metadata
  */
 export interface EmbeddingVector {
   // === Vector Data ===
   vector: number[];
   dimensions: number;
-  
+
   // === Source Information ===
   sourceText: string;
   sourceId: string;
-  
+
   // === Model Information ===
   model: EmbeddingModel;
   generatedAt: Date;
-  
+
   // === Processing Metadata ===
   processingTime: number;
   tokenCount?: number;
-  
+
   // === Quality Metrics ===
   magnitude?: number;
   normalized?: boolean;
@@ -29,7 +29,7 @@ export interface EmbeddingVector {
 
 /**
  * Embedding Request Interface
- * 
+ *
  * Request for generating embeddings
  */
 export interface EmbeddingRequest {
@@ -41,7 +41,7 @@ export interface EmbeddingRequest {
 
 /**
  * Embedding Response Interface
- * 
+ *
  * Response from embedding generation
  */
 export interface EmbeddingResponse {
@@ -55,7 +55,7 @@ export interface EmbeddingResponse {
 
 /**
  * Embedding Batch Interface
- * 
+ *
  * Collection of embeddings for batch processing
  */
 export interface EmbeddingBatch {
@@ -73,7 +73,7 @@ export interface EmbeddingBatch {
 
 /**
  * Embedding Statistics Interface
- * 
+ *
  * Statistics about embedding generation
  */
 export interface EmbeddingStats {
@@ -88,7 +88,7 @@ export interface EmbeddingStats {
 
 /**
  * Embedding Configuration Interface
- * 
+ *
  * Configuration for embedding generation
  */
 export interface EmbeddingConfig {
@@ -100,4 +100,4 @@ export interface EmbeddingConfig {
   retryDelay: number;
   rateLimitPerMinute: number;
   normalizeVectors: boolean;
-} 
+}

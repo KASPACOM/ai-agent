@@ -98,6 +98,23 @@ export class AppConfigService {
     );
   }
 
+  // Twitter API v2 config
+  get getTwitterClientId(): string {
+    return this.configService.get('TWITTER_CLIENT_ID');
+  }
+
+  get getTwitterClientSecret(): string {
+    return this.configService.get('TWITTER_CLIENT_SECRET');
+  }
+
+  get getTwitterAccessToken(): string {
+    return this.configService.get('TWITTER_ACCESS_TOKEN');
+  }
+
+  get getTwitterAccessTokenSecret(): string {
+    return this.configService.get('TWITTER_ACCESS_TOKEN_SECRET');
+  }
+
   // ETL and Cron config
   get getEtlScheduleInterval(): string {
     return this.configService.get('ETL_SCHEDULE_INTERVAL') || '*/1 * * * *';

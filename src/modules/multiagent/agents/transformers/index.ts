@@ -36,4 +36,4 @@ export {
   extractPrice,
   extractVolume24h,
   extractMarketCap,
-} from './token-registry.transformer'; 
+} from './token-registry.transformer';

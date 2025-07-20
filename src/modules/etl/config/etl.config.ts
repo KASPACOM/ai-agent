@@ -5,7 +5,7 @@ import { EmbeddingConfig } from '../models/embedding.model';
 
 /**
  * ETL Configuration Service
- * 
+ *
  * Centralized configuration for all ETL operations
  */
 @Injectable()
@@ -45,6 +45,34 @@ export class EtlConfigService {
    */
   getTwitterBearerToken(): string {
     return this.appConfig.getTwitterBearerToken;
+  }
+
+  /**
+   * Get Twitter API v2 Client ID
+   */
+  getTwitterClientId(): string {
+    return this.appConfig.getTwitterClientId;
+  }
+
+  /**
+   * Get Twitter API v2 Client Secret
+   */
+  getTwitterClientSecret(): string {
+    return this.appConfig.getTwitterClientSecret;
+  }
+
+  /**
+   * Get Twitter API v2 Access Token
+   */
+  getTwitterAccessToken(): string {
+    return this.appConfig.getTwitterAccessToken;
+  }
+
+  /**
+   * Get Twitter API v2 Access Token Secret
+   */
+  getTwitterAccessTokenSecret(): string {
+    return this.appConfig.getTwitterAccessTokenSecret;
   }
 
   /**
@@ -190,4 +218,4 @@ export class EtlConfigService {
       spamKeywords: ['spam', 'scam', 'fake', 'phishing'],
     };
   }
-} 
+}

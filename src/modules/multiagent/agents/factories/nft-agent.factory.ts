@@ -129,7 +129,7 @@ export class NFTAgentFactory {
               const limitedCollections = args.limit
                 ? collections.slice(0, args.limit)
                 : collections;
-              
+
               return {
                 collections: limitedCollections,
                 total: collections.length,
@@ -174,9 +174,7 @@ export class NFTAgentFactory {
             try {
               // Get both collection details and trading stats
               const [details, tradeStats] = await Promise.allSettled([
-                this.backendApiService.fetchNFTCollectionStats(
-                  args.ticker,
-                ),
+                this.backendApiService.fetchNFTCollectionStats(args.ticker),
                 this.backendApiService.fetchNFTCollectionTradeStats(
                   args.ticker,
                 ),

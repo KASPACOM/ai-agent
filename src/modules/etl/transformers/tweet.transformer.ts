@@ -5,7 +5,7 @@ import { EtlConfigService } from '../config/etl.config';
 
 /**
  * Tweet Transformer
- * 
+ *
  * Handles tweet data transformation and normalization
  * Following DEVELOPMENT_RULES.md: Type-safe transformers with proper interfaces
  */
@@ -21,7 +21,7 @@ export class TweetTransformer {
    */
   async transformTweet(rawTweet: any, source: TweetSource): Promise<Tweet> {
     this.logger.debug(`Transforming tweet: ${rawTweet.id || 'unknown'}`);
-    
+
     // TODO: Phase 4 - Implement actual transformation
     const tweet: Tweet = {
       id: rawTweet.id || `placeholder_${Date.now()}`,
@@ -53,11 +53,14 @@ export class TweetTransformer {
   /**
    * Transform multiple tweets in batch
    */
-  async transformTweets(rawTweets: any[], source: TweetSource): Promise<Tweet[]> {
+  async transformTweets(
+    rawTweets: any[],
+    source: TweetSource,
+  ): Promise<Tweet[]> {
     this.logger.log(`Transforming ${rawTweets.length} tweets`);
-    
+
     const transformedTweets: Tweet[] = [];
-    
+
     for (const rawTweet of rawTweets) {
       try {
         const tweet = await this.transformTweet(rawTweet, source);
@@ -66,7 +69,7 @@ export class TweetTransformer {
         this.logger.error(`Error transforming tweet ${rawTweet.id}`, error);
       }
     }
-    
+
     return transformedTweets;
   }
 
@@ -77,11 +80,11 @@ export class TweetTransformer {
     const hashtagRegex = /#(\w+)/g;
     const hashtags = [];
     let match;
-    
+
     while ((match = hashtagRegex.exec(text)) !== null) {
       hashtags.push(match[1].toLowerCase());
     }
-    
+
     return hashtags;
   }
 
@@ -92,11 +95,11 @@ export class TweetTransformer {
     const mentionRegex = /@(\w+)/g;
     const mentions = [];
     let match;
-    
+
     while ((match = mentionRegex.exec(text)) !== null) {
       mentions.push(match[1].toLowerCase());
     }
-    
+
     return mentions;
   }
 
@@ -114,8 +117,10 @@ export class TweetTransformer {
   private isKaspaRelated(text: string): boolean {
     const kaspaKeywords = this.etlConfig.getKaspaKeywords();
     const lowerText = text.toLowerCase();
-    
-    return kaspaKeywords.some(keyword => lowerText.includes(keyword.toLowerCase()));
+
+    return kaspaKeywords.some((keyword) =>
+      lowerText.includes(keyword.toLowerCase()),
+    );
   }
 
   /**
@@ -125,13 +130,13 @@ export class TweetTransformer {
     const kaspaKeywords = this.etlConfig.getKaspaKeywords();
     const lowerText = text.toLowerCase();
     const topics = [];
-    
+
     for (const keyword of kaspaKeywords) {
       if (lowerText.includes(keyword.toLowerCase())) {
         topics.push(keyword);
       }
     }
-    
+
     return topics;
   }
 
@@ -140,25 +145,29 @@ export class TweetTransformer {
    */
   validateTweet(tweet: Tweet): { isValid: boolean; errors: string[] } {
     const errors: string[] = [];
-    
+
     if (!tweet.id) errors.push('Tweet ID is required');
     if (!tweet.text) errors.push('Tweet text is required');
     if (!tweet.author) errors.push('Tweet author is required');
     if (!tweet.createdAt) errors.push('Tweet creation date is required');
-    
+
     const filters = this.etlConfig.getContentFilters();
-    
+
     if (tweet.text.length < filters.minTextLength) {
-      errors.push(`Tweet text too short (${tweet.text.length} < ${filters.minTextLength})`);
+      errors.push(
+        `Tweet text too short (${tweet.text.length} < ${filters.minTextLength})`,
+      );
     }
-    
+
     if (tweet.text.length > filters.maxTextLength) {
-      errors.push(`Tweet text too long (${tweet.text.length} > ${filters.maxTextLength})`);
+      errors.push(
+        `Tweet text too long (${tweet.text.length} > ${filters.maxTextLength})`,
+      );
     }
-    
+
     return {
       isValid: errors.length === 0,
       errors,
     };
   }
-} 
+}

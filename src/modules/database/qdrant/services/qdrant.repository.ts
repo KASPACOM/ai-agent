@@ -532,14 +532,18 @@ export class QdrantRepository {
       );
 
       const collectionName = this.qdrantConfig.getCollectionName();
-      
+
       // Build filter for account if specified
-      const filter = account ? {
-        must: [{
-          key: 'authorHandle',
-          match: { value: account }
-        }]
-      } : undefined;
+      const filter = account
+        ? {
+            must: [
+              {
+                key: 'authorHandle',
+                match: { value: account },
+              },
+            ],
+          }
+        : undefined;
 
       // Use zero vector for filtering-only query
       const zeroVector = new Array(
@@ -575,7 +579,7 @@ export class QdrantRepository {
       });
 
       const latestTweet = sortedResults[0];
-      
+
       this.logger.debug(
         `Found latest tweet${account ? ` for account: ${account}` : ' globally'}: ${latestTweet.payload.originalTweetId} at ${latestTweet.payload.createdAt}`,
       );

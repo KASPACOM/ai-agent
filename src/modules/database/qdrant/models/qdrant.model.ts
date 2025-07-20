@@ -1,8 +1,12 @@
-import { QdrantDistance, QdrantCollectionStatus, QdrantOperationStatus } from './qdrant.enums';
+import {
+  QdrantDistance,
+  QdrantCollectionStatus,
+  QdrantOperationStatus,
+} from './qdrant.enums';
 
 /**
  * Qdrant Point Interface
- * 
+ *
  * Represents a vector point in Qdrant with payload metadata
  */
 export interface QdrantPoint {
@@ -156,14 +160,17 @@ export interface QdrantHealthCheck {
  */
 export interface QdrantTelemetry {
   id: string;
-  collections: Record<string, {
-    vectors_count: number;
-    segments_count: number;
-    disk_size: number;
-    ram_size: number;
-  }>;
+  collections: Record<
+    string,
+    {
+      vectors_count: number;
+      segments_count: number;
+      disk_size: number;
+      ram_size: number;
+    }
+  >;
   requests: {
     rest: number;
     grpc: number;
   };
-} 
+}

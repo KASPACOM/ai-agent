@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { TwitterApi, TwitterApiReadOnly, TweetV2, UserV2 } from 'twitter-api-v2';
+import {
+  TwitterApi,
+  TwitterApiReadOnly,
+  TweetV2,
+  UserV2,
+} from 'twitter-api-v2';
 import { Tweet, TweetBatch } from '../models/tweet.model';
 import { TweetSource, TweetProcessingStatus } from '../models/etl.enums';
 import { EtlConfigService } from '../config/etl.config';
@@ -36,9 +41,11 @@ export class TwitterApiService {
   private initializeTwitterClient(): TwitterApiReadOnly {
     try {
       const bearerToken = this.etlConfig.getTwitterBearerToken();
-      
+
       if (!bearerToken) {
-        this.logger.warn('Twitter Bearer Token not provided. API service may not work properly.');
+        this.logger.warn(
+          'Twitter Bearer Token not provided. API service may not work properly.',
+        );
         throw new Error('Twitter Bearer Token is required');
       }
 
@@ -46,8 +53,12 @@ export class TwitterApiService {
       this.logger.log('Twitter API client initialized successfully');
       return client.readOnly;
     } catch (error) {
-      this.logger.error(`Failed to initialize Twitter API client: ${error.message}`);
-      this.apiStats.errors.push(`Client initialization failed: ${error.message}`);
+      this.logger.error(
+        `Failed to initialize Twitter API client: ${error.message}`,
+      );
+      this.apiStats.errors.push(
+        `Client initialization failed: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -61,7 +72,9 @@ export class TwitterApiService {
     startTime?: Date,
     endTime?: Date,
   ): Promise<TweetBatch> {
-    this.logger.log(`Fetching tweets from ${accounts.length} accounts via Twitter API`);
+    this.logger.log(
+      `Fetching tweets from ${accounts.length} accounts via Twitter API`,
+    );
 
     this.apiStats.isRunning = true;
     this.apiStats.lastRun = new Date();
@@ -174,11 +187,18 @@ export class TwitterApiService {
 
       // Fetch user timeline
       this.apiStats.apiCalls++;
-      const timeline = await this.twitterClient.v2.userTimeline(user.id, timelineOptions);
+      const timeline = await this.twitterClient.v2.userTimeline(
+        user.id,
+        timelineOptions,
+      );
 
-      // Process tweets
-      for (const tweet of timeline.data || []) {
-        const transformedTweet = TwitterTransformer.transformApiTweet(tweet, user);
+      // Process tweets  
+      const timelineData = Array.isArray(timeline.data) ? timeline.data : [];
+      for (const tweet of timelineData) {
+        const transformedTweet = TwitterTransformer.transformApiTweet(
+          tweet,
+          user,
+        );
         tweets.push(transformedTweet);
       }
 
@@ -188,12 +208,16 @@ export class TwitterApiService {
       // Handle rate limiting
       if (error.code === 429) {
         this.apiStats.rateLimitHits++;
-        this.logger.warn(`Rate limit hit for ${username}. Waiting before retry...`);
+        this.logger.warn(
+          `Rate limit hit for ${username}. Waiting before retry...`,
+        );
         await this.handleRateLimit(error);
         throw error;
       }
 
-      this.logger.error(`Failed to fetch tweets from ${username}: ${error.message}`);
+      this.logger.error(
+        `Failed to fetch tweets from ${username}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -251,12 +275,21 @@ export class TwitterApiService {
       }
 
       this.apiStats.apiCalls++;
-      const searchResults = await this.twitterClient.v2.search(query, searchOptions);
+      const searchResults = await this.twitterClient.v2.search(
+        query,
+        searchOptions,
+      );
 
       // Process search results
-      for (const tweet of searchResults.data || []) {
-        const author = searchResults.includes?.users?.find(u => u.id === tweet.author_id);
-        const transformedTweet = TwitterTransformer.transformApiTweet(tweet, author);
+      const searchData = Array.isArray(searchResults.data) ? searchResults.data : [];
+      for (const tweet of searchData) {
+        const author = searchResults.includes?.users?.find(
+          (u) => u.id === tweet.author_id,
+        );
+        const transformedTweet = TwitterTransformer.transformApiTweet(
+          tweet,
+          author,
+        );
         tweets.push(transformedTweet);
       }
 
@@ -278,13 +311,12 @@ export class TwitterApiService {
    * Get recent tweets (last 7 days) for Kaspa-related content
    */
   async getRecentKaspaTweets(maxResults: number = 100): Promise<Tweet[]> {
-    const kaspaQuery = '(kaspa OR #kaspa OR $kas OR ghostdag OR blockdag) -is:retweet lang:en';
+    const kaspaQuery =
+      '(kaspa OR #kaspa OR $kas OR ghostdag OR blockdag) -is:retweet lang:en';
     const startTime = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // Last 7 days
-    
+
     return this.searchTweets(kaspaQuery, maxResults, startTime);
   }
-
-  
 
   /**
    * Handle rate limiting with exponential backoff
@@ -297,8 +329,13 @@ export class TwitterApiService {
       await this.sleep(waitTime);
     } else {
       // Fallback: exponential backoff
-      const waitTime = Math.min(300000, Math.pow(2, this.apiStats.rateLimitHits) * 1000); // Max 5 minutes
-      this.logger.warn(`Rate limit hit. Waiting ${waitTime}ms with exponential backoff...`);
+      const waitTime = Math.min(
+        300000,
+        Math.pow(2, this.apiStats.rateLimitHits) * 1000,
+      ); // Max 5 minutes
+      this.logger.warn(
+        `Rate limit hit. Waiting ${waitTime}ms with exponential backoff...`,
+      );
       await this.sleep(waitTime);
     }
   }
@@ -307,7 +344,7 @@ export class TwitterApiService {
    * Sleep utility function
    */
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
@@ -366,4 +403,4 @@ export class TwitterApiService {
       return false;
     }
   }
-} 
+}
