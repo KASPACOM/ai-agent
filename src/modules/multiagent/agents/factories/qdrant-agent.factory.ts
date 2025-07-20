@@ -16,9 +16,7 @@ export class QdrantAgentFactory {
   createAgent(): BuiltAgent {
     return (
       AgentBuilder.create(this.httpService, this.configService, 'qdrant-agent')
-        .withDescription(
-          'Read-only agent for Qdrant vector database collections (all collections)',
-        )
+        .withDescription('Read-only agent for Qdrant vector database collections (all collections)')
         .withVersion('1.1.0')
         .withCategory('database')
         // List all collections
@@ -42,8 +40,7 @@ export class QdrantAgentFactory {
             },
           ],
           ['show qdrant collection info', 'get qdrant collection details'],
-          async (args) =>
-            await this.qdrantRepository.getCollectionInfo(args.collectionName),
+          async (args) => await this.qdrantRepository.getCollectionInfo(args.collectionName),
         )
         // Get collection stats
         .addCapability(
@@ -58,8 +55,7 @@ export class QdrantAgentFactory {
             },
           ],
           ['show qdrant collection stats', 'get qdrant stats'],
-          async (args) =>
-            await this.qdrantRepository.getCollectionStats(args.collectionName),
+          async (args) => await this.qdrantRepository.getCollectionStats(args.collectionName),
         )
         // Search vectors in a collection
         .addCapability(
@@ -93,13 +89,7 @@ export class QdrantAgentFactory {
             },
           ],
           ['find similar vectors', 'vector search in qdrant'],
-          async (args) =>
-            await this.qdrantRepository.searchVectors(
-              args.collectionName,
-              args.queryVector,
-              args.limit,
-              args.filters,
-            ),
+          async (args) => await this.qdrantRepository.searchVectors(args.collectionName, args.queryVector, args.limit, args.filters),
         )
         // Get vector by ID from a collection
         .addCapability(
@@ -120,13 +110,9 @@ export class QdrantAgentFactory {
             },
           ],
           ['get vector by id', 'fetch qdrant point'],
-          async (args) =>
-            await this.qdrantRepository.getVectorById(
-              args.collectionName,
-              args.id,
-            ),
+          async (args) => await this.qdrantRepository.getVectorById(args.collectionName, args.id),
         )
         .build()
     );
   }
-}
+} 

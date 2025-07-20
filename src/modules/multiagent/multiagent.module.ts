@@ -13,6 +13,8 @@ import { WalletAgentFactory } from './agents/factories/wallet-agent.factory';
 import { TokenRegistryAgentFactory } from './agents/factories/token-registry-agent.factory';
 import { UserManagementAgentFactory } from './agents/factories/user-management-agent.factory';
 import { NFTAgentFactory } from './agents/factories/nft-agent.factory';
+import { QdrantAgentFactory } from './agents/factories/qdrant-agent.factory';
+import { QdrantModule } from '../database/qdrant/qdrant.module';
 
 // === API Services ===
 import { BackendApiService } from './services/backend-api.service';
@@ -33,6 +35,7 @@ import { KasplexKrc20Service } from './services/kasplex-krc20.service';
       maxRedirects: 5,
     }),
     ConfigModule,
+    QdrantModule,
   ],
   providers: [
     // === Core Agent System ===
@@ -46,6 +49,7 @@ import { KasplexKrc20Service } from './services/kasplex-krc20.service';
     TokenRegistryAgentFactory,
     UserManagementAgentFactory,
     NFTAgentFactory,
+    QdrantAgentFactory,
 
     // === API Services ===
     BackendApiService,
@@ -64,6 +68,7 @@ import { KasplexKrc20Service } from './services/kasplex-krc20.service';
     TokenRegistryAgentFactory,
     UserManagementAgentFactory,
     NFTAgentFactory,
+    QdrantAgentFactory,
 
     // === API Services ===
     BackendApiService,
