@@ -121,16 +121,58 @@ export class QdrantRepository {
       }
 
       // Prepare all points
-      const points = tweets.map((tweet) => ({
-        id: this.generateUuidFromTwitterId(tweet.tweetId), // Use UUID for Qdrant compatibility
-        vector: tweet.vector,
-        payload: {
-          ...tweet.metadata,
-          originalTweetId: tweet.tweetId, // Keep original Twitter ID in metadata
+      const points = tweets.map((tweet) => {
+        // Create clean payload with only essential, serializable fields
+        const cleanPayload = {
+          // Core tweet data
+          text: String(tweet.metadata.text || ''),
+          author: String(tweet.metadata.author || ''),
+          authorHandle: String(tweet.metadata.authorHandle || ''),
+          createdAt: tweet.metadata.createdAt instanceof Date 
+            ? tweet.metadata.createdAt.toISOString() 
+            : String(tweet.metadata.createdAt || new Date().toISOString()),
+          url: String(tweet.metadata.url || ''),
+          
+          // Kaspa analysis
+          kaspaRelated: Boolean(tweet.metadata.kaspaRelated),
+          kaspaTopics: Array.isArray(tweet.metadata.kaspaTopics) ? tweet.metadata.kaspaTopics : [],
+          
+          // Social data (safe defaults)
+          hashtags: Array.isArray(tweet.metadata.hashtags) ? tweet.metadata.hashtags : [],
+          mentions: Array.isArray(tweet.metadata.mentions) ? tweet.metadata.mentions : [],
+          links: Array.isArray(tweet.metadata.links) ? tweet.metadata.links : [],
+          
+          // Metadata
+          language: String(tweet.metadata.language || 'en'),
+          source: String(tweet.metadata.source || 'twitter'),
+          
+          // Qdrant-specific
+          originalTweetId: String(tweet.tweetId),
           stored_at: new Date().toISOString(),
           vector_dimensions: tweet.vector.length,
-        },
-      }));
+        };
+        
+        return {
+          id: this.generateUuidFromTwitterId(tweet.tweetId),
+          vector: tweet.vector,
+          payload: cleanPayload,
+        };
+      });
+
+      // Debug logging for first point to see structure
+      if (points.length > 0) {
+        const firstPoint = points[0];
+        this.logger.debug(`🔍 Sample point structure:`);
+        this.logger.debug(`Point ID: ${firstPoint.id}`);
+        this.logger.debug(`Vector length: ${firstPoint.vector.length}`);
+        this.logger.debug(`Vector sample: [${firstPoint.vector.slice(0, 5).join(', ')}...]`);
+        this.logger.debug(`Payload keys: [${Object.keys(firstPoint.payload).join(', ')}]`);
+        
+        // Check for problematic vector values
+        const hasNaN = firstPoint.vector.some(v => isNaN(v));
+        const hasInfinity = firstPoint.vector.some(v => !isFinite(v));
+        this.logger.debug(`Vector issues - NaN: ${hasNaN}, Infinity: ${hasInfinity}`);
+      }
 
       // Store all vectors in batch
       const batchResult = await this.qdrantClient.upsertPoints(
@@ -351,6 +393,173 @@ export class QdrantRepository {
     });
   }
 
+  /*
+   * Search for similar vectors in a Qdrant collection
+   */
+  async searchVectors(collectionName: string, queryVector: number[], limit: number = 10, filters?: any): Promise<any[]> {
+    try {
+      this.logger.debug(`Searching vectors in collection: ${collectionName} (limit: ${limit})`);
+      const searchParams = {
+        vector: queryVector,
+        limit: Math.min(limit, 100),
+        with_payload: true,
+        with_vector: false,
+        filter: filters || undefined,
+      };
+      return await this.qdrantClient.searchPoints(collectionName, searchParams);
+    } catch (error) {
+      this.logger.error(`Failed to search vectors in ${collectionName}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get tweet date boundaries (earliest and latest) for an account
+   */
+  async getTweetBoundariesForAccount(account: string, collectionName?: string): Promise<{
+    earliest: Date | null;
+    latest: Date | null;
+    hasData: boolean;
+  }> {
+    try {
+      const targetCollection = collectionName || this.qdrantConfig.getCollectionName();
+      this.logger.debug(`Getting tweet boundaries for account: ${account} in collection: ${targetCollection}`);
+      
+      const searchParams = {
+        vector: new Array(this.qdrantConfig.getCollectionConfig().vectors.size).fill(0),
+        filter: {
+          should: [ // Use 'should' to try both cases for legacy data compatibility
+            {
+              key: 'authorHandle',
+              match: { value: account.toLowerCase() }, // Try lowercase first (new standard)
+            },
+            {
+              key: 'authorHandle',
+              match: { value: account }, // Fallback to original case (legacy data)
+            },
+          ],
+        },
+        limit: 1000,
+        with_payload: true,
+        with_vector: false,
+      };
+
+      let results = await this.qdrantClient.searchPoints(targetCollection, searchParams);
+
+      // If no results with lowercase, try original case (legacy fallback)
+      if ((!results || results.length === 0) && account !== account.toLowerCase()) {
+        this.logger.debug(`No results with lowercase "${account.toLowerCase()}", trying original case "${account}"`);
+        
+        const fallbackSearchParams = {
+          ...searchParams,
+          filter: {
+            must: [
+              {
+                key: 'authorHandle',
+                match: { value: account },
+              },
+            ],
+          },
+        };
+        
+        results = await this.qdrantClient.searchPoints(targetCollection, fallbackSearchParams);
+      }
+
+      if (!results || results.length === 0) {
+        this.logger.debug(`No tweets found for account: ${account}`);
+        return { earliest: null, latest: null, hasData: false };
+      }
+
+      // Extract all createdAt dates and find min/max
+      const dates = results
+        .map(r => r.payload?.createdAt as string)
+        .filter(Boolean)
+        .map(dateStr => new Date(dateStr))
+        .sort((a, b) => a.getTime() - b.getTime());
+
+      const earliest = dates[0] || null;
+      const latest = dates[dates.length - 1] || null;
+
+      this.logger.debug(
+        `Found boundaries for ${account}: earliest=${earliest?.toISOString()}, latest=${latest?.toISOString()}, count=${results.length}`,
+      );
+
+      return {
+        earliest,
+        latest,
+        hasData: results.length > 0,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get tweet boundaries for account ${account}: ${error.message}`);
+      return { earliest: null, latest: null, hasData: false };
+    }
+  }
+
+  /**
+   * Get latest tweet by account (convenience method)
+   */
+  async getLatestTweetByAccount(
+    account: string,
+    collectionName?: string,
+  ): Promise<any | null> {
+    try {
+      const boundaries = await this.getTweetBoundariesForAccount(account, collectionName);
+      if (!boundaries.hasData || !boundaries.latest) {
+        return null;
+      }
+
+      // Return a simple object with the latest date
+      return {
+        payload: {
+          createdAt: boundaries.latest.toISOString(),
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get latest tweet for account ${account}: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Check repository health
+   */
+  async checkHealth(): Promise<{
+    isHealthy: boolean;
+    issues: string[];
+    stats: any;
+  }> {
+    const issues: string[] = [];
+
+    try {
+      // Check collection health
+      const collectionHealth = await this.qdrantCollection.checkCollectionHealth();
+
+      if (!collectionHealth.isHealthy) {
+        issues.push(...collectionHealth.issues);
+      }
+
+      // Check basic functionality
+      try {
+        await this.qdrantClient.healthCheck();
+      } catch (error) {
+        issues.push(`Qdrant client health check failed: ${error.message}`);
+      }
+
+      return {
+        isHealthy: issues.length === 0,
+        issues,
+        stats: { message: 'Basic health check completed' },
+      };
+    } catch (error) {
+      issues.push(`Repository health check failed: ${error.message}`);
+      return {
+        isHealthy: false,
+        issues,
+        stats: null,
+      };
+    }
+  }
+
   /**
    * Get tweet by UUID (Qdrant point ID)
    */
@@ -540,356 +749,215 @@ export class QdrantRepository {
       };
     }
   }
-
-  /**
+ /**
    * Get latest tweet by timestamp (globally or by account)
    */
-  async getLatestTweetByTimestamp(
-    account?: string,
-    collectionName?: string,
-  ): Promise<QdrantSearchResult | null> {
-    try {
-      const targetCollection = collectionName || this.qdrantConfig.getCollectionName();
+ async getLatestTweetByTimestamp(
+  account?: string,
+  collectionName?: string,
+): Promise<QdrantSearchResult | null> {
+  try {
+    const targetCollection = collectionName || this.qdrantConfig.getCollectionName();
+    this.logger.debug(
+      `Getting latest tweet by timestamp${account ? ` for account: ${account}` : ' globally'} in collection: ${targetCollection}`,
+    );
+
+    // Build filter for account if specified
+    const filter = account
+      ? {
+          must: [
+            {
+              key: 'authorHandle',
+              match: { value: account },
+            },
+          ],
+        }
+      : undefined;
+
+    // Use zero vector for filtering-only query
+    const zeroVector = new Array(
+      this.qdrantConfig.getCollectionConfig().vectors.size,
+    ).fill(0);
+
+    const searchParams = {
+      vector: zeroVector,
+      limit: 1, // We only want the latest one
+      score_threshold: 0, // Accept all scores for filtering-only queries
+      with_payload: true,
+      with_vector: false,
+      filter: filter,
+    };
+
+    const result = await this.qdrantClient.searchPoints(
+      targetCollection,
+      searchParams,
+    );
+
+    if (!result || result.length === 0) {
       this.logger.debug(
-        `Getting latest tweet by timestamp${account ? ` for account: ${account}` : ' globally'} in collection: ${targetCollection}`,
+        `No tweets found${account ? ` for account: ${account}` : ' globally'}`,
       );
+      return null;
+    }
 
-      // Build filter for account if specified
-      const filter = account
-        ? {
-            must: [
-              {
-                key: 'authorHandle',
-                match: { value: account },
-              },
-            ],
-          }
-        : undefined;
+    // Sort by createdAt descending to get the latest
+    const sortedResults = result.sort((a: any, b: any) => {
+      const dateA = new Date(a.payload.createdAt);
+      const dateB = new Date(b.payload.createdAt);
+      return dateB.getTime() - dateA.getTime();
+    });
 
-      // Use zero vector for filtering-only query
-      const zeroVector = new Array(
+    const latestTweet = sortedResults[0];
+
+    this.logger.debug(
+      `Found latest tweet${account ? ` for account: ${account}` : ' globally'}: ${latestTweet.payload.originalTweetId} at ${latestTweet.payload.createdAt}`,
+    );
+
+    return {
+      id: latestTweet.id,
+      version: latestTweet.version || 0,
+      score: latestTweet.score,
+      payload: latestTweet.payload,
+      vector: latestTweet.vector,
+    };
+  } catch (error) {
+    this.logger.error(
+      `Failed to get latest tweet${account ? ` for account: ${account}` : ' globally'}: ${error.message}`,
+    );
+    return null;
+  }
+}
+
+/**
+ * Get latest tweet globally (convenience method)
+ */
+async getLatestTweetGlobally(collectionName?: string): Promise<QdrantSearchResult | null> {
+  return this.getLatestTweetByTimestamp(undefined, collectionName);
+}
+
+/**
+ * Get the earliest tweet date for a specific account
+ * Used for historical backfill boundary detection
+ */
+async getEarliestTweetByAccount(
+  account: string,
+): Promise<QdrantSearchResult | null> {
+  try {
+    this.logger.debug(`Getting earliest tweet for account: ${account}`);
+    
+    const collectionName = this.qdrantConfig.getCollectionName();
+    
+    const searchParams = {
+      vector: new Array(
         this.qdrantConfig.getCollectionConfig().vectors.size,
-      ).fill(0);
+      ).fill(0),
+      filter: {
+        must: [
+          {
+            key: 'author',
+            match: { value: account },
+          },
+        ],
+      },
+      limit: 1,
+      with_payload: true,
+      with_vector: false,
+      // Sort by created_at ascending to get earliest
+      params: {
+        exact: false,
+      },
+    };
 
-      const searchParams = {
-        vector: zeroVector,
-        limit: 1, // We only want the latest one
-        score_threshold: 0, // Accept all scores for filtering-only queries
-        with_payload: true,
-        with_vector: false,
-        filter: filter,
-      };
+    // Search and manually sort by created_at since Qdrant doesn't have native sorting
+    const largerResult = await this.qdrantClient.searchPoints(
+      collectionName,
+      {
+        ...searchParams,
+        limit: 100, // Get more results to sort manually
+      },
+    );
 
-      const result = await this.qdrantClient.searchPoints(
-        targetCollection,
-        searchParams,
-      );
-
-      if (!result || result.length === 0) {
-        this.logger.debug(
-          `No tweets found${account ? ` for account: ${account}` : ' globally'}`,
-        );
-        return null;
-      }
-
-      // Sort by createdAt descending to get the latest
-      const sortedResults = result.sort((a: any, b: any) => {
-        const dateA = new Date(a.payload.createdAt);
-        const dateB = new Date(b.payload.createdAt);
-        return dateB.getTime() - dateA.getTime();
-      });
-
-      const latestTweet = sortedResults[0];
-
-      this.logger.debug(
-        `Found latest tweet${account ? ` for account: ${account}` : ' globally'}: ${latestTweet.payload.originalTweetId} at ${latestTweet.payload.createdAt}`,
-      );
-
-      return {
-        id: latestTweet.id,
-        version: latestTweet.version || 0,
-        score: latestTweet.score,
-        payload: latestTweet.payload,
-        vector: latestTweet.vector,
-      };
-    } catch (error) {
-      this.logger.error(
-        `Failed to get latest tweet${account ? ` for account: ${account}` : ' globally'}: ${error.message}`,
-      );
+    if (!largerResult || largerResult.length === 0) {
+      this.logger.debug(`No tweets found for account: ${account}`);
       return null;
     }
+
+    // Sort by created_at ascending and take the first (earliest)
+    const sortedResults = largerResult.sort((a, b) => {
+      const dateA = new Date(a.payload?.created_at as string).getTime();
+      const dateB = new Date(b.payload?.created_at as string).getTime();
+      return dateA - dateB;
+    });
+
+    const earliestTweet = sortedResults[0];
+    this.logger.debug(
+      `Found earliest tweet for ${account}: ${earliestTweet.payload?.created_at}`,
+    );
+
+    return {
+      id: earliestTweet.id as string,
+      version: earliestTweet.version || 0,
+      score: earliestTweet.score || 0,
+      payload: earliestTweet.payload || {},
+    };
+  } catch (error) {
+    this.logger.error(
+      `Failed to get earliest tweet for account ${account}: ${error.message}`,
+    );
+    return null;
   }
+}
 
-  /**
-   * Get latest tweet by account (convenience method)
-   */
-  async getLatestTweetByAccount(
-    account: string,
-    collectionName?: string,
-  ): Promise<QdrantSearchResult | null> {
-    return this.getLatestTweetByTimestamp(account, collectionName);
+/**
+ * List all Qdrant collections
+ */
+async listCollections(): Promise<any[]> {
+  try {
+    this.logger.debug('Listing all Qdrant collections');
+    return await this.qdrantClient.getCollections();
+  } catch (error) {
+    this.logger.error(`Failed to list collections: ${error.message}`);
+    throw error;
   }
+}
 
-  /**
-   * Get latest tweet globally (convenience method)
-   */
-  async getLatestTweetGlobally(collectionName?: string): Promise<QdrantSearchResult | null> {
-    return this.getLatestTweetByTimestamp(undefined, collectionName);
+/**
+ * Get information about a specific Qdrant collection
+ */
+async getCollectionInfo(collectionName: string): Promise<any> {
+  try {
+    this.logger.debug(`Getting info for collection: ${collectionName}`);
+    return await this.qdrantClient.getCollectionInfo(collectionName);
+  } catch (error) {
+    this.logger.error(`Failed to get collection info for ${collectionName}: ${error.message}`);
+    throw error;
   }
+}
 
-  /**
-   * Get the earliest tweet date for a specific account
-   * Used for historical backfill boundary detection
-   */
-  async getEarliestTweetByAccount(
-    account: string,
-  ): Promise<QdrantSearchResult | null> {
-    try {
-      this.logger.debug(`Getting earliest tweet for account: ${account}`);
-      
-      const collectionName = this.qdrantConfig.getCollectionName();
-      
-      const searchParams = {
-        vector: new Array(
-          this.qdrantConfig.getCollectionConfig().vectors.size,
-        ).fill(0),
-        filter: {
-          must: [
-            {
-              key: 'author',
-              match: { value: account },
-            },
-          ],
-        },
-        limit: 1,
-        with_payload: true,
-        with_vector: false,
-        // Sort by created_at ascending to get earliest
-        params: {
-          exact: false,
-        },
-      };
-
-      // Search and manually sort by created_at since Qdrant doesn't have native sorting
-      const largerResult = await this.qdrantClient.searchPoints(
-        collectionName,
-        {
-          ...searchParams,
-          limit: 100, // Get more results to sort manually
-        },
-      );
-
-      if (!largerResult || largerResult.length === 0) {
-        this.logger.debug(`No tweets found for account: ${account}`);
-        return null;
-      }
-
-      // Sort by created_at ascending and take the first (earliest)
-      const sortedResults = largerResult.sort((a, b) => {
-        const dateA = new Date(a.payload?.created_at as string).getTime();
-        const dateB = new Date(b.payload?.created_at as string).getTime();
-        return dateA - dateB;
-      });
-
-      const earliestTweet = sortedResults[0];
-      this.logger.debug(
-        `Found earliest tweet for ${account}: ${earliestTweet.payload?.created_at}`,
-      );
-
-      return {
-        id: earliestTweet.id as string,
-        version: earliestTweet.version || 0,
-        score: earliestTweet.score || 0,
-        payload: earliestTweet.payload || {},
-      };
-    } catch (error) {
-      this.logger.error(
-        `Failed to get earliest tweet for account ${account}: ${error.message}`,
-      );
-      return null;
-    }
+/**
+ * Get statistics for a specific Qdrant collection
+ */
+async getCollectionStats(collectionName: string): Promise<any> {
+  try {
+    this.logger.debug(`Getting stats for collection: ${collectionName}`);
+    return await this.qdrantClient.getCollectionStats(collectionName);
+  } catch (error) {
+    this.logger.error(`Failed to get collection stats for ${collectionName}: ${error.message}`);
+    throw error;
   }
+}
 
-  /**
-   * Get tweet date boundaries (earliest and latest) for an account
-   * Returns both in one query for efficiency
-   */
-  async getTweetBoundariesForAccount(account: string, collectionName?: string): Promise<{
-    earliest: Date | null;
-    latest: Date | null;
-    hasData: boolean;
-  }> {
-    try {
-      const targetCollection = collectionName || this.qdrantConfig.getCollectionName();
-      this.logger.debug(`Getting tweet boundaries for account: ${account} in collection: ${targetCollection}`);
-      
-      const searchParams = {
-        vector: new Array(
-          this.qdrantConfig.getCollectionConfig().vectors.size,
-        ).fill(0),
-        filter: {
-          must: [
-            {
-              key: 'author',
-              match: { value: account },
-            },
-          ],
-        },
-        limit: 1000, // Get enough results to find true boundaries
-        with_payload: true,
-        with_vector: false,
-        params: {
-          exact: false,
-        },
-      };
 
-      const results = await this.qdrantClient.searchPoints(targetCollection, searchParams);
-
-      if (!results || results.length === 0) {
-        this.logger.debug(`No tweets found for account: ${account}`);
-        return { earliest: null, latest: null, hasData: false };
-      }
-
-      // Extract all created_at dates and find min/max
-      const dates = results
-        .map(r => r.payload?.created_at as string)
-        .filter(Boolean)
-        .map(dateStr => new Date(dateStr))
-        .sort((a, b) => a.getTime() - b.getTime());
-
-      const earliest = dates[0] || null;
-      const latest = dates[dates.length - 1] || null;
-
-      this.logger.debug(
-        `Found boundaries for ${account}: earliest=${earliest?.toISOString()}, latest=${latest?.toISOString()}, count=${results.length}`,
-      );
-
-      return {
-        earliest,
-        latest,
-        hasData: results.length > 0,
-      };
-    } catch (error) {
-      this.logger.error(
-        `Failed to get tweet boundaries for account ${account}: ${error.message}`,
-      );
-      return { earliest: null, latest: null, hasData: false };
-    }
+/**
+ * Get a vector and its metadata by ID from a Qdrant collection
+ */
+async getVectorById(collectionName: string, id: string): Promise<any> {
+  try {
+    this.logger.debug(`Getting vector by ID: ${id} from collection: ${collectionName}`);
+    return await this.qdrantClient.getPoint(collectionName, id);
+  } catch (error) {
+    this.logger.error(`Failed to get vector by ID ${id} from ${collectionName}: ${error.message}`);
+    throw error;
   }
-
-  /**
-   * Check repository health
-   */
-  async checkHealth(): Promise<{
-    isHealthy: boolean;
-    issues: string[];
-    stats: any;
-  }> {
-    const issues: string[] = [];
-
-    try {
-      // Check collection health
-      const collectionHealth =
-        await this.qdrantCollection.checkCollectionHealth();
-
-      if (!collectionHealth.isHealthy) {
-        issues.push(...collectionHealth.issues);
-      }
-
-      // Get current stats
-      const stats = await this.getStorageStats();
-
-      // Check basic functionality
-      try {
-        await this.qdrantClient.healthCheck();
-      } catch (error) {
-        issues.push(`Qdrant client health check failed: ${error.message}`);
-      }
-
-      return {
-        isHealthy: issues.length === 0,
-        issues,
-        stats,
-      };
-    } catch (error) {
-      issues.push(`Repository health check failed: ${error.message}`);
-      return {
-        isHealthy: false,
-        issues,
-        stats: null,
-      };
-    }
-  }
-
-  /**
-   * List all Qdrant collections
-   */
-  async listCollections(): Promise<any[]> {
-    try {
-      this.logger.debug('Listing all Qdrant collections');
-      return await this.qdrantClient.getCollections();
-    } catch (error) {
-      this.logger.error(`Failed to list collections: ${error.message}`);
-      throw error;
-    }
-  }
-
-  /**
-   * Get information about a specific Qdrant collection
-   */
-  async getCollectionInfo(collectionName: string): Promise<any> {
-    try {
-      this.logger.debug(`Getting info for collection: ${collectionName}`);
-      return await this.qdrantClient.getCollectionInfo(collectionName);
-    } catch (error) {
-      this.logger.error(`Failed to get collection info for ${collectionName}: ${error.message}`);
-      throw error;
-    }
-  }
-
-  /**
-   * Get statistics for a specific Qdrant collection
-   */
-  async getCollectionStats(collectionName: string): Promise<any> {
-    try {
-      this.logger.debug(`Getting stats for collection: ${collectionName}`);
-      return await this.qdrantClient.getCollectionStats(collectionName);
-    } catch (error) {
-      this.logger.error(`Failed to get collection stats for ${collectionName}: ${error.message}`);
-      throw error;
-    }
-  }
-
-  /**
-   * Search for similar vectors in a Qdrant collection
-   */
-  async searchVectors(collectionName: string, queryVector: number[], limit: number = 10, filters?: any): Promise<any[]> {
-    try {
-      this.logger.debug(`Searching vectors in collection: ${collectionName} (limit: ${limit})`);
-      const searchParams = {
-        vector: queryVector,
-        limit: Math.min(limit, 100),
-        with_payload: true,
-        with_vector: false,
-        filter: filters || undefined,
-      };
-      return await this.qdrantClient.searchPoints(collectionName, searchParams);
-    } catch (error) {
-      this.logger.error(`Failed to search vectors in ${collectionName}: ${error.message}`);
-      throw error;
-    }
-  }
-
-  /**
-   * Get a vector and its metadata by ID from a Qdrant collection
-   */
-  async getVectorById(collectionName: string, id: string): Promise<any> {
-    try {
-      this.logger.debug(`Getting vector by ID: ${id} from collection: ${collectionName}`);
-      return await this.qdrantClient.getPoint(collectionName, id);
-    } catch (error) {
-      this.logger.error(`Failed to get vector by ID ${id} from ${collectionName}: ${error.message}`);
-      throw error;
-    }
-  }
+}
 }

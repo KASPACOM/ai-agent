@@ -2,6 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { IndexerProviderService } from '../providers/indexer.provider';
 import { EtlConfigService } from '../config/etl.config';
+import { TwitterIndexerService } from './twitter-indexer.service';
+import { EmbeddingService } from './embedding.service';
+import { QdrantRepository } from '../../database/qdrant/services/qdrant.repository';
 
 /**
  * ETL Scheduler Service
@@ -19,6 +22,9 @@ export class EtlSchedulerService {
   constructor(
     private readonly indexerProvider: IndexerProviderService,
     private readonly etlConfig: EtlConfigService,
+    private readonly twitterIndexer: TwitterIndexerService,
+    private readonly embeddingService: EmbeddingService,
+    private readonly qdrantRepository: QdrantRepository,
   ) {
     this.logger.log('ETL Scheduler Service initialized');
   }
