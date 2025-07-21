@@ -9,6 +9,7 @@ import { AppConfigModule } from '../../core/modules/config/app-config.module';
 import { QdrantClientService } from './services/qdrant-client.service';
 import { QdrantCollectionService } from './services/qdrant-collection.service';
 import { QdrantRepository } from './services/qdrant.repository';
+import { EmbeddingModule } from '../../embedding/embedding.module';
 
 // === Qdrant Configuration ===
 import { QdrantConfigService } from './config/qdrant.config';
@@ -33,6 +34,7 @@ import { QdrantConfigService } from './config/qdrant.config';
     }),
     ConfigModule,
     AppConfigModule,
+    EmbeddingModule, // <-- Use EmbeddingModule for EmbeddingService
   ],
   providers: [
     // === Configuration ===

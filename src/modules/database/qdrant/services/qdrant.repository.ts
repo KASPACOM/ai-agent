@@ -4,6 +4,7 @@ import { QdrantCollectionService } from './qdrant-collection.service';
 import { QdrantConfigService } from '../config/qdrant.config';
 import { QdrantPoint, QdrantSearchResult } from '../models/qdrant.model';
 import { v5 as uuidv5 } from 'uuid';
+import { EmbeddingService } from '../../../embedding/embedding.service';
 
 /**
  * Qdrant Repository Service
@@ -20,6 +21,7 @@ export class QdrantRepository {
     private readonly qdrantClient: QdrantClientService,
     private readonly qdrantCollection: QdrantCollectionService,
     private readonly qdrantConfig: QdrantConfigService,
+    private readonly embeddingService: EmbeddingService, // <-- Injected
   ) {}
 
   /**
@@ -329,6 +331,24 @@ export class QdrantRepository {
       this.logger.error(`Failed to scroll tweets: ${error.message}`);
       throw error;
     }
+  }
+
+  /**
+   * Search tweets by subject using embedding similarity
+   */
+  async searchTweetsBySubjectEmbedding(subject: string, limit: number = 10, filters?: any): Promise<QdrantSearchResult[]> {
+    this.logger.debug(`Searching for similar tweets from the subject ${subject} (limit: ${limit})`);
+
+    // Generate embedding for the subject
+    const queryVector = await this.embeddingService.generateSingleEmbedding(subject);
+    // Use similarity search
+    const tweets = await this.searchSimilarTweets(queryVector, limit, filters);
+    // Sort by createdAt descending
+    return tweets.sort((a, b) => {
+      const dateA = new Date(a.payload?.createdAt || a.payload?.created_at || 0).getTime();
+      const dateB = new Date(b.payload?.createdAt || b.payload?.created_at || 0).getTime();
+      return dateB - dateA;
+    });
   }
 
   /**

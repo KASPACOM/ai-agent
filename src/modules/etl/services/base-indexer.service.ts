@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { QdrantRepository } from '../../database/qdrant/services/qdrant.repository';
-import { EmbeddingService } from './embedding.service';
+import { EmbeddingService } from '../../embedding/embedding.service';
 import { EtlConfigService } from '../config/etl.config';
 import { TweetProcessingStatus } from '../models/etl.enums';
 import {

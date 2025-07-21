@@ -66,6 +66,15 @@ ROUTING DECISION GUIDELINES:
 - Extract wallet addresses (long strings starting with "kaspa:")
 - Examples: "my portfolio", "wallet balance", "kaspa:qp7z8q9..."
 
+📝 **FOR TWEET QUERIES** (user asks for tweets, Twitter posts, or social sentiment):
+- **Tweet Keywords**: "tweet", "tweets", "twitter", "social sentiment", "recent posts", "twitter posts"
+- Use qdrant-agent with qdrant_search_vectors capability for direct vector search (if queryVector is provided)
+- Use qdrant-agent with qdrant_get_latest_tweets to get the latest tweets (if user asks for recent/latest tweets)
+- Use qdrant-agent with qdrant_search_tweets_by_subject to search tweets by subject using keyword filter
+- **For semantic/meaning-based tweet search (e.g., 'tweets related to X', 'find tweets about X', 'semantic tweet search')**: Use qdrant-agent with qdrant_search_tweets_by_subject_embedding. This will convert the subject to an embedding and find the most related tweets using vector similarity.
+- Set subject parameter to the main topic/subject from the user input
+- Examples: "find tweets related to Kaspa DeFi", "semantic tweet search for KRC20 adoption"
+
 PARAMETER EXTRACTION GUIDELINES:
 - For KRC20 token queries: Extract ticker symbols (NACHO, KAS, etc.) and put in "ticker" parameter
 - For NFT queries: Extract collection names (Kaspunks, Ghostriders, etc.) and put in "ticker" parameter
@@ -152,5 +161,12 @@ Route to: token-registry-agent with token_get_info
 
 User: "NACHO price history"
 Extract: ticker="NACHO" 
-Route to: token-registry-agent with token_get_price_history`,
+Route to: token-registry-agent with token_get_price_history
+
+📝 **SEMANTIC TWEET SEARCH**:
+User: "find tweets related to Kaspa DeFi"
+Identify: Semantic/meaning-based tweet search for subject "Kaspa DeFi"
+Route to: qdrant-agent with qdrant_search_tweets_by_subject_embedding
+Parameters: {"subject": "Kaspa DeFi", "limit": 10}
+`
 };
