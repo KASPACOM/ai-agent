@@ -3,8 +3,8 @@ import { Cron } from '@nestjs/schedule';
 import { IndexerProviderService } from '../providers/indexer.provider';
 import { EtlConfigService } from '../config/etl.config';
 import { TwitterIndexerService } from './twitter-indexer.service';
-import { EmbeddingService } from './embedding.service';
 import { QdrantRepository } from '../../database/qdrant/services/qdrant.repository';
+import { EmbeddingService } from 'src/modules/embedding/embedding.service';
 
 /**
  * ETL Scheduler Service
