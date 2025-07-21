@@ -67,10 +67,10 @@ export class EtlSchedulerService {
 
   /**
    * Scheduled Telegram indexer execution
-   * Runs every minute for testing (change to hourly later)
+   * Runs daily at 8pm UTC to be respectful to Telegram API limits
    * Processes all configured Telegram channels and forum topics
    */
-  @Cron('0 * * * * *', {
+  @Cron('0 0 20 * * *', {
     name: 'telegram-indexer',
     timeZone: 'UTC',
   })
@@ -83,7 +83,7 @@ export class EtlSchedulerService {
     }
 
     this.logger.log(
-      'Starting scheduled Telegram indexing run (1min cycle - testing)',
+      'Starting scheduled Telegram indexing run (daily at 8pm UTC)',
     );
     this.isTelegramRunning = true;
 

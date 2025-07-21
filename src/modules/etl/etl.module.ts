@@ -7,7 +7,6 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AppConfigModule } from '../core/modules/config/app-config.module';
 
 // === ETL Services ===
-import { TwitterScraperService } from './services/twitter-scraper.service';
 import { TwitterApiService } from './services/twitter-api.service';
 import { TelegramApiService } from './services/telegram-api.service';
 import { TelegramMTProtoService } from './services/telegram-mtproto.service';
@@ -70,7 +69,6 @@ import { DatabaseModule } from '../database/database.module';
     EtlConfigService,
 
     // === Core ETL Services ===
-    TwitterScraperService,
     TwitterApiService,
     TelegramApiService,
     TelegramMTProtoService,
@@ -92,7 +90,6 @@ import { DatabaseModule } from '../database/database.module';
     EtlConfigService,
 
     // === Core ETL Services ===
-    TwitterScraperService,
     TwitterApiService,
     EmbeddingService,
     TwitterIndexerService,

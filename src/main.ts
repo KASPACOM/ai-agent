@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import { AppConfigService } from './modules/core/modules/config/app-config.service';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule.forRoot());
 
   app.useGlobalPipes(
     new ValidationPipe({

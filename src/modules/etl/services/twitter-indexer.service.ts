@@ -400,13 +400,46 @@ export class TwitterIndexerService extends BaseIndexerService {
       messages.push(...filteredMessages);
 
       // Process and store the messages
-      // TODO: Implement proper message processing and storage
-      // For now, we'll count as processed but not stored until we implement 
-      // the proper embedding and storage pipeline for fetched messages
       let stored = 0;
       if (filteredMessages.length > 0) {
-        this.logger.log(`${filteredMessages.length} messages processed for @${account} - storage not yet implemented in rate-limited mode`);
-        // stored = await this.processAndStoreMessages(filteredMessages, account);
+        this.logger.log(`Processing and storing ${filteredMessages.length} messages for @${account}`);
+        
+        // Generate embeddings and store in Qdrant
+        try {
+          const tweets = [];
+          
+          for (const message of filteredMessages) {
+            // Generate embedding for the message
+            const embedding = await this.embeddingService.generateSingleEmbedding(message.text);
+            
+            // Transform for storage
+            const transformedMessage = this.transformMessageForStorage(message);
+            
+            // Prepare tweet data for batch storage
+            tweets.push({
+              tweetId: message.id,
+              vector: embedding,
+              metadata: transformedMessage,
+            });
+          }
+          
+          // Batch store all tweets
+          if (tweets.length > 0) {
+            const result = await this.qdrantRepository.storeTweetVectorsBatch(
+              tweets,
+              this.config.collectionName,
+            );
+            stored = result.stored;
+            
+            if (result.errors.length > 0) {
+              this.logger.warn(`Some tweets failed to store for @${account}:`, result.errors);
+            }
+          }
+          
+          this.logger.log(`Successfully stored ${stored}/${filteredMessages.length} messages for @${account}`);
+        } catch (error) {
+          this.logger.error(`Failed to store messages for @${account}: ${error.message}`);
+        }
       }
 
       this.logger.log(

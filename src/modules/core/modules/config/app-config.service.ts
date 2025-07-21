@@ -146,14 +146,35 @@ export class AppConfigService {
 
   get getTelegramChannelsConfig(): any[] {
     const channels = this.configService.get('TELEGRAM_CHANNELS_CONFIG');
-    if (!channels) return [];
+    
+    // Handle empty, undefined, or whitespace-only values
+    if (!channels || typeof channels !== 'string' || channels.trim() === '') {
+      return [];
+    }
+
+    // Clean up the string - remove any extra whitespace and newlines that might interfere
+    const cleanedChannels = channels.trim().replace(/\s+/g, ' ');
     
     try {
-      return JSON.parse(channels);
+      const parsed = JSON.parse(cleanedChannels);
+      console.log(`✅ Successfully parsed TELEGRAM_CHANNELS_CONFIG: ${parsed.length} channels configured`);
+      return parsed;
     } catch (error) {
-      throw new Error(
-        `Failed to parse TELEGRAM_CHANNELS_CONFIG: ${error.message}. Expected valid JSON array format.`,
+      console.warn(
+        `❌ Failed to parse TELEGRAM_CHANNELS_CONFIG: ${error.message}. Returning empty array. Expected valid JSON array format.`,
       );
+      console.warn(`Raw value: "${channels}"`);
+      console.warn(`Cleaned value: "${cleanedChannels}"`);
+      return []; // Return empty array instead of throwing error during startup
     }
+  }
+
+  // Service Configuration
+  get getServiceType(): 'ETL' | 'AGENT' {
+    const serviceType = this.configService.get('SERVICE_TYPE');
+    if (serviceType === 'ETL' || serviceType === 'AGENT') {
+      return serviceType;
+    }
+    return 'ETL'; // Default fallback
   }
 }

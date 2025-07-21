@@ -54,9 +54,15 @@ import { AppConfigService } from './app-config.service';
 
         // Telegram Bot API Configuration
         TELEGRAM_BOT_TOKEN: Joi.string().optional(),
-        TELEGRAM_API_ID: Joi.string().optional(), 
+        TELEGRAM_API_ID: Joi.string().optional(),
         TELEGRAM_API_HASH: Joi.string().optional(),
         TELEGRAM_CHANNELS_CONFIG: Joi.string().optional().default('[]'),
+
+        // Service Configuration
+        SERVICE_TYPE: Joi.string()
+          .valid('ETL', 'AGENT')
+          .optional()
+          .default('ETL'),
       }),
       validationOptions: {
         abortEarly: true,

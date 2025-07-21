@@ -402,4 +402,101 @@ export class TelegramMTProtoService implements OnModuleInit {
       this.logger.log('Disconnected from Telegram');
     }
   }
+
+  /**
+   * Fetch messages from a forum topic with anti-spam delays
+   */
+  private async fetchMessagesFromTopic(
+    entity: any,
+    topicId: number,
+    limit = 100,
+  ): Promise<any[]> {
+    try {
+      // Add delay between requests to avoid rate limiting
+      await this.delay(2000); // 2-second delay
+
+      const messages = await this.client.getMessages(entity, {
+        limit: Math.min(limit, 20), // Reduce batch size to be less aggressive
+        offsetId: 0,
+        replyTo: topicId,
+      });
+
+      this.logger.log(
+        `Fetched ${messages.length} messages from topic ${topicId} with rate limiting`,
+      );
+
+      return messages;
+    } catch (error) {
+      this.logger.error(
+        `Error fetching messages from topic ${topicId}: ${error.message}`,
+      );
+
+      // If we get rate limited, wait longer before retrying
+      if (error.message.includes('FLOOD_WAIT')) {
+        const waitTime = this.extractFloodWaitTime(error.message);
+        this.logger.warn(
+          `Rate limited - waiting ${waitTime} seconds before retry`,
+        );
+        await this.delay(waitTime * 1000);
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Extract flood wait time from error message
+   */
+  private extractFloodWaitTime(errorMessage: string): number {
+    const match = errorMessage.match(/FLOOD_WAIT_(\d+)/);
+    return match ? parseInt(match[1]) : 60; // Default to 60 seconds
+  }
+
+  /**
+   * Add delay utility to prevent aggressive API usage
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Fetch forum topics with rate limiting
+   */
+  async fetchForumTopics(channelId: string, limit = 50): Promise<any[]> {
+    try {
+      await this.ensureConnected(); // Changed from ensureAuthentication to ensureConnected
+
+      // Add delay before forum topic requests
+      await this.delay(3000); // 3-second delay for sensitive operations
+
+      const entity = await this.client.getEntity(channelId);
+
+      // Use smaller batch sizes to be less aggressive
+      const topics = await this.client.invoke(
+        new Api.channels.GetForumTopics({
+          channel: entity,
+          limit: Math.min(limit, 10), // Reduce from 50 to 10
+        }),
+      );
+
+      this.logger.log(
+        `Fetched ${topics.topics?.length || 0} forum topics with rate limiting`,
+      );
+
+      return topics.topics || [];
+    } catch (error) {
+      this.logger.error(`Error fetching forum topics: ${error.message}`);
+
+      // Handle rate limiting gracefully
+      if (error.message.includes('FLOOD_WAIT')) {
+        const waitTime = this.extractFloodWaitTime(error.message);
+        this.logger.warn(
+          `Rate limited on forum topics - waiting ${waitTime} seconds`,
+        );
+        await this.delay(waitTime * 1000);
+      }
+
+      throw error;
+    }
+  }
 }

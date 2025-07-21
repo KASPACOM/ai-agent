@@ -17,6 +17,7 @@ import { EtlConfigService } from '../config/etl.config';
  */
 @Injectable()
 export class EmbeddingService {
+  [x: string]: any;
   private readonly logger = new Logger(EmbeddingService.name);
   private readonly openai: OpenAI;
   private readonly embeddingStats = {

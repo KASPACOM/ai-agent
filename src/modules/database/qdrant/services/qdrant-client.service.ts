@@ -30,8 +30,28 @@ export class QdrantClientService implements OnModuleInit {
 
       this.logger.log(`Initializing Qdrant client with URL: ${url}`);
 
+      // Parse URL for HTTPS configuration
+      const parsedUrl = new URL(url);
+      const isHttps = parsedUrl.protocol === 'https:';
+
+      // For Cloudflare-proxied domains, don't specify port - let HTTPS default to 443
+      const isCloudflareProxied = parsedUrl.hostname.includes('.kaspa.com');
+      const port = parsedUrl.port
+        ? parseInt(parsedUrl.port)
+        : isCloudflareProxied && isHttps
+          ? 443 // Use standard HTTPS port for Cloudflare
+          : isHttps
+            ? 6333
+            : 6333;
+
+      this.logger.log(
+        `Qdrant connection config: host=${parsedUrl.hostname}, port=${port}, https=${isHttps}, cloudflare=${isCloudflareProxied}`,
+      );
+
       this.qdrantClient = new QdrantClient({
-        url,
+        host: parsedUrl.hostname,
+        port,
+        https: isHttps,
         apiKey, // Optional - will be undefined if not set
       });
 
