@@ -4,6 +4,7 @@ import {
   TwitterApiReadOnly,
   TweetV2,
   UserV2,
+  TweetSearchRecentV2Paginator,
 } from 'twitter-api-v2';
 import { Tweet, TweetBatch } from '../models/tweet.model';
 import { TweetSource, TweetProcessingStatus } from '../models/etl.enums';
@@ -214,17 +215,13 @@ export class TwitterApiService {
            }
 
          } catch (error) {
-           // Handle rate limiting errors
+           // Handle rate limiting gracefully - return what we've collected so far
            if (error.code === 429 || error.status === 429) {
-             const resetTime = error.rateLimit?.reset || Date.now() + (15 * 60 * 1000); // Default to 15 min
-             const waitTime = Math.max(resetTime * 1000 - Date.now(), 60000); // Wait at least 1 minute
-             
-             this.logger.warn(`Rate limit exceeded for ${username}. Waiting ${Math.round(waitTime / 1000)} seconds before retry...`);
-             await this.delay(waitTime);
-             
-             // Continue the loop to retry
-             continue;
+             this.logger.warn(`Rate limit hit for ${username} during pagination. Returning ${allNewTweets.length} tweets collected so far.`);
+             shouldContinue = false; // Stop pagination
+             break; // Exit the loop and return collected tweets
            } else {
+             // For non-rate-limit errors, still throw
              this.logger.error(`Error fetching tweets for ${username}:`, error);
              throw error;
            }
@@ -304,9 +301,24 @@ export class TwitterApiService {
         query,
         searchOptions,
       );
-
       // Process search results
-      const searchData = Array.isArray(searchResults.data) ? searchResults.data : [];
+      return this.processTweets(tweets, query, searchResults);
+    } catch (error) {
+      if (error.code === 429) {
+        this.apiStats.rateLimitHits++;
+        this.logger.warn(`Rate limit hit during search - will be handled by request limit system`);
+        return [];
+      }
+
+      this.logger.error(`Failed to search tweets: ${error.message}`);
+      throw error;
+    }
+  }
+  private async processTweets(tweets: Tweet[],  query: string, searchResults?: TweetSearchRecentV2Paginator): Promise<Tweet[]> {
+    if (!searchResults) {
+      return tweets;
+    }
+    const searchData = Array.isArray(searchResults.data) ? searchResults.data : [];
       for (const tweet of searchData) {
         const author = searchResults.includes?.users?.find(
           (u) => u.id === tweet.author_id,
@@ -320,18 +332,7 @@ export class TwitterApiService {
 
       this.logger.log(`Found ${tweets.length} tweets for query: ${query}`);
       return tweets;
-    } catch (error) {
-      if (error.code === 429) {
-        this.apiStats.rateLimitHits++;
-        await this.handleRateLimit(error);
-        throw error;
-      }
-
-      this.logger.error(`Failed to search tweets: ${error.message}`);
-      throw error;
-    }
   }
-
   /**
    * Get recent tweets (last 7 days) for Kaspa-related content
    */
@@ -343,34 +344,9 @@ export class TwitterApiService {
     return this.searchTweets(kaspaQuery, maxResults, startTime);
   }
 
-  /**
-   * Handle rate limiting with exponential backoff
-   */
-  private async handleRateLimit(error: any): Promise<void> {
-    const resetTime = error.rateLimit?.reset;
-    if (resetTime) {
-      const waitTime = Math.max(0, resetTime * 1000 - Date.now());
-      this.logger.warn(`Rate limit hit. Waiting ${waitTime}ms until reset...`);
-      await this.sleep(waitTime);
-    } else {
-      // Fallback: exponential backoff
-      const waitTime = Math.min(
-        300000,
-        Math.pow(2, this.apiStats.rateLimitHits) * 1000,
-      ); // Max 5 minutes
-      this.logger.warn(
-        `Rate limit hit. Waiting ${waitTime}ms with exponential backoff...`,
-      );
-      await this.sleep(waitTime);
-    }
-  }
 
-  /**
-   * Sleep utility function
-   */
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
+
+
 
   /**
    * Get API usage statistics

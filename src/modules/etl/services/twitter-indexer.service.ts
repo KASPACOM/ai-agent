@@ -158,9 +158,17 @@ export class TwitterIndexerService extends BaseIndexerService {
           break;
         }
       } catch (error) {
-        const errorMsg = `Failed to process Twitter account @${account}: ${error.message}`;
-        this.logger.error(errorMsg);
-        allErrors.push(errorMsg);
+        // Rate limit errors should now be handled gracefully in fetchAccountTweets
+        // If we still get here, it's likely a different kind of error
+        if (error.message.includes('429')) {
+          this.logger.warn(`Rate limit encountered for @${account} - skipping to next account`);
+          rateLimited = true;
+          hasMoreData = true;
+        } else {
+          const errorMsg = `Failed to process Twitter account @${account}: ${error.message}`;
+          this.logger.error(errorMsg);
+          allErrors.push(errorMsg);
+        }
       }
     }
 
@@ -213,9 +221,15 @@ export class TwitterIndexerService extends BaseIndexerService {
           `Completed processing @${account}: ${result.processed} tweets processed, ${result.stored} stored`,
         );
       } catch (error) {
-        const errorMsg = `Failed to process Twitter account @${account}: ${error.message}`;
-        this.logger.error(errorMsg);
-        allErrors.push(errorMsg);
+        // Handle rate limit errors gracefully in non-rate-limited mode too
+        if (error.message.includes('429')) {
+          this.logger.warn(`Rate limit encountered for @${account} - skipping to next account`);
+          // Don't add to errors - rate limits are expected
+        } else {
+          const errorMsg = `Failed to process Twitter account @${account}: ${error.message}`;
+          this.logger.error(errorMsg);
+          allErrors.push(errorMsg);
+        }
       }
     }
 
@@ -327,6 +341,7 @@ export class TwitterIndexerService extends BaseIndexerService {
         startTime,
         endTime,
       );
+
       const baseMessages = tweets.map((tweet) =>
         TwitterMessageTransformer.convertTweetToBaseMessage(tweet),
       );
