@@ -16,6 +16,7 @@ import { TwitterIndexerService } from './services/twitter-indexer.service';
 import { TelegramIndexerService } from './services/telegram-indexer.service';
 import { IndexerProviderService } from './providers/indexer.provider';
 import { EtlSchedulerService } from './services/etl-scheduler.service';
+import { AccountRotationService } from './services/account-rotation.service';
 
 // === Controllers ===
 import { IndexerSchedulerController } from './controllers/indexer-scheduler.controller';
@@ -77,6 +78,7 @@ import { DatabaseModule } from '../database/database.module';
     TelegramIndexerService,
     IndexerProviderService,
     EtlSchedulerService,
+    AccountRotationService,
 
     // === Transformers ===
     TweetTransformer,
@@ -95,6 +97,7 @@ import { DatabaseModule } from '../database/database.module';
     TwitterIndexerService,
     TelegramIndexerService,
     IndexerProviderService,
+    AccountRotationService,
 
     // === Transformers ===
     TweetTransformer,

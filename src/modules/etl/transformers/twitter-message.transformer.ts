@@ -13,28 +13,52 @@ import { TweetV2, UserV2 } from 'twitter-api-v2';
  */
 export class TwitterMessageTransformer extends BaseMessageTransformer {
   /**
+   * Safely parse a date string, returning current date if invalid
+   */
+  private static safeParseDate(dateStr: any): Date {
+    if (!dateStr) {
+      return new Date(); // Default to now if no date provided
+    }
+    
+    const parsed = new Date(dateStr);
+    
+    // Check if the date is valid
+    if (isNaN(parsed.getTime())) {
+      console.warn(`Invalid date encountered: "${dateStr}", using current time`);
+      return new Date(); // Default to now if invalid date
+    }
+    
+    return parsed;
+  }
+
+  /**
    * Convert Tweet to BaseMessage format
    */
-  public static convertTweetToBaseMessage(tweet: Tweet): BaseMessage {
+  public static convertTweetToBaseMessage(
+    tweet: any,
+    authorHandle: string,
+    collectionName: string = 'kaspa_tweets',
+  ): BaseMessage {
     const normalizedText = this.normalizeText(tweet.text);
     const kaspaAnalysis = this.analyzeKaspaContent(normalizedText);
+    const normalizedAuthorHandle = authorHandle.toLowerCase();
 
     return {
-      id: tweet.id,
+      id: `twitter_${tweet.id}`,
       text: normalizedText,
-      author: tweet.author,
-      authorHandle: tweet.authorHandle,
-      createdAt: tweet.createdAt,
-      url: tweet.url,
-      source: tweet.source,
-      processingStatus: tweet.processingStatus,
-      processedAt: tweet.processedAt,
+      author: tweet.author_id,
+      authorHandle: normalizedAuthorHandle, // Already normalized
+      createdAt: this.safeParseDate(tweet.created_at), // Safe date parsing
+      url: `https://twitter.com/${normalizedAuthorHandle}/status/${tweet.id}`, // Use normalized handle
+      source: collectionName,
       kaspaRelated: kaspaAnalysis.isKaspaRelated,
       kaspaTopics: kaspaAnalysis.kaspaTopics,
       hashtags: tweet.hashtags || this.extractHashtags(normalizedText),
       mentions: tweet.mentions || this.extractMentions(normalizedText),
       links: tweet.links || this.extractLinks(normalizedText),
       language: tweet.language || this.detectLanguage(normalizedText),
+      processingStatus: tweet.processingStatus || TweetProcessingStatus.SCRAPED,
+      processedAt: tweet.processedAt || new Date(),
       errors: tweet.errors || [],
       retryCount: tweet.retryCount || 0,
     };
@@ -68,33 +92,33 @@ export class TwitterMessageTransformer extends BaseMessageTransformer {
    */
   public static createFromRawTwitterData(
     twitterData: any,
+    collectionName: string = 'kaspa_tweets',
     authorInfo?: any,
   ): BaseMessage {
     const now = new Date();
-    const text = this.normalizeText(twitterData.text || '');
+    const text = this.normalizeText(twitterData.text || twitterData.full_text || '');
     const kaspaAnalysis = this.analyzeKaspaContent(text);
+    
+    const id = twitterData.id_str || twitterData.id || `twitter_${now.getTime()}`;
+    const normalizedAuthorHandle = (authorInfo?.username || twitterData.username || 'unknown').toLowerCase();
 
     return {
-      id: twitterData.id || `twitter_${now.getTime()}`,
-      text,
-      author: authorInfo?.name || twitterData.author_name || 'Unknown',
-      authorHandle: authorInfo?.username || twitterData.username || 'unknown',
-      createdAt: new Date(
-        twitterData.created_at || twitterData.timestamp || now,
-      ),
-      url: this.buildTwitterUrl(
-        authorInfo?.username || twitterData.username,
-        twitterData.id,
-      ),
-      source: TweetSource.API,
-      processingStatus: TweetProcessingStatus.SCRAPED,
-      processedAt: now,
+      id: id,
+      text: text,
+      author: authorInfo?.name || twitterData.name || authorInfo?.username || twitterData.username || 'Unknown',
+      authorHandle: normalizedAuthorHandle, // Already normalized
+      createdAt: this.safeParseDate(twitterData.created_at), // Safe date parsing
+      url: `https://twitter.com/${normalizedAuthorHandle}/status/${twitterData.id_str || twitterData.id}`, // Use normalized handle
+      source: collectionName,
       kaspaRelated: kaspaAnalysis.isKaspaRelated,
       kaspaTopics: kaspaAnalysis.kaspaTopics,
-      hashtags: this.extractHashtags(text),
-      mentions: this.extractMentions(text),
-      links: this.extractLinks(text),
-      language: this.detectLanguage(text),
+      // Prefer API entities if available, fallback to text extraction
+      hashtags: twitterData.entities?.hashtags?.map((h: any) => h.text.toLowerCase()) || this.extractHashtags(text),
+      mentions: twitterData.entities?.user_mentions?.map((m: any) => m.screen_name.toLowerCase()) || this.extractMentions(text),
+      links: twitterData.entities?.urls?.map((u: any) => u.expanded_url) || this.extractLinks(text),
+      language: twitterData.lang || this.detectLanguage(text),
+      processingStatus: TweetProcessingStatus.SCRAPED,
+      processedAt: now,
       errors: [],
       retryCount: 0,
     };
@@ -186,8 +210,9 @@ export class TwitterMessageTransformer extends BaseMessageTransformer {
     const twitterErrors: string[] = [];
 
     // Twitter-specific validations
-    if (!message.authorHandle.match(/^[a-zA-Z0-9_]{1,15}$/)) {
-      twitterErrors.push('Invalid Twitter handle format');
+    // Since we normalize to lowercase, check accordingly
+    if (!message.authorHandle.match(/^[a-z0-9_]{1,15}$/)) {
+      twitterErrors.push('Invalid Twitter handle format (should be lowercase alphanumeric with underscores, max 15 chars)');
     }
 
     if (message.text.length > 280) {
