@@ -31,8 +31,8 @@ import { AppConfigService } from './app-config.service';
         TWITTER_EMAIL: Joi.string().optional(),
 
         // Twitter API v2 Configuration
-        TWITTER_CLIENT_ID: Joi.string().optional(),
-        TWITTER_CLIENT_SECRET: Joi.string().optional(),
+        TWITTER_API_KEY: Joi.string().optional(),
+        TWITTER_API_SECRET: Joi.string().optional(),
         TWITTER_BEARER_TOKEN: Joi.string().optional(),
         TWITTER_ACCESS_TOKEN: Joi.string().optional(),
         TWITTER_ACCESS_TOKEN_SECRET: Joi.string().optional(),

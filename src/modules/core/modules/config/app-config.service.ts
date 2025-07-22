@@ -99,12 +99,12 @@ export class AppConfigService {
   }
 
   // Twitter API v2 config
-  get getTwitterClientId(): string {
-    return this.configService.get('TWITTER_CLIENT_ID');
+  get getTwitterApiKey(): string {
+    return this.configService.get('TWITTER_API_KEY');
   }
 
-  get getTwitterClientSecret(): string {
-    return this.configService.get('TWITTER_CLIENT_SECRET');
+  get getTwitterApiSecret(): string {
+    return this.configService.get('TWITTER_API_SECRET');
   }
 
   get getTwitterAccessToken(): string {
