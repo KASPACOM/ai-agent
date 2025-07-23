@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { BaseIndexerService } from './base-indexer.service';
 import { TwitterApiService } from '../../integrations/twitter/twitter-api.service';
 import { QdrantRepository } from '../../database/qdrant/services/qdrant.repository';
-import { EmbeddingService } from './embedding.service';
+import { EmbeddingService } from '../../embedding/embedding.service';
 import { EtlConfigService } from '../config/etl.config';
 import { Tweet } from '../models/tweet.model';
 import { TweetSource, TweetProcessingStatus } from '../models/etl.enums';

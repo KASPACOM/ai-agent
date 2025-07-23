@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BaseIndexerService } from './base-indexer.service';
 import { QdrantRepository } from '../../database/qdrant/services/qdrant.repository';
-import { EmbeddingService } from './embedding.service';
+import { EmbeddingService } from '../../embedding/embedding.service';
 import { EtlConfigService } from '../config/etl.config';
 import { TweetProcessingStatus, TweetSource } from '../models/etl.enums';
 import {

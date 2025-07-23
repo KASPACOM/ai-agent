@@ -5,9 +5,9 @@ import {
   EmbeddingResponse,
   EmbeddingVector,
   EmbeddingStats,
-} from '../models/embedding.model';
-import { EmbeddingModel } from '../models/etl.enums';
-import { EtlConfigService } from '../config/etl.config';
+} from '../etl/models/embedding.model';
+import { EmbeddingModel } from '../etl/models/etl.enums';
+import { EtlConfigService } from '../etl/config/etl.config';
 
 /**
  * Embedding Service
