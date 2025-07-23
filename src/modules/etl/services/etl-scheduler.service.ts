@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { IndexerProviderService } from '../providers/indexer.provider';
 import { EtlConfigService } from '../config/etl.config';
@@ -13,7 +13,7 @@ import { EmbeddingService } from 'src/modules/embedding/embedding.service';
  * Currently set to run once, can be modified for recurring schedules
  */
 @Injectable()
-export class EtlSchedulerService {
+export class EtlSchedulerService implements OnModuleInit {
   private readonly logger = new Logger(EtlSchedulerService.name);
   private hasRunOnce = false;
   private isTwitterRunning = false;
@@ -27,6 +27,11 @@ export class EtlSchedulerService {
     private readonly qdrantRepository: QdrantRepository,
   ) {
     this.logger.log('ETL Scheduler Service initialized');
+  }
+
+  async onModuleInit() {
+    await this.runScheduledTwitterIndexing();
+    // await this.runScheduledTelegramIndexing();
   }
 
   /**

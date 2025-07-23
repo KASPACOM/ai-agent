@@ -3,7 +3,6 @@ import { BaseIndexerService } from './base-indexer.service';
 import { QdrantRepository } from '../../database/qdrant/services/qdrant.repository';
 import { EmbeddingService } from '../../embedding/embedding.service';
 import { EtlConfigService } from '../config/etl.config';
-import { TweetProcessingStatus, TweetSource } from '../models/etl.enums';
 import {
   BaseMessage,
   HistoricalFetchParams,
@@ -11,8 +10,15 @@ import {
   MessageProcessingResult,
 } from '../models/base-indexer.model';
 import { TelegramMessageTransformer } from '../transformers/telegram-message.transformer';
-import { TelegramApiService, TelegramMessage, TelegramChannel } from './telegram-api.service';
-import { TelegramMTProtoService, TelegramMTProtoMessage, TelegramForumTopicInfo } from './telegram-mtproto.service';
+import {
+  TelegramApiService,
+  TelegramMessage,
+  TelegramChannel,
+} from './telegram-api.service';
+import {
+  TelegramMTProtoService,
+  TelegramMTProtoMessage,
+} from './telegram-mtproto.service';
 
 /**
  * Telegram Indexer Service
@@ -44,7 +50,7 @@ export class TelegramIndexerService extends BaseIndexerService {
    */
   protected getServiceAccounts(): string[] {
     const channels = this.etlConfig.getTelegramChannelsConfig();
-    return channels.map(channel => channel.username || channel.id.toString());
+    return channels.map((channel) => channel.username || channel.id.toString());
   }
 
   /**
@@ -85,10 +91,14 @@ export class TelegramIndexerService extends BaseIndexerService {
 
     for (const channelConfig of channels) {
       try {
-        this.logger.log(`Processing Telegram channel: ${channelConfig.username || channelConfig.id}`);
-        
+        this.logger.log(
+          `Processing Telegram channel: ${channelConfig.username || channelConfig.id}`,
+        );
+
         // Check if bot has access to the channel
-        const hasAccess = await this.telegramApi.checkChatAccess(channelConfig.id);
+        const hasAccess = await this.telegramApi.checkChatAccess(
+          channelConfig.id,
+        );
         if (!hasAccess) {
           const errorMsg = `Bot cannot access Telegram channel ${channelConfig.username || channelConfig.id}`;
           this.logger.error(errorMsg);
@@ -98,11 +108,16 @@ export class TelegramIndexerService extends BaseIndexerService {
 
         // Get channel information
         const channelInfo = await this.telegramApi.getChat(channelConfig.id);
-        this.logger.log(`Channel info: ${channelInfo.title} (${channelInfo.type}, forum: ${channelInfo.is_forum})`);
+        this.logger.log(
+          `Channel info: ${channelInfo.title} (${channelInfo.type}, forum: ${channelInfo.is_forum})`,
+        );
 
         if (channelInfo.is_forum) {
           // Process forum channel with topics
-          const result = await this.processForumChannel(channelConfig.id, channelInfo);
+          const result = await this.processForumChannel(
+            channelConfig.id,
+            channelInfo,
+          );
           totalProcessed += result.processed;
           totalEmbedded += result.embedded;
           totalStored += result.stored;
@@ -112,7 +127,10 @@ export class TelegramIndexerService extends BaseIndexerService {
           }
         } else {
           // Process regular channel
-          const result = await this.processRegularChannel(channelConfig.id, channelInfo);
+          const result = await this.processRegularChannel(
+            channelConfig.id,
+            channelInfo,
+          );
           totalProcessed += result.processed;
           totalEmbedded += result.embedded;
           totalStored += result.stored;
@@ -268,40 +286,46 @@ export class TelegramIndexerService extends BaseIndexerService {
    */
   private async processForumChannel(
     channelId: number,
-    channelInfo: TelegramChannel
+    channelInfo: TelegramChannel,
   ): Promise<MessageProcessingResult> {
     const allErrors: string[] = [];
     let totalProcessed = 0;
-    let totalEmbedded = 0;
-    let totalStored = 0;
+    const totalEmbedded = 0;
+    const totalStored = 0;
     const allMessages: BaseMessage[] = [];
 
     try {
-      this.logger.log(`Processing forum channel: ${channelInfo.title} using MTProto`);
-      
+      this.logger.log(
+        `Processing forum channel: ${channelInfo.title} using MTProto`,
+      );
+
       // Use MTProto to get all forum messages (much more powerful!)
       const messagesByTopic = await this.telegramMTProto.fetchAllForumMessages(
-        channelInfo.username || channelId, 
+        channelInfo.username || channelId,
         {
           limit: 1000, // Get up to 1000 messages per topic
           reverse: true, // Get chronologically (oldest first)
-        }
+        },
       );
 
-      const topicIds = Object.keys(messagesByTopic).map(k => parseInt(k));
-      this.logger.log(`Found messages from ${topicIds.length} forum topics in ${channelInfo.title}`);
+      const topicIds = Object.keys(messagesByTopic).map((k) => parseInt(k));
+      this.logger.log(
+        `Found messages from ${topicIds.length} forum topics in ${channelInfo.title}`,
+      );
 
       // Process messages from each topic
       for (const topicIdStr of Object.keys(messagesByTopic)) {
         const topicId = parseInt(topicIdStr);
         const messages = messagesByTopic[topicId];
-        
+
         try {
-          this.logger.log(`Processing ${messages.length} messages from topic ID: ${topicId}`);
-          
+          this.logger.log(
+            `Processing ${messages.length} messages from topic ID: ${topicId}`,
+          );
+
           // Convert MTProto messages to BaseMessage format
-          const baseMessages = messages.map(msg => 
-            this.convertMTProtoMessageToBase(msg, channelInfo, topicId)
+          const baseMessages = messages.map((msg) =>
+            this.convertMTProtoMessageToBase(msg, channelInfo, topicId),
           );
 
           totalProcessed += baseMessages.length;
@@ -309,15 +333,15 @@ export class TelegramIndexerService extends BaseIndexerService {
 
           // TODO: Process and store messages with embeddings
           // For now, we just count them as processed
-          this.logger.log(`Processed ${baseMessages.length} messages from topic ${topicId}`);
-          
+          this.logger.log(
+            `Processed ${baseMessages.length} messages from topic ${topicId}`,
+          );
         } catch (error) {
           const errorMsg = `Failed to process forum topic ${topicId}: ${error.message}`;
           this.logger.error(errorMsg);
           allErrors.push(errorMsg);
         }
       }
-
     } catch (error) {
       const errorMsg = `Failed to process forum channel ${channelInfo.title}: ${error.message}`;
       this.logger.error(errorMsg);
@@ -339,23 +363,23 @@ export class TelegramIndexerService extends BaseIndexerService {
    */
   private async processRegularChannel(
     channelId: number,
-    channelInfo: TelegramChannel
+    channelInfo: TelegramChannel,
   ): Promise<MessageProcessingResult> {
     const allErrors: string[] = [];
     let totalProcessed = 0;
-    let totalEmbedded = 0;
-    let totalStored = 0;
+    const totalEmbedded = 0;
+    const totalStored = 0;
     const allMessages: BaseMessage[] = [];
 
     try {
       this.logger.log(`Processing regular channel: ${channelInfo.title}`);
-      
+
       // Fetch messages from the channel
       const messages = await this.telegramApi.fetchChatMessages(channelId);
 
       // Convert Telegram messages to BaseMessage format
-      const baseMessages = messages.map(msg => 
-        this.convertTelegramMessageToBase(msg, channelInfo)
+      const baseMessages = messages.map((msg) =>
+        this.convertTelegramMessageToBase(msg, channelInfo),
       );
 
       totalProcessed += baseMessages.length;
@@ -363,8 +387,9 @@ export class TelegramIndexerService extends BaseIndexerService {
 
       // TODO: Process and store messages with embeddings
       // For now, we just count them as processed
-      this.logger.log(`Processed ${baseMessages.length} messages from channel ${channelInfo.title}`);
-
+      this.logger.log(
+        `Processed ${baseMessages.length} messages from channel ${channelInfo.title}`,
+      );
     } catch (error) {
       const errorMsg = `Failed to process regular channel ${channelInfo.title}: ${error.message}`;
       this.logger.error(errorMsg);
@@ -387,14 +412,14 @@ export class TelegramIndexerService extends BaseIndexerService {
   private convertTelegramMessageToBase(
     telegramMessage: TelegramMessage,
     channelInfo: TelegramChannel,
-    topic?: { name: string; message_thread_id: number }
+    topic?: { name: string; message_thread_id: number },
   ): BaseMessage {
     const messageText = telegramMessage.text || '';
     const author = telegramMessage.from?.first_name || 'Unknown';
     const authorHandle = telegramMessage.from?.username || '';
-    
+
     // Build message URL for Telegram
-    const url = channelInfo.username 
+    const url = channelInfo.username
       ? `https://t.me/${channelInfo.username}/${telegramMessage.message_id}${topic ? `/${topic.message_thread_id}` : ''}`
       : `https://t.me/c/${Math.abs(channelInfo.id)}/${telegramMessage.message_id}`;
 
@@ -411,7 +436,7 @@ export class TelegramIndexerService extends BaseIndexerService {
       kaspaRelated: false, // TODO: Implement Kaspa relevance detection
       kaspaTopics: [], // TODO: Extract Kaspa-related topics
       hashtags: [], // TODO: Extract hashtags from message text
-      mentions: [], // TODO: Extract mentions from message text  
+      mentions: [], // TODO: Extract mentions from message text
       links: [], // TODO: Extract links from message text
       language: 'unknown', // TODO: Detect language
       errors: [],
@@ -425,14 +450,14 @@ export class TelegramIndexerService extends BaseIndexerService {
   private convertMTProtoMessageToBase(
     mtprotoMessage: TelegramMTProtoMessage,
     channelInfo: TelegramChannel,
-    topicId?: number
+    topicId?: number,
   ): BaseMessage {
     const messageText = mtprotoMessage.message || '';
     const author = mtprotoMessage.postAuthor || 'Unknown';
     const authorHandle = '';
-    
+
     // Build message URL for Telegram
-    const url = channelInfo.username 
+    const url = channelInfo.username
       ? `https://t.me/${channelInfo.username}/${mtprotoMessage.id}${topicId ? `?topic=${topicId}` : ''}`
       : `https://t.me/c/${Math.abs(channelInfo.id)}/${mtprotoMessage.id}`;
 
@@ -449,7 +474,7 @@ export class TelegramIndexerService extends BaseIndexerService {
       kaspaRelated: false, // TODO: Implement Kaspa relevance detection
       kaspaTopics: [], // TODO: Extract Kaspa-related topics
       hashtags: [], // TODO: Extract hashtags from message text
-      mentions: [], // TODO: Extract mentions from message text  
+      mentions: [], // TODO: Extract mentions from message text
       links: [], // TODO: Extract links from message text
       language: 'unknown', // TODO: Detect language
       errors: [],

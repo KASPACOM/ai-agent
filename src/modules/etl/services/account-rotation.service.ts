@@ -493,6 +493,9 @@ export class AccountRotationService {
       // Create point for Qdrant with simplified structure
       // Use a simple hash of the account name for the point ID (Qdrant prefers numeric IDs)
       const pointId = this.hashAccountName(normalizedAccount);
+      this.logger.debug(
+        `Generated point ID ${pointId} for account @${normalizedAccount}`,
+      );
 
       // Keep only essential fields and ensure all data is JSON-serializable
       const cleanPayload = {
@@ -530,6 +533,12 @@ export class AccountRotationService {
       );
       this.logger.debug(`Payload:`, JSON.stringify(cleanPayload, null, 2));
 
+      // Log exactly what we're sending to Qdrant before upsert
+      this.logger.debug(
+        `🔍 About to upsert account status for @${account}:`,
+        JSON.stringify(point, null, 2),
+      );
+
       // Upsert the point
       await this.qdrantClient.upsertPoints(this.ACCOUNT_STATUS_COLLECTION, [
         point,
@@ -542,6 +551,16 @@ export class AccountRotationService {
       this.logger.error(
         `Failed to update account status for @${account}: ${error.message}`,
       );
+
+      // Enhanced error logging with context
+      this.logger.error('Account status update error details:', {
+        account: account.toLowerCase(),
+        errorName: error.name,
+        errorMessage: error.message,
+        errorStack: error.stack,
+        updatesReceived: JSON.stringify(updates, null, 2),
+      });
+
       throw error;
     }
   }
@@ -550,7 +569,10 @@ export class AccountRotationService {
     let hash = 0;
     for (let i = 0; i < accountName.length; i++) {
       hash = accountName.charCodeAt(i) + ((hash << 5) - hash);
+      // Ensure hash stays within 32-bit signed integer range
+      hash = hash | 0; // Convert to 32-bit signed integer
     }
-    return hash;
+    // Ensure we always return a positive number within Qdrant's acceptable range
+    return Math.abs(hash) || 1; // Use 1 if hash is 0
   }
 }

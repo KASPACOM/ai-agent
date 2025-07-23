@@ -66,6 +66,7 @@ import { TwitterApiModule } from '../integrations/twitter/twitter-api.module';
     ScheduleModule.forRoot(), // Enable cron job scheduling
     TwitterApiModule,
     EmbeddingModule, // <-- Use EmbeddingModule for EmbeddingService
+    TwitterApiModule,
   ],
   providers: [
     // === Configuration ===
@@ -92,8 +93,6 @@ import { TwitterApiModule } from '../integrations/twitter/twitter-api.module';
     EtlConfigService,
 
     // === Core ETL Services ===
-    EmbeddingService,
-    TwitterApiService,
     TwitterIndexerService,
     TelegramIndexerService,
     IndexerProviderService,

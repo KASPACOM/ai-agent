@@ -4,8 +4,7 @@ import { TwitterApiService } from '../../integrations/twitter/twitter-api.servic
 import { QdrantRepository } from '../../database/qdrant/services/qdrant.repository';
 import { EmbeddingService } from '../../embedding/embedding.service';
 import { EtlConfigService } from '../config/etl.config';
-import { Tweet } from '../models/tweet.model';
-import { TweetSource, TweetProcessingStatus } from '../models/etl.enums';
+
 import {
   BaseMessage,
   HistoricalFetchParams,
@@ -21,14 +20,14 @@ import { AccountRotationService } from './account-rotation.service';
  * Specialized indexer for Twitter messages
  * Inherits common functionality from BaseIndexerService
  * Uses TwitterApiService for fetching tweets
- * 
+ *
  * EMBEDDING MODES:
- * 
+ *
  * 🚀 BULK EMBEDDINGS (default, recommended):
  * - Use for: Batch processing, ETL runs, large datasets
  * - Benefits: ~20-50x faster, same cost, fewer rate limits
  * - When: filteredMessages.length > 1
- * 
+ *
  * 🔄 SINGLE EMBEDDINGS (fallback):
  * - Use for: Single tweets, real-time processing, testing, debugging
  * - Benefits: Simpler error handling, fine-grained control
@@ -72,7 +71,7 @@ export class TwitterIndexerService extends BaseIndexerService {
 
   /**
    * 🎯 INTELLIGENT ACCOUNT ROTATION: Process accounts with rate limit awareness
-   * 
+   *
    * NEW STRATEGY:
    * - Uses AccountRotationService to intelligently select which accounts to process
    * - Prevents account starvation by rotating through accounts based on priority
@@ -83,20 +82,25 @@ export class TwitterIndexerService extends BaseIndexerService {
     const REQUEST_LIMIT = 10; // Basic tier limit per 15 minutes
     const allErrors: string[] = [];
     let totalProcessed = 0;
-    let totalEmbedded = 0;
+    const totalEmbedded = 0;
     let totalStored = 0;
     const allMessages: BaseMessage[] = [];
     let requestsUsed = 0;
     let rateLimited = false;
     let hasMoreData = false;
 
-    this.logger.log(`🎯 Starting INTELLIGENT Twitter account rotation (${REQUEST_LIMIT} request budget)`);
+    this.logger.log(
+      `🎯 Starting INTELLIGENT Twitter account rotation (${REQUEST_LIMIT} request budget)`,
+    );
 
     // 🧠 Step 1: Intelligently select accounts to process based on priority, staleness, and completion status
-    const selectedAccounts = await this.accountRotation.selectAccountsForProcessing(REQUEST_LIMIT);
-    
+    const selectedAccounts =
+      await this.accountRotation.selectAccountsForProcessing(REQUEST_LIMIT);
+
     if (selectedAccounts.length === 0) {
-      this.logger.log('🔄 No accounts selected for processing (all may be cooling down)');
+      this.logger.log(
+        '🔄 No accounts selected for processing (all may be cooling down)',
+      );
       return {
         success: true,
         processed: 0,
@@ -113,7 +117,9 @@ export class TwitterIndexerService extends BaseIndexerService {
     // 🔄 Step 2: Process each selected account with its allocated request budget
     for (const selection of selectedAccounts) {
       if (requestsUsed >= REQUEST_LIMIT) {
-        this.logger.warn(`Reached global request limit (${REQUEST_LIMIT}). Remaining accounts will be processed next run.`);
+        this.logger.warn(
+          `Reached global request limit (${REQUEST_LIMIT}). Remaining accounts will be processed next run.`,
+        );
         rateLimited = true;
         hasMoreData = true;
         break;
@@ -122,10 +128,16 @@ export class TwitterIndexerService extends BaseIndexerService {
       const { account, allocatedRequests, reason } = selection;
 
       try {
-        this.logger.log(`Processing @${account} (${allocatedRequests} requests allocated) - ${reason}`);
-        
+        this.logger.log(
+          `Processing @${account} (${allocatedRequests} requests allocated) - ${reason}`,
+        );
+
         // Get current data boundaries for this account from Qdrant
-        const boundaries = await this.qdrantRepository.getTweetBoundariesForAccount(account, this.config.collectionName);
+        const boundaries =
+          await this.qdrantRepository.getTweetBoundariesForAccount(
+            account,
+            this.config.collectionName,
+          );
         this.logger.log(
           `@${account} boundaries: earliest=${boundaries.earliest?.toISOString()}, latest=${boundaries.latest?.toISOString()}, hasData=${boundaries.hasData}`,
         );
@@ -137,31 +149,44 @@ export class TwitterIndexerService extends BaseIndexerService {
 
         if (!boundaries.hasData) {
           // 🆕 No data for this account yet - start fresh historical fetch
-          this.logger.log(`@${account} has no data - starting fresh historical fetch`);
-          const result = await this.fetchAccountTweets(account, undefined, allocatedRequests, true);
+          this.logger.log(
+            `@${account} has no data - starting fresh historical fetch`,
+          );
+          const result = await this.fetchAccountTweets(
+            account,
+            undefined,
+            allocatedRequests,
+            true,
+          );
           accountProcessed += result.processed;
           accountStored += result.stored;
           accountRequestsUsed += result.requestsUsed;
           allMessages.push(...result.messages);
-          
+
           if (result.rateLimited) {
             rateLimited = true;
           }
           accountHasMoreData = result.hasMoreData;
-
         } else {
           // 📊 Account has data - do bidirectional processing (new + historical)
-          
+
           // 1️⃣ First, fetch new tweets (newer than latest)
           const newTweetsAllocation = Math.ceil(allocatedRequests / 2); // Give half to new tweets
           if (newTweetsAllocation > 0) {
-            this.logger.log(`@${account} - fetching NEW tweets (${newTweetsAllocation} requests allocated)`);
-            const newResult = await this.fetchAccountTweets(account, boundaries.latest, newTweetsAllocation, true);
+            this.logger.log(
+              `@${account} - fetching NEW tweets (${newTweetsAllocation} requests allocated)`,
+            );
+            const newResult = await this.fetchAccountTweets(
+              account,
+              boundaries.latest,
+              newTweetsAllocation,
+              true,
+            );
             accountProcessed += newResult.processed;
             accountStored += newResult.stored;
             accountRequestsUsed += newResult.requestsUsed;
             allMessages.push(...newResult.messages);
-            
+
             if (newResult.hasMoreData) {
               accountHasMoreData = true;
             }
@@ -170,13 +195,20 @@ export class TwitterIndexerService extends BaseIndexerService {
           // 2️⃣ Then, if we have requests left, do historical backfill (older than earliest)
           const historicalAllocation = allocatedRequests - accountRequestsUsed;
           if (historicalAllocation > 0) {
-            this.logger.log(`@${account} - fetching HISTORICAL tweets (${historicalAllocation} requests allocated)`);
-            const historicalResult = await this.fetchAccountTweetsHistorical(account, boundaries.earliest, historicalAllocation, true);
+            this.logger.log(
+              `@${account} - fetching HISTORICAL tweets (${historicalAllocation} requests allocated)`,
+            );
+            const historicalResult = await this.fetchAccountTweetsHistorical(
+              account,
+              boundaries.earliest,
+              historicalAllocation,
+              true,
+            );
             accountProcessed += historicalResult.processed;
             accountStored += historicalResult.stored;
             accountRequestsUsed += historicalResult.requestsUsed;
             allMessages.push(...historicalResult.messages);
-            
+
             if (historicalResult.hasMoreData) {
               accountHasMoreData = true;
             }
@@ -203,23 +235,38 @@ export class TwitterIndexerService extends BaseIndexerService {
         this.logger.log(
           `✅ Completed @${account}: ${accountProcessed} processed, ${accountStored} stored, ${accountRequestsUsed}/${allocatedRequests} requests used`,
         );
-
       } catch (error) {
         if (error.message.includes('429')) {
-          this.logger.warn(`Rate limit encountered for @${account} - marked for retry next run`);
+          this.logger.warn(
+            `Rate limit encountered for @${account} - marked for retry next run`,
+          );
           rateLimited = true;
           hasMoreData = true;
-          
+
           // Update status to indicate failed attempt
           await this.accountRotation.updateAccountStatus(account, {
             requestsUsed: 0,
-            tweetsProcessed: 0, 
+            tweetsProcessed: 0,
             wasCompleted: false,
             hasMoreData: true,
           });
         } else {
           const errorMsg = `Failed to process @${account}: ${error.message}`;
           this.logger.error(errorMsg);
+
+          // Enhanced error logging for debugging
+          this.logger.error(`Detailed error information for @${account}:`, {
+            errorName: error.name,
+            errorMessage: error.message,
+            errorStack: error.stack,
+            account: account,
+            allocatedRequests: selection.allocatedRequests,
+            reason: selection.reason,
+            // HTTP-specific error details if available
+            httpStatus: error.status || error.statusCode,
+            httpResponse: error.response?.data || error.response?.body,
+          });
+
           allErrors.push(errorMsg);
         }
       }
@@ -276,7 +323,9 @@ export class TwitterIndexerService extends BaseIndexerService {
       } catch (error) {
         // Handle rate limit errors gracefully in non-rate-limited mode too
         if (error.message.includes('429')) {
-          this.logger.warn(`Rate limit encountered for @${account} - skipping to next account`);
+          this.logger.warn(
+            `Rate limit encountered for @${account} - skipping to next account`,
+          );
           // Don't add to errors - rate limits are expected
         } else {
           const errorMsg = `Failed to process Twitter account @${account}: ${error.message}`;
@@ -349,17 +398,22 @@ export class TwitterIndexerService extends BaseIndexerService {
       text: String(message.text || ''),
       author: String(message.author || ''),
       authorHandle: String(message.authorHandle || '').toLowerCase(),
-      createdAt: message.createdAt instanceof Date ? message.createdAt.toISOString() : String(message.createdAt),
+      createdAt:
+        message.createdAt instanceof Date
+          ? message.createdAt.toISOString()
+          : String(message.createdAt),
       url: String(message.url || ''),
-      
+
       // Kaspa analysis (safe)
       kaspaRelated: Boolean(message.kaspaRelated),
-      kaspaTopics: Array.isArray(message.kaspaTopics) ? message.kaspaTopics : [],
-      
+      kaspaTopics: Array.isArray(message.kaspaTopics)
+        ? message.kaspaTopics
+        : [],
+
       // Social data (arrays only)
       hashtags: Array.isArray(message.hashtags) ? message.hashtags : [],
       mentions: Array.isArray(message.mentions) ? message.mentions : [],
-      
+
       // Simple metadata
       language: String(message.language || 'en'),
       source: String(message.source || 'twitter'),
@@ -473,12 +527,15 @@ export class TwitterIndexerService extends BaseIndexerService {
 
     try {
       // Fetch tweets with the updated API that includes request counting
-      const tweets = await this.twitterApi.fetchAccountTweets(account, latestIndexedDate);
-      
+      const tweets = await this.twitterApi.fetchAccountTweets(
+        account,
+        latestIndexedDate,
+      );
+
       // Each API call in fetchAccountTweets counts as multiple requests due to pagination
       // For now, estimate 1 request per 100 tweets + 1 base request
       requestsUsed = Math.max(1, Math.ceil(tweets.length / 100));
-      
+
       if (requestsUsed >= maxRequests) {
         rateLimited = true;
         hasMoreData = tweets.length > 0;
@@ -502,34 +559,43 @@ export class TwitterIndexerService extends BaseIndexerService {
       // Process and store the messages
       let stored = 0;
       if (filteredMessages.length > 0) {
-        this.logger.log(`Processing and storing ${filteredMessages.length} messages for @${account}`);
-        
+        this.logger.log(
+          `Processing and storing ${filteredMessages.length} messages for @${account}`,
+        );
+
         // Generate embeddings and store in Qdrant
         try {
           const tweets = [];
 
           if (useBulkEmbeddings && filteredMessages.length > 1) {
             // 🚀 BULK MODE: Generate all embeddings in one API call (faster & more efficient)
-            this.logger.log(`Using bulk embeddings for ${filteredMessages.length} messages`);
-            
-            const texts = filteredMessages.map(message => message.text);
-            const embeddingResponse = await this.embeddingService.generateEmbeddings({
-              texts,
-              model: this.etlConfig.getEmbeddingConfig().model,
-              batchId: `twitter_${account}_${Date.now()}`,
-            });
+            this.logger.log(
+              `Using bulk embeddings for ${filteredMessages.length} messages`,
+            );
+
+            const texts = filteredMessages.map((message) => message.text);
+            const embeddingResponse =
+              await this.embeddingService.generateEmbeddings({
+                texts,
+                model: this.etlConfig.getEmbeddingConfig().model,
+                batchId: `twitter_${account}_${Date.now()}`,
+              });
 
             if (!embeddingResponse.success || !embeddingResponse.embeddings) {
-              throw new Error(`Bulk embedding generation failed: ${embeddingResponse.errors?.join(', ')}`);
+              throw new Error(
+                `Bulk embedding generation failed: ${embeddingResponse.errors?.join(', ')}`,
+              );
             }
 
             // Prepare tweet data for batch storage
             for (let i = 0; i < filteredMessages.length; i++) {
               const message = filteredMessages[i];
               const embedding = embeddingResponse.embeddings[i];
-              
+
               if (!embedding) {
-                throw new Error(`No embedding generated for message ${message.id}`);
+                throw new Error(
+                  `No embedding generated for message ${message.id}`,
+                );
               }
 
               tweets.push({
@@ -540,15 +606,21 @@ export class TwitterIndexerService extends BaseIndexerService {
             }
           } else {
             // 🔄 SINGLE MODE: Generate embeddings individually (useful for small batches or debugging)
-            this.logger.log(`Using single embeddings for ${filteredMessages.length} messages`);
-            
+            this.logger.log(
+              `Using single embeddings for ${filteredMessages.length} messages`,
+            );
+
             for (const message of filteredMessages) {
               // Generate embedding for the message
-              const embedding = await this.embeddingService.generateSingleEmbedding(message.text);
-              
+              const embedding =
+                await this.embeddingService.generateSingleEmbedding(
+                  message.text,
+                );
+
               // Transform for storage
-              const transformedMessage = this.transformMessageForStorage(message);
-              
+              const transformedMessage =
+                this.transformMessageForStorage(message);
+
               // Prepare tweet data for batch storage
               tweets.push({
                 tweetId: message.id,
@@ -557,32 +629,44 @@ export class TwitterIndexerService extends BaseIndexerService {
               });
             }
           }
-          
+
           // Store tweets one by one instead of bulk to identify problematic tweets
           if (tweets.length > 0) {
             let successCount = 0;
             const errors: string[] = [];
 
-            this.logger.log(`📝 Storing ${tweets.length} tweets individually for @${account}...`);
+            this.logger.log(
+              `📝 Storing ${tweets.length} tweets individually for @${account}...`,
+            );
 
             for (let i = 0; i < tweets.length; i++) {
               const tweet = tweets[i];
               try {
-                const result = await this.qdrantRepository.storeTweetVectorsBatch(
-                  [tweet], // Single tweet
-                  this.config.collectionName,
-                );
-                
+                const result =
+                  await this.qdrantRepository.storeTweetVectorsBatch(
+                    [tweet], // Single tweet
+                    this.config.collectionName,
+                  );
+
                 if (result.success && result.stored > 0) {
                   successCount++;
                 } else {
-                  errors.push(`Tweet ${i + 1}/${tweets.length}: ${result.errors.join(', ')}`);
-                  this.logger.warn(`❌ Tweet ${i + 1}/${tweets.length} failed to store:`, result.errors);
+                  errors.push(
+                    `Tweet ${i + 1}/${tweets.length}: ${result.errors.join(', ')}`,
+                  );
+                  this.logger.warn(
+                    `❌ Tweet ${i + 1}/${tweets.length} failed to store:`,
+                    result.errors,
+                  );
                 }
               } catch (error) {
-                errors.push(`Tweet ${i + 1}/${tweets.length}: ${error.message}`);
-                this.logger.error(`❌ Tweet ${i + 1}/${tweets.length} failed with error: ${error.message}`);
-                
+                errors.push(
+                  `Tweet ${i + 1}/${tweets.length}: ${error.message}`,
+                );
+                this.logger.error(
+                  `❌ Tweet ${i + 1}/${tweets.length} failed with error: ${error.message}`,
+                );
+
                 // Log the problematic tweet data for debugging
                 this.logger.debug(`🔍 Problematic tweet data:`, {
                   tweetId: tweet.tweetId,
@@ -594,23 +678,33 @@ export class TwitterIndexerService extends BaseIndexerService {
 
               // Progress logging every 100 tweets
               if ((i + 1) % 100 === 0) {
-                this.logger.log(`📝 Progress: ${i + 1}/${tweets.length} processed, ${successCount} successful`);
+                this.logger.log(
+                  `📝 Progress: ${i + 1}/${tweets.length} processed, ${successCount} successful`,
+                );
               }
             }
 
             stored = successCount;
-            
+
             if (errors.length > 0) {
-              this.logger.warn(`❌ ${errors.length}/${tweets.length} tweets failed to store for @${account}`);
+              this.logger.warn(
+                `❌ ${errors.length}/${tweets.length} tweets failed to store for @${account}`,
+              );
               this.logger.warn(`First few errors:`, errors.slice(0, 3));
             } else {
-              this.logger.log(`✅ All ${successCount} tweets stored successfully for @${account}`);
+              this.logger.log(
+                `✅ All ${successCount} tweets stored successfully for @${account}`,
+              );
             }
           }
-          
-          this.logger.log(`Successfully stored ${stored}/${filteredMessages.length} messages for @${account}`);
+
+          this.logger.log(
+            `Successfully stored ${stored}/${filteredMessages.length} messages for @${account}`,
+          );
         } catch (error) {
-          this.logger.error(`Failed to store messages for @${account}: ${error.message}`);
+          this.logger.error(
+            `Failed to store messages for @${account}: ${error.message}`,
+          );
         }
       }
 
@@ -627,7 +721,9 @@ export class TwitterIndexerService extends BaseIndexerService {
         messages: filteredMessages,
       };
     } catch (error) {
-      this.logger.error(`Failed to fetch tweets for @${account}: ${error.message}`);
+      this.logger.error(
+        `Failed to fetch tweets for @${account}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -647,14 +743,14 @@ export class TwitterIndexerService extends BaseIndexerService {
    * @returns Processed tweets with embeddings
    */
   async processTweetsWithEmbeddings(
-    tweets: BaseMessage[], 
-    useBulkEmbeddings: boolean = true
+    tweets: BaseMessage[],
+    useBulkEmbeddings: boolean = true,
   ): Promise<Array<{ tweetId: string; vector: number[]; metadata: any }>> {
     const processedTweets = [];
 
     if (useBulkEmbeddings && tweets.length > 1) {
       // Bulk processing for efficiency
-      const texts = tweets.map(tweet => tweet.text);
+      const texts = tweets.map((tweet) => tweet.text);
       const embeddingResponse = await this.embeddingService.generateEmbeddings({
         texts,
         model: this.etlConfig.getEmbeddingConfig().model,
@@ -662,13 +758,15 @@ export class TwitterIndexerService extends BaseIndexerService {
       });
 
       if (!embeddingResponse.success || !embeddingResponse.embeddings) {
-        throw new Error(`Bulk embedding generation failed: ${embeddingResponse.errors?.join(', ')}`);
+        throw new Error(
+          `Bulk embedding generation failed: ${embeddingResponse.errors?.join(', ')}`,
+        );
       }
 
       for (let i = 0; i < tweets.length; i++) {
         const tweet = tweets[i];
         const embedding = embeddingResponse.embeddings[i];
-        
+
         if (!embedding) {
           throw new Error(`No embedding generated for tweet ${tweet.id}`);
         }
@@ -682,7 +780,9 @@ export class TwitterIndexerService extends BaseIndexerService {
     } else {
       // Single processing for small batches or specific use cases
       for (const tweet of tweets) {
-        const embedding = await this.embeddingService.generateSingleEmbedding(tweet.text);
+        const embedding = await this.embeddingService.generateSingleEmbedding(
+          tweet.text,
+        );
         processedTweets.push({
           tweetId: tweet.id,
           vector: embedding,
@@ -711,15 +811,15 @@ export class TwitterIndexerService extends BaseIndexerService {
     messages: BaseMessage[];
   }> {
     const messages: BaseMessage[] = [];
-    let requestsUsed = 0;
-    let hasMoreData = false;
+    const requestsUsed = 0;
+    const hasMoreData = false;
 
     try {
       // For historical backfill, we need to use a different approach since fetchAccountTweets
       // goes forward from a date. For now, we'll use the same method but with different logic.
       // In a complete implementation, you might need a separate method in TwitterApiService
       // that can fetch tweets older than a specific date.
-      
+
       // TODO: Implement proper historical backfill in TwitterApiService
       // For now, we'll skip historical backfill and just log it
       this.logger.log(
@@ -734,7 +834,9 @@ export class TwitterIndexerService extends BaseIndexerService {
         messages: [],
       };
     } catch (error) {
-      this.logger.error(`Failed to fetch historical tweets for @${account}: ${error.message}`);
+      this.logger.error(
+        `Failed to fetch historical tweets for @${account}: ${error.message}`,
+      );
       throw error;
     }
   }
