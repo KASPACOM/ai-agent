@@ -1,15 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   TwitterApi,
-  TwitterApiReadOnly,
-  TweetV2,
   UserV2,
   TweetSearchRecentV2Paginator,
+  TwitterApiReadOnly,
 } from 'twitter-api-v2';
-import { Tweet, TweetBatch } from '../models/tweet.model';
-import { TweetSource, TweetProcessingStatus } from '../models/etl.enums';
-import { EtlConfigService } from '../config/etl.config';
-import { TwitterTransformer } from '../transformers/twitter-api.transformer';
+import { Tweet, TweetBatch } from '../../etl/models/tweet.model';
+import { TweetSource, TweetProcessingStatus } from '../../etl/models/etl.enums';
+import { EtlConfigService } from '../../etl/config/etl.config';
+import { TwitterTransformer } from '../../etl/transformers/twitter-api.transformer';
+import { AppConfigService } from 'src/modules/core/modules/config/app-config.service';
 
 /**
  * Twitter API Service
@@ -21,6 +21,7 @@ import { TwitterTransformer } from '../transformers/twitter-api.transformer';
 export class TwitterApiService {
   private readonly logger = new Logger(TwitterApiService.name);
   private readonly twitterClient: TwitterApiReadOnly;
+  private twitterClientWithWrite: TwitterApi;
   private readonly apiStats = {
     totalFetched: 0,
     apiCalls: 0,
@@ -30,7 +31,7 @@ export class TwitterApiService {
     lastRun: null as Date | null,
   };
 
-  constructor(private readonly etlConfig: EtlConfigService) {
+  constructor(private readonly appConfig: AppConfigService) {
     // Initialize Twitter API client
     this.twitterClient = this.initializeTwitterClient();
     this.logger.log('TwitterApiService initialized');
@@ -48,7 +49,7 @@ export class TwitterApiService {
    */
   private initializeTwitterClient(): TwitterApiReadOnly {
     try {
-      const bearerToken = this.etlConfig.getTwitterBearerToken();
+      const bearerToken = this.appConfig.getTwitterBearerToken;
 
       if (!bearerToken) {
         this.logger.warn(
@@ -69,6 +70,45 @@ export class TwitterApiService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Initialize Twitter API client for write operations (tweeting, etc.)
+   */
+  private initializeWriteTwitterClient(): TwitterApi | null {
+    const accessToken = this.appConfig.getTwitterAccessToken;
+    const accessTokenSecret = this.appConfig.getTwitterAccessTokenSecret;
+    const apiKey = this.appConfig.getTwitterApiKey;
+    const apiSecret = this.appConfig.getTwitterApiSecret;
+
+    if (!accessToken || !accessTokenSecret || !apiKey || !apiSecret) {
+      this.logger.warn(
+        'Twitter write credentials not fully provided. Write operations will not work.',
+      );
+      return null;
+    }
+
+    // TwitterApi constructor for user context (write) requires all 4 credentials
+    this.twitterClientWithWrite = new TwitterApi({
+      appKey: apiKey,
+      appSecret: apiSecret,
+      accessToken: accessToken,
+      accessSecret: accessTokenSecret,
+    });
+
+    this.logger.log('Twitter write client initialized successfully');
+    return this.twitterClientWithWrite;
+  }
+
+  /**
+   * Get the write-enabled Twitter client, initializing if necessary
+   */
+  private getWriteTwitterClient(): TwitterApi | null {
+    if (!this.twitterClientWithWrite) {
+      return this.initializeWriteTwitterClient();
+    }
+
+    return this.twitterClientWithWrite;
   }
 
   /**
@@ -95,7 +135,7 @@ export class TwitterApiService {
 
         try {
           // Get the latest indexed date for this account if function provided
-          const latestIndexedDate = getLatestIndexedDateForAccount 
+          const latestIndexedDate = getLatestIndexedDateForAccount
             ? await getLatestIndexedDateForAccount(account)
             : undefined;
 
@@ -167,66 +207,66 @@ export class TwitterApiService {
       // Get user by username first
       const user = await this.getUserByUsername(username);
 
-                           while (shouldContinue) {
-         try {
-           // Add delay between requests to respect rate limits (Basic: 10 req/15min = ~90s between requests)
-           await this.delay(2000); // 2 second delay between requests
-           
-           // Query with max batch size of 100 (Twitter API limit)
-           const timeline = await this.twitterClient.v2.userTimeline(user.id, {
-             max_results: 100,
-             'tweet.fields': ['created_at', 'public_metrics', 'context_annotations', 'entities'],
-             pagination_token: paginationToken,
-           });
+      while (shouldContinue) {
+        try {
+          // Add delay between requests to respect rate limits (Basic: 10 req/15min = ~90s between requests)
+          await this.delay(2000); // 2 second delay between requests
 
-           // Handle the response properly - it's timeline.data.data and timeline.data.meta!
-           const resultCount = timeline.data?.meta?.result_count || 0;
-           const tweetsData = timeline.data?.data || [];
+          // Query with max batch size of 100 (Twitter API limit)
+          const timeline = await this.twitterClient.v2.userTimeline(user.id, {
+            max_results: 100,
+            'tweet.fields': ['created_at', 'public_metrics', 'context_annotations', 'entities'],
+            pagination_token: paginationToken,
+          });
 
-           this.logger.debug(`Retrieved ${resultCount} tweets, tweets array length: ${tweetsData.length} for ${username}`);
+          // Handle the response properly - it's timeline.data.data and timeline.data.meta!
+          const resultCount = timeline.data?.meta?.result_count || 0;
+          const tweetsData = timeline.data?.data || [];
 
-           if (resultCount === 0 || tweetsData.length === 0) {
-             this.logger.debug(`No more tweets found for ${username}. Result count: ${resultCount}, array length: ${tweetsData.length}`);
-             break;
-           }
+          this.logger.debug(`Retrieved ${resultCount} tweets, tweets array length: ${tweetsData.length} for ${username}`);
 
-           // Process tweets from this batch
-           for (const tweet of tweetsData) {
-             const tweetDate = new Date(tweet.created_at);
-             
-             // If we hit a tweet older than our latest indexed date, stop processing
-             if (latestIndexedDate && tweetDate <= latestIndexedDate) {
-               this.logger.log(`Reached already indexed tweets for ${username}. Stopping at tweet from ${tweetDate.toISOString()}`);
-               shouldContinue = false;
-               break;
-             }
+          if (resultCount === 0 || tweetsData.length === 0) {
+            this.logger.debug(`No more tweets found for ${username}. Result count: ${resultCount}, array length: ${tweetsData.length}`);
+            break;
+          }
 
-             // Process this new tweet using the transformer
-             const transformedTweet = TwitterTransformer.transformApiTweet(tweet, user);
-             allNewTweets.push(transformedTweet);
-           }
+          // Process tweets from this batch
+          for (const tweet of tweetsData) {
+            const tweetDate = new Date(tweet.created_at);
 
-           // Check if we should continue paginating
-           if (shouldContinue && timeline.data?.meta?.next_token) {
-             paginationToken = timeline.data.meta.next_token;
-             this.logger.debug(`Continuing pagination for ${username}. Total new tweets so far: ${allNewTweets.length}`);
-           } else {
-             shouldContinue = false;
-           }
+            // If we hit a tweet older than our latest indexed date, stop processing
+            if (latestIndexedDate && tweetDate <= latestIndexedDate) {
+              this.logger.log(`Reached already indexed tweets for ${username}. Stopping at tweet from ${tweetDate.toISOString()}`);
+              shouldContinue = false;
+              break;
+            }
 
-         } catch (error) {
-           // Handle rate limiting gracefully - return what we've collected so far
-           if (error.code === 429 || error.status === 429) {
-             this.logger.warn(`Rate limit hit for ${username} during pagination. Returning ${allNewTweets.length} tweets collected so far.`);
-             shouldContinue = false; // Stop pagination
-             break; // Exit the loop and return collected tweets
-           } else {
-             // For non-rate-limit errors, still throw
-             this.logger.error(`Error fetching tweets for ${username}:`, error);
-             throw error;
-           }
-         }
-       }
+            // Process this new tweet using the transformer
+            const transformedTweet = TwitterTransformer.transformApiTweet(tweet, user);
+            allNewTweets.push(transformedTweet);
+          }
+
+          // Check if we should continue paginating
+          if (shouldContinue && timeline.data?.meta?.next_token) {
+            paginationToken = timeline.data.meta.next_token;
+            this.logger.debug(`Continuing pagination for ${username}. Total new tweets so far: ${allNewTweets.length}`);
+          } else {
+            shouldContinue = false;
+          }
+
+        } catch (error) {
+          // Handle rate limiting gracefully - return what we've collected so far
+          if (error.code === 429 || error.status === 429) {
+            this.logger.warn(`Rate limit hit for ${username} during pagination. Returning ${allNewTweets.length} tweets collected so far.`);
+            shouldContinue = false; // Stop pagination
+            break; // Exit the loop and return collected tweets
+          } else {
+            // For non-rate-limit errors, still throw
+            this.logger.error(`Error fetching tweets for ${username}:`, error);
+            throw error;
+          }
+        }
+      }
 
       // Since Twitter API returns newest first, our array is already in correct order (newest to oldest)
       this.logger.log(`Successfully fetched ${allNewTweets.length} new tweets from ${username}`);
@@ -245,11 +285,11 @@ export class TwitterApiService {
     try {
       this.apiStats.apiCalls++;
       const user = await this.twitterClient.v2.userByUsername(username);
-      
+
       if (!user.data) {
         throw new Error(`User not found: ${username}`);
       }
-      
+
       return user.data;
     } catch (error) {
       this.logger.error(`Failed to get user ${username}: ${error.message}`);
@@ -314,24 +354,24 @@ export class TwitterApiService {
       throw error;
     }
   }
-  private async processTweets(tweets: Tweet[],  query: string, searchResults?: TweetSearchRecentV2Paginator): Promise<Tweet[]> {
+  private async processTweets(tweets: Tweet[], query: string, searchResults?: TweetSearchRecentV2Paginator): Promise<Tweet[]> {
     if (!searchResults) {
       return tweets;
     }
     const searchData = Array.isArray(searchResults.data) ? searchResults.data : [];
-      for (const tweet of searchData) {
-        const author = searchResults.includes?.users?.find(
-          (u) => u.id === tweet.author_id,
-        );
-        const transformedTweet = TwitterTransformer.transformApiTweet(
-          tweet,
-          author,
-        );
-        tweets.push(transformedTweet);
-      }
+    for (const tweet of searchData) {
+      const author = searchResults.includes?.users?.find(
+        (u) => u.id === tweet.author_id,
+      );
+      const transformedTweet = TwitterTransformer.transformApiTweet(
+        tweet,
+        author,
+      );
+      tweets.push(transformedTweet);
+    }
 
-      this.logger.log(`Found ${tweets.length} tweets for query: ${query}`);
-      return tweets;
+    this.logger.log(`Found ${tweets.length} tweets for query: ${query}`);
+    return tweets;
   }
   /**
    * Get recent tweets (last 7 days) for Kaspa-related content
@@ -343,6 +383,49 @@ export class TwitterApiService {
 
     return this.searchTweets(kaspaQuery, maxResults, startTime);
   }
+
+  /**
+   * Post a new tweet
+   */
+  async postTweet(status: string): Promise<any> {
+    try {
+      const writeClient = this.getWriteTwitterClient();
+      if (!writeClient) {
+        throw new Error('Twitter write client not initialized');
+      }
+      const result = await writeClient.v2.tweet(status);
+      this.logger.log(`Tweet posted successfully: ${result.data?.id}`);
+      return result.data;
+    } catch (error) {
+      this.logger.error(`Failed to post tweet: ${error.message}`);
+      this.apiStats.errors.push(`Post tweet failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Post a comment (reply) to a tweet
+   */
+  async postComment(status: string, inReplyToTweetId: string): Promise<any> {
+    try {
+      const writeClient = this.getWriteTwitterClient();
+
+      if (!writeClient) {
+        throw new Error('Twitter write client not initialized');
+      }
+      const result = await writeClient.v2.tweet({
+        text: status,
+        reply: { in_reply_to_tweet_id: inReplyToTweetId },
+      });
+      this.logger.log(`Comment posted successfully: ${result.data?.id}`);
+      return result.data;
+    } catch (error) {
+      this.logger.error(`Failed to post comment: ${error.message}`);
+      this.apiStats.errors.push(`Post comment failed: ${error.message}`);
+      throw error;
+    }
+  }
+
 
 
 

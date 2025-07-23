@@ -50,15 +50,15 @@ export class EtlConfigService {
   /**
    * Get Twitter API v2 Client ID
    */
-  getTwitterClientId(): string {
-    return this.appConfig.getTwitterClientId;
+  getTwitterApiKey(): string {
+    return this.appConfig.getTwitterApiKey;
   }
 
   /**
    * Get Twitter API v2 Client Secret
    */
-  getTwitterClientSecret(): string {
-    return this.appConfig.getTwitterClientSecret;
+  getTwitterApiSecret(): string {
+    return this.appConfig.getTwitterApiSecret;
   }
 
   /**

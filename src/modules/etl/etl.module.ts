@@ -7,7 +7,6 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AppConfigModule } from '../core/modules/config/app-config.module';
 
 // === ETL Services ===
-import { TwitterApiService } from './services/twitter-api.service';
 import { TelegramApiService } from './services/telegram-api.service';
 import { TelegramMTProtoService } from './services/telegram-mtproto.service';
 import { EmbeddingModule } from '../embedding/embedding.module';
@@ -32,6 +31,7 @@ import { TelegramMessageTransformer } from './transformers/telegram-message.tran
 
 // === Database Integration ===
 import { DatabaseModule } from '../database/database.module';
+import { TwitterApiModule } from '../integrations/twitter/twitter-api.module';
 
 /**
  * ETL Module
@@ -64,6 +64,7 @@ import { DatabaseModule } from '../database/database.module';
     AppConfigModule,
     DatabaseModule, // For vector storage integration
     ScheduleModule.forRoot(), // Enable cron job scheduling
+    TwitterApiModule,
     EmbeddingModule, // <-- Use EmbeddingModule for EmbeddingService
   ],
   providers: [
@@ -71,7 +72,6 @@ import { DatabaseModule } from '../database/database.module';
     EtlConfigService,
 
     // === Core ETL Services ===
-    TwitterApiService,
     TelegramApiService,
     TelegramMTProtoService,
     TwitterIndexerService,
@@ -92,6 +92,7 @@ import { DatabaseModule } from '../database/database.module';
     EtlConfigService,
 
     // === Core ETL Services ===
+    EmbeddingService,
     TwitterApiService,
     TwitterIndexerService,
     TelegramIndexerService,
