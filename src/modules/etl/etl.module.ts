@@ -10,7 +10,7 @@ import { AppConfigModule } from '../core/modules/config/app-config.module';
 import { TwitterApiService } from './services/twitter-api.service';
 import { TelegramApiService } from './services/telegram-api.service';
 import { TelegramMTProtoService } from './services/telegram-mtproto.service';
-import { EmbeddingService } from './services/embedding.service';
+import { EmbeddingModule } from '../embedding/embedding.module';
 import { BaseIndexerService } from './services/base-indexer.service';
 import { TwitterIndexerService } from './services/twitter-indexer.service';
 import { TelegramIndexerService } from './services/telegram-indexer.service';
@@ -64,6 +64,7 @@ import { DatabaseModule } from '../database/database.module';
     AppConfigModule,
     DatabaseModule, // For vector storage integration
     ScheduleModule.forRoot(), // Enable cron job scheduling
+    EmbeddingModule, // <-- Use EmbeddingModule for EmbeddingService
   ],
   providers: [
     // === Configuration ===
@@ -73,7 +74,6 @@ import { DatabaseModule } from '../database/database.module';
     TwitterApiService,
     TelegramApiService,
     TelegramMTProtoService,
-    EmbeddingService,
     TwitterIndexerService,
     TelegramIndexerService,
     IndexerProviderService,
@@ -93,7 +93,6 @@ import { DatabaseModule } from '../database/database.module';
 
     // === Core ETL Services ===
     TwitterApiService,
-    EmbeddingService,
     TwitterIndexerService,
     TelegramIndexerService,
     IndexerProviderService,
@@ -104,6 +103,7 @@ import { DatabaseModule } from '../database/database.module';
     BaseMessageTransformer,
     TwitterMessageTransformer,
     TelegramMessageTransformer,
+    EmbeddingModule,
   ],
 })
 export class EtlModule {}
