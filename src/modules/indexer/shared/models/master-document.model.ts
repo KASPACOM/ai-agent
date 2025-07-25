@@ -2,7 +2,7 @@ import { MessageSource } from './message-source.enum';
 
 /**
  * Processing Status Enum
- * 
+ *
  * Tracks the processing state of messages
  */
 export enum ProcessingStatus {
@@ -26,11 +26,11 @@ export enum TelegramMessageType {
 
 /**
  * Master Document Model
- * 
+ *
  * Unified document model containing ALL possible fields from ALL data sources.
  * Following DEVELOPMENT_RULES.md: Transform data ONCE at entry point to this complete model,
  * then use consistently throughout the entire pipeline.
- * 
+ *
  * Fields are optional based on source - only populate fields relevant to the message source.
  */
 export interface MasterDocument {
@@ -62,7 +62,7 @@ export interface MasterDocument {
   // ==========================================
   // TELEGRAM-SPECIFIC FIELDS (Optional)
   // ==========================================
-  
+
   // Channel/Group Information
   telegramChannelTitle?: string;
   telegramChannelUsername?: string;
@@ -95,7 +95,7 @@ export interface MasterDocument {
   // ==========================================
   // TWITTER-SPECIFIC FIELDS (Optional)
   // ==========================================
-  
+
   // Tweet Metrics
   twitterRetweetCount?: number;
   twitterLikeCount?: number;
@@ -117,7 +117,7 @@ export interface MasterDocument {
   // ==========================================
   // FUTURE DATA SOURCE FIELDS (Optional)
   // ==========================================
-  
+
   // Reddit fields (for future implementation)
   redditSubreddit?: string;
   redditScore?: number;
@@ -139,11 +139,11 @@ export interface MasterDocument {
 
 /**
  * Master Document Creation Options
- * 
+ *
  * Options for creating MasterDocument instances with source-specific requirements
  */
 export interface MasterDocumentCreateOptions {
   source: MessageSource;
   skipEmbedding?: boolean;
   customProcessingStatus?: ProcessingStatus;
-} 
+}

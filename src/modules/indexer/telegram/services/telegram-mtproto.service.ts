@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { TelegramClient, Api } from 'telegram';
 import { StringSession } from 'telegram/sessions';
 import { IndexerConfigService } from '../../shared/config/indexer.config';
+import { AppConfigService } from '../../../core/modules/config/app-config.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
@@ -16,7 +17,7 @@ import {
  *
  * Uses Telegram's native MTProto protocol (GramJS) to access full chat history
  * Authenticates as a user account instead of a bot for complete access
- * 
+ *
  * ✅ Copied from ETL module for independence - can be deleted when ETL is removed
  */
 @Injectable()
@@ -30,15 +31,25 @@ export class TelegramMTProtoService implements OnModuleInit {
   private readonly sessionFilePath: string;
   private sessionString: string = '';
 
-  constructor(private readonly config: IndexerConfigService) {
-    // ✅ Use IndexerConfigService methods (fallback to environment variables)
-    this.apiId = process.env.TELEGRAM_API_ID || '';
-    this.apiHash = process.env.TELEGRAM_API_HASH || '';
+  constructor(
+    private readonly config: IndexerConfigService,
+    private readonly appConfig: AppConfigService,
+  ) {
+    // ✅ Use AppConfigService for external API credentials
+    this.apiId = this.appConfig.getTelegramApiId;
+    this.apiHash = this.appConfig.getTelegramApiHash;
     // Session file path - store in project root or data directory
     this.sessionFilePath = path.join(process.cwd(), 'telegram-session.txt');
 
     // Load existing session if available
     this.loadSession();
+  }
+
+  /**
+   * Get Telegram channels configuration for indexing
+   */
+  get accounts(): any[] {
+    return this.appConfig.getTelegramChannelsConfig;
   }
 
   async onModuleInit() {
@@ -654,4 +665,4 @@ export class TelegramMTProtoService implements OnModuleInit {
   }
 }
 
-export { TelegramMTProtoMessage }; 
+export { TelegramMTProtoMessage };

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { QdrantRepository } from '../../../database/qdrant/services/qdrant.repository';
 import { QdrantClientService } from '../../../database/qdrant/services/qdrant-client.service';
 import { IndexerConfigService } from '../../shared/config/indexer.config';
+import { AppConfigService } from '../../../core/modules/config/app-config.service';
 import {
   AccountStatus,
   AccountWithStatus,
@@ -27,8 +28,8 @@ import {
 export class AccountRotationService {
   private readonly logger = new Logger(AccountRotationService.name);
 
-  // Collection name for account status tracking
-  private readonly ACCOUNT_STATUS_COLLECTION = 'account_status';
+  // Collection name for Twitter account status tracking
+  private readonly TWITTER_HISTORY_COLLECTION: string;
 
   // Default configuration - can be overridden via environment
   private readonly config: AccountRotationConfig = {
@@ -45,22 +46,27 @@ export class AccountRotationService {
     private readonly qdrantRepository: QdrantRepository,
     private readonly qdrantClient: QdrantClientService,
     private readonly indexerConfig: IndexerConfigService,
-  ) {}
-
-  /**
-   * Initialize the account status collection on module startup
-   */
-  async onModuleInit() {
-    await this.ensureAccountStatusCollection();
+    private readonly appConfig: AppConfigService,
+  ) {
+    // Initialize collection name from configuration
+    this.TWITTER_HISTORY_COLLECTION = this.indexerConfig.getTwitterHistoryCollectionName();
   }
 
   /**
-   * Ensure account status collection exists (lazy creation)
+   * Initialize the Twitter history collection on module startup
    */
-  private async ensureAccountStatusCollection(): Promise<void> {
+  async onModuleInit() {
+    await this.ensureTwitterHistoryCollection();
+  }
+
+  /**
+   * Ensure Twitter history collection exists (lazy creation)
+   * Handles race conditions where multiple processes try to create the same collection
+   */
+  private async ensureTwitterHistoryCollection(): Promise<void> {
     try {
       const exists = await this.qdrantClient.collectionExists(
-        this.ACCOUNT_STATUS_COLLECTION,
+        this.TWITTER_HISTORY_COLLECTION,
       );
 
       if (exists) {
@@ -80,15 +86,24 @@ export class AccountRotationService {
       };
 
       await this.qdrantClient.createCollection(
-        this.ACCOUNT_STATUS_COLLECTION,
+        this.TWITTER_HISTORY_COLLECTION,
         config,
       );
       this.logger.log(
-        `✅ Created account status collection: ${this.ACCOUNT_STATUS_COLLECTION}`,
+        `✅ Created Twitter history collection: ${this.TWITTER_HISTORY_COLLECTION}`,
       );
     } catch (error) {
+      // Handle race condition: if another process created the collection, that's actually success
+      if (error.message?.includes('Conflict') || error.message?.includes('already exists')) {
+        this.logger.debug(
+          `Collection ${this.TWITTER_HISTORY_COLLECTION} already exists (created by another process)`,
+        );
+        return; // This is actually success - another process created it
+      }
+
+      // For other errors, log and throw
       this.logger.error(
-        `Failed to ensure account status collection: ${error.message}`,
+        `Failed to ensure Twitter history collection: ${error.message}`,
       );
       throw error;
     }
@@ -207,12 +222,12 @@ export class AccountRotationService {
    * Get Twitter accounts configuration
    */
   private getTwitterAccounts(): string[] {
-    const accounts = process.env.TWITTER_ACCOUNTS;
-    if (!accounts) {
-      this.logger.warn('TWITTER_ACCOUNTS environment variable not set');
+    try {
+      return this.appConfig.getTwitterAccountsConfig;
+    } catch (error) {
+      this.logger.warn(`Failed to get Twitter accounts config: ${error.message}`);
       return [];
     }
-    return accounts.split(',').map(account => account.trim());
   }
 
   /**
@@ -446,10 +461,10 @@ export class AccountRotationService {
   ): Promise<AccountStatus | null> {
     try {
       // Ensure collection exists before querying
-      await this.ensureAccountStatusCollection();
+      await this.ensureTwitterHistoryCollection();
 
       const results = await this.qdrantRepository.searchVectors(
-        this.ACCOUNT_STATUS_COLLECTION,
+        this.TWITTER_HISTORY_COLLECTION,
         [0], // dummy vector since we only care about payload
         1,
         {
@@ -497,7 +512,7 @@ export class AccountRotationService {
       const normalizedAccount = account.toLowerCase();
 
       // Ensure collection exists before upserting
-      await this.ensureAccountStatusCollection();
+      await this.ensureTwitterHistoryCollection();
 
       // Get existing status or create new one
       const existingStatus = await this.getAccountStatus(normalizedAccount);
@@ -565,7 +580,7 @@ export class AccountRotationService {
       );
 
       // Upsert the point
-      await this.qdrantClient.upsertPoints(this.ACCOUNT_STATUS_COLLECTION, [
+      await this.qdrantClient.upsertPoints(this.TWITTER_HISTORY_COLLECTION, [
         point,
       ]);
 

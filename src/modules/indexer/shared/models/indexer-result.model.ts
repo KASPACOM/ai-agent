@@ -2,7 +2,7 @@ import { MasterDocument } from './master-document.model';
 
 /**
  * Base Indexing Result
- * 
+ *
  * Common result structure for all indexing operations
  */
 export interface IndexingResult {
@@ -14,7 +14,7 @@ export interface IndexingResult {
   processingTime: number;
   startTime: Date;
   endTime: Date;
-  
+
   // Source-specific fields
   rateLimited?: boolean; // For Twitter API limits
   hasMoreData?: boolean; // For pagination continuation
@@ -24,7 +24,7 @@ export interface IndexingResult {
 
 /**
  * Message Processing Result
- * 
+ *
  * Result of processing a batch of messages
  */
 export interface MessageProcessingResult {
@@ -34,7 +34,7 @@ export interface MessageProcessingResult {
   stored: number;
   errors: string[];
   messages: MasterDocument[];
-  
+
   // Rate limiting and pagination
   rateLimited?: boolean;
   hasMoreData?: boolean;
@@ -43,7 +43,7 @@ export interface MessageProcessingResult {
 
 /**
  * Batch Processing Result
- * 
+ *
  * Result of processing multiple batches of messages
  */
 export interface BatchProcessingResult {
@@ -58,7 +58,7 @@ export interface BatchProcessingResult {
 
 /**
  * Storage Operation Result
- * 
+ *
  * Result of storing messages in the unified collection
  */
 export interface StorageOperationResult {
@@ -71,7 +71,7 @@ export interface StorageOperationResult {
 
 /**
  * Embedding Operation Result
- * 
+ *
  * Result of generating embeddings for messages
  */
 export interface EmbeddingOperationResult {
@@ -84,7 +84,7 @@ export interface EmbeddingOperationResult {
 
 /**
  * Indexer Health Status
- * 
+ *
  * Health check result for indexer services
  */
 export interface IndexerHealth {
@@ -98,7 +98,7 @@ export interface IndexerHealth {
 
 /**
  * Dependency Health Status
- * 
+ *
  * Health status of external dependencies
  */
 export interface DependencyHealth {
@@ -110,7 +110,7 @@ export interface DependencyHealth {
 
 /**
  * Indexer Statistics
- * 
+ *
  * Operational statistics for indexer services
  */
 export interface IndexerStatistics {
@@ -124,4 +124,4 @@ export interface IndexerStatistics {
   averageProcessingTime: number;
   errorCount: number;
   uptime: number;
-} 
+}

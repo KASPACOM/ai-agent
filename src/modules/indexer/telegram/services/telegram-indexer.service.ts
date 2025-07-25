@@ -18,6 +18,7 @@ import { IndexingResult } from '../../shared/models/indexer-result.model';
 import { TelegramMTProtoService } from './telegram-mtproto.service';
 import { TelegramMessageTransformer } from '../../../etl/transformers/telegram-message.transformer';
 import { TelegramChannelConfig } from '../models/telegram-history.model';
+import { TelegramMasterDocumentTransformer } from '../transformers/telegram-master-document.transformer';
 
 /**
  * Telegram Indexer Service
@@ -276,11 +277,12 @@ export class TelegramIndexerService extends BaseIndexerService {
       const masterDocuments: MasterDocument[] = [];
       for (const telegramMsg of telegramMessages) {
         try {
-          // Convert directly to MasterDocument from Telegram API response
-          const masterDoc = this.transformTelegramApiResponseToMasterDocument(
-            telegramMsg,
-            channel,
-          );
+          // Convert directly to MasterDocument using static transformer
+          const masterDoc =
+            TelegramMasterDocumentTransformer.transformTelegramApiResponseToMasterDocument(
+              telegramMsg,
+              channel,
+            );
           masterDocuments.push(masterDoc);
           processed++;
         } catch (error) {
@@ -545,82 +547,5 @@ export class TelegramIndexerService extends BaseIndexerService {
       );
       return [];
     }
-  }
-
-  /**
-   * Transform Telegram API response directly to MasterDocument format
-   */
-  private transformTelegramApiResponseToMasterDocument(
-    telegramMsg: any,
-    channel: TelegramChannelConfig,
-  ): MasterDocument {
-    const now = new Date().toISOString();
-    const text = telegramMsg.text || telegramMsg.message || '';
-
-    return {
-      id: `telegram_${telegramMsg.id}_${channel.username}`,
-      source: MessageSource.TELEGRAM,
-      text,
-      author: telegramMsg.from_id?.user_id || channel.title || channel.username,
-      authorHandle: channel.username,
-      createdAt: telegramMsg.date
-        ? new Date(telegramMsg.date * 1000).toISOString()
-        : now,
-      url: `https://t.me/${channel.username}/${telegramMsg.id}`,
-      processingStatus: ProcessingStatus.PROCESSED,
-      processedAt: now,
-      kaspaRelated: this.analyzeKaspaContent(text),
-      kaspaTopics: this.extractKaspaTopics(text),
-      hashtags: this.extractHashtags(text),
-      mentions: this.extractMentions(text),
-      links: this.extractLinks(text),
-      language: 'unknown',
-      errors: [],
-      retryCount: 0,
-
-      // Telegram-specific fields
-      telegramChannelTitle: channel.title,
-      telegramTopicId: telegramMsg.topic_id,
-      telegramMessageType: this.determineTelegramMessageType(telegramMsg),
-
-      // Fields that will be populated during storage
-      vector: undefined,
-      vectorDimensions: undefined,
-      embeddedAt: undefined,
-      storedAt: undefined,
-    };
-  }
-
-  /**
-   * Helper methods for content analysis
-   */
-  private analyzeKaspaContent(text: string): boolean {
-    const kaspaKeywords = ['kaspa', '$kas', 'blockdag', 'pow'];
-    return kaspaKeywords.some((keyword) =>
-      text.toLowerCase().includes(keyword),
-    );
-  }
-
-  private extractKaspaTopics(text: string): string[] {
-    const topics: string[] = [];
-    if (text.toLowerCase().includes('mining')) topics.push('mining');
-    if (text.toLowerCase().includes('price')) topics.push('price');
-    if (text.toLowerCase().includes('development')) topics.push('development');
-    return topics;
-  }
-
-  private extractHashtags(text: string): string[] {
-    const hashtagRegex = /#[\w]+/g;
-    return text.match(hashtagRegex) || [];
-  }
-
-  private extractMentions(text: string): string[] {
-    const mentionRegex = /@[\w]+/g;
-    return text.match(mentionRegex) || [];
-  }
-
-  private extractLinks(text: string): string[] {
-    const urlRegex = /https?:\/\/[^\s]+/g;
-    return text.match(urlRegex) || [];
   }
 }

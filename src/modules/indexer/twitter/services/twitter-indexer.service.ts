@@ -1,22 +1,25 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { BaseIndexerService, IndexerConfig } from '../../shared/services/base-indexer.service';
+import {
+  BaseIndexerService,
+  IndexerConfig,
+} from '../../shared/services/base-indexer.service';
 import { UnifiedStorageService } from '../../shared/services/unified-storage.service';
 import { IndexerConfigService } from '../../shared/config/indexer.config';
-import { MasterDocument, ProcessingStatus } from '../../shared/models/master-document.model';
+import { MasterDocument } from '../../shared/models/master-document.model';
 import { MessageSource } from '../../shared/models/message-source.enum';
 import { IndexingResult } from '../../shared/models/indexer-result.model';
 
 // Import existing ETL services for Twitter functionality
 import { TwitterApiService } from '../../../integrations/twitter/twitter-api.service';
-import { TwitterMessageTransformer } from '../../../etl/transformers/twitter-message.transformer';
 import { AccountRotationService } from './account-rotation.service';
+import { TwitterMasterDocumentTransformer } from '../transformers/twitter-master-document.transformer';
 
 /**
  * Twitter Indexer Service
- * 
+ *
  * Main indexing service for Twitter accounts and tweets.
  * Extends BaseIndexerService to provide consistent patterns across all indexers.
- * 
+ *
  * Features:
  * - Processes configured Twitter accounts with rate limit awareness
  * - Uses sophisticated account rotation strategy
@@ -33,7 +36,6 @@ export class TwitterIndexerService extends BaseIndexerService {
     unifiedStorage: UnifiedStorageService,
     private readonly config: IndexerConfigService,
     private readonly twitterApi: TwitterApiService,
-    private readonly twitterTransformer: TwitterMessageTransformer,
     private readonly accountRotation: AccountRotationService,
   ) {
     super(unifiedStorage);
@@ -56,10 +58,11 @@ export class TwitterIndexerService extends BaseIndexerService {
 
       // Get configured request limit per run
       const requestLimit = this.config.getTwitterRequestLimit();
-      
+
       // Select accounts to process with request budget allocation
-      const accountsToProcess = await this.accountRotation.selectAccountsForProcessing(requestLimit);
-      
+      const accountsToProcess =
+        await this.accountRotation.selectAccountsForProcessing(requestLimit);
+
       if (accountsToProcess.length === 0) {
         this.logger.log('No Twitter accounts need processing at this time');
         return {
@@ -76,18 +79,20 @@ export class TwitterIndexerService extends BaseIndexerService {
         };
       }
 
-      this.logger.log(`Processing ${accountsToProcess.length} Twitter accounts with ${requestLimit} total requests`);
+      this.logger.log(
+        `Processing ${accountsToProcess.length} Twitter accounts with ${requestLimit} total requests`,
+      );
 
       // Process each selected account
       for (const accountWithBudget of accountsToProcess) {
         try {
           const accountResult = await this.processAccount(accountWithBudget);
-          
+
           totalProcessed += accountResult.processed;
           totalEmbedded += accountResult.embedded;
           totalStored += accountResult.stored;
           errors.push(...accountResult.errors);
-          
+
           if (accountResult.rateLimited) {
             rateLimited = true;
           }
@@ -103,12 +108,11 @@ export class TwitterIndexerService extends BaseIndexerService {
               messagesIndexed: accountResult.processed,
               hasMoreData: accountResult.hasMoreData,
               errors: accountResult.errors,
-            }
+            },
           );
 
           // Add processing delay between accounts to respect API limits
           await this.sleep(this.getIndexerConfig().processingDelayMs);
-
         } catch (error) {
           const errorMsg = `Failed to process account ${accountWithBudget.account}: ${error.message}`;
           this.logger.error(errorMsg);
@@ -120,7 +124,7 @@ export class TwitterIndexerService extends BaseIndexerService {
             {
               lastSync: new Date(),
               errors: [error.message],
-            }
+            },
           );
         }
       }
@@ -151,10 +155,12 @@ export class TwitterIndexerService extends BaseIndexerService {
         rateLimited,
         hasMoreData,
       };
-
     } catch (error) {
-      this.logger.error(`Twitter indexing failed: ${error.message}`, error.stack);
-      
+      this.logger.error(
+        `Twitter indexing failed: ${error.message}`,
+        error.stack,
+      );
+
       return {
         success: false,
         processed: totalProcessed,
@@ -173,7 +179,9 @@ export class TwitterIndexerService extends BaseIndexerService {
   /**
    * Process a single Twitter account with allocated request budget
    */
-  private async processAccount(accountWithBudget: any): Promise<IndexingResult & { rateLimited: boolean; hasMoreData: boolean }> {
+  private async processAccount(
+    accountWithBudget: any,
+  ): Promise<IndexingResult & { rateLimited: boolean; hasMoreData: boolean }> {
     const startTime = new Date();
     let processed = 0;
     let embedded = 0;
@@ -183,22 +191,26 @@ export class TwitterIndexerService extends BaseIndexerService {
     let hasMoreData = false;
 
     try {
-      this.logger.log(`Processing Twitter account: ${accountWithBudget.account} (budget: ${accountWithBudget.requestBudget} requests)`);
+      this.logger.log(
+        `Processing Twitter account: ${accountWithBudget.account} (budget: ${accountWithBudget.requestBudget} requests)`,
+      );
 
       // Get latest indexed date for this account
       const latestDate = await this.unifiedStorage.getLatestMessageDate(
         MessageSource.TWITTER,
-        accountWithBudget.account
+        accountWithBudget.account,
       );
 
       // Fetch tweets from Twitter API using existing service
       const tweets = await this.twitterApi.fetchAccountTweets(
         accountWithBudget.account,
-        latestDate
+        latestDate,
       );
 
       if (tweets.length === 0) {
-        this.logger.debug(`No new tweets for account: ${accountWithBudget.account}`);
+        this.logger.debug(
+          `No new tweets for account: ${accountWithBudget.account}`,
+        );
         return {
           success: true,
           processed: 0,
@@ -213,23 +225,22 @@ export class TwitterIndexerService extends BaseIndexerService {
         };
       }
 
-      this.logger.log(`Processing ${tweets.length} tweets from @${accountWithBudget.account}`);
+      this.logger.log(
+        `Processing ${tweets.length} tweets from @${accountWithBudget.account}`,
+      );
 
       // Transform tweets to MasterDocument format
       const masterDocuments: MasterDocument[] = [];
       for (const tweet of tweets) {
         try {
-          // Convert to BaseMessage first using existing transformer
-          const baseMessage = TwitterMessageTransformer.convertTweetToBaseMessage(
-            tweet,
-            accountWithBudget.account
-          );
-          
-          // Convert to MasterDocument
-          const masterDoc = this.transformToMasterDocument(baseMessage, accountWithBudget.account);
+          // Transform tweet directly to MasterDocument (no intermediate BaseMessage)
+          const masterDoc =
+            TwitterMasterDocumentTransformer.transformTweetToMasterDocument(
+              tweet,
+              accountWithBudget.account,
+            );
           masterDocuments.push(masterDoc);
           processed++;
-
         } catch (error) {
           const errorMsg = `Failed to transform tweet ${tweet.id}: ${error.message}`;
           this.logger.warn(errorMsg);
@@ -239,7 +250,8 @@ export class TwitterIndexerService extends BaseIndexerService {
 
       // Store in unified collection
       if (masterDocuments.length > 0) {
-        const storageResult = await this.unifiedStorage.storeBatch(masterDocuments);
+        const storageResult =
+          await this.unifiedStorage.storeBatch(masterDocuments);
         stored = storageResult.stored;
         embedded = storageResult.stored; // Assume embedding happened during storage
         errors.push(...storageResult.errors);
@@ -263,10 +275,11 @@ export class TwitterIndexerService extends BaseIndexerService {
         rateLimited,
         hasMoreData,
       };
-
     } catch (error) {
-      this.logger.error(`Failed to process account ${accountWithBudget.account}: ${error.message}`);
-      
+      this.logger.error(
+        `Failed to process account ${accountWithBudget.account}: ${error.message}`,
+      );
+
       return {
         success: false,
         processed,
@@ -282,48 +295,6 @@ export class TwitterIndexerService extends BaseIndexerService {
     }
   }
 
-  /**
-   * Transform BaseMessage to MasterDocument format
-   */
-  private transformToMasterDocument(baseMessage: any, accountHandle: string): MasterDocument {
-    const now = new Date().toISOString();
-
-    return {
-      id: baseMessage.id,
-      source: MessageSource.TWITTER,
-      text: baseMessage.text || '',
-      author: baseMessage.author || accountHandle,
-      authorHandle: baseMessage.authorHandle || accountHandle.toLowerCase(),
-      createdAt: baseMessage.createdAt instanceof Date ? baseMessage.createdAt.toISOString() : baseMessage.createdAt,
-      url: baseMessage.url || `https://twitter.com/${accountHandle}/status/${baseMessage.id.replace('twitter_', '')}`,
-      processingStatus: ProcessingStatus.PROCESSED,
-      processedAt: now,
-      kaspaRelated: baseMessage.kaspaRelated || false,
-      kaspaTopics: baseMessage.kaspaTopics || [],
-      hashtags: baseMessage.hashtags || [],
-      mentions: baseMessage.mentions || [],
-      links: baseMessage.links || [],
-      language: baseMessage.language || 'unknown',
-      errors: [],
-      retryCount: 0,
-
-      // Twitter-specific fields
-      twitterRetweetCount: baseMessage.retweets || 0,
-      twitterLikeCount: baseMessage.likes || 0,
-      twitterReplyCount: baseMessage.replies || 0,
-      twitterIsRetweet: baseMessage.isRetweet || false,
-
-      // Fields that will be populated during storage
-      vector: undefined,
-      vectorDimensions: undefined,
-      embeddedAt: undefined,
-      storedAt: undefined,
-    };
-  }
-
-  /**
-   * Get indexer configuration
-   */
   protected getIndexerConfig(): IndexerConfig {
     return {
       serviceName: 'TwitterIndexer',
@@ -333,4 +304,4 @@ export class TwitterIndexerService extends BaseIndexerService {
       processingDelayMs: this.config.getDefaultProcessingDelayMs(),
     };
   }
-} 
+}

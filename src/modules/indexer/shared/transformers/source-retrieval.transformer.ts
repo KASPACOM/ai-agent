@@ -7,7 +7,7 @@ import { MessageSource } from '../models/message-source.enum';
 
 /**
  * Telegram Message Interface
- * 
+ *
  * Source-specific model for telegram messages retrieved from unified collection
  */
 export interface TelegramMessageView {
@@ -52,7 +52,7 @@ export interface TelegramMessageView {
 
 /**
  * Twitter Message Interface
- * 
+ *
  * Source-specific model for twitter messages retrieved from unified collection
  */
 export interface TwitterMessageView {
@@ -91,20 +91,21 @@ export interface TwitterMessageView {
 
 /**
  * Source Retrieval Transformer
- * 
+ *
  * Transforms MasterDocument instances back to source-specific models for retrieval.
  * Following DEVELOPMENT_RULES.md: Single transformation principle - we store unified
  * documents and transform only on retrieval based on source.
  */
 export class SourceRetrievalTransformer {
-
   /**
    * Transform MasterDocument to Telegram-specific view
    * Only includes telegram-relevant fields and core fields
    */
   static toTelegramMessage(document: MasterDocument): TelegramMessageView {
     if (document.source !== MessageSource.TELEGRAM) {
-      throw new Error(`Cannot convert ${document.source} document to TelegramMessageView`);
+      throw new Error(
+        `Cannot convert ${document.source} document to TelegramMessageView`,
+      );
     }
 
     return {
@@ -154,7 +155,9 @@ export class SourceRetrievalTransformer {
    */
   static toTwitterMessage(document: MasterDocument): TwitterMessageView {
     if (document.source !== MessageSource.TWITTER) {
-      throw new Error(`Cannot convert ${document.source} document to TwitterMessageView`);
+      throw new Error(
+        `Cannot convert ${document.source} document to TwitterMessageView`,
+      );
     }
 
     return {
@@ -195,10 +198,12 @@ export class SourceRetrievalTransformer {
   /**
    * Transform multiple MasterDocuments to Telegram messages
    */
-  static toTelegramMessages(documents: MasterDocument[]): TelegramMessageView[] {
+  static toTelegramMessages(
+    documents: MasterDocument[],
+  ): TelegramMessageView[] {
     return documents
-      .filter(doc => doc.source === MessageSource.TELEGRAM)
-      .map(doc => this.toTelegramMessage(doc));
+      .filter((doc) => doc.source === MessageSource.TELEGRAM)
+      .map((doc) => this.toTelegramMessage(doc));
   }
 
   /**
@@ -206,14 +211,17 @@ export class SourceRetrievalTransformer {
    */
   static toTwitterMessages(documents: MasterDocument[]): TwitterMessageView[] {
     return documents
-      .filter(doc => doc.source === MessageSource.TWITTER)
-      .map(doc => this.toTwitterMessage(doc));
+      .filter((doc) => doc.source === MessageSource.TWITTER)
+      .map((doc) => this.toTwitterMessage(doc));
   }
 
   /**
    * Get documents by source and transform to appropriate view model
    */
-  static transformBySource(documents: MasterDocument[], source: MessageSource): TelegramMessageView[] | TwitterMessageView[] {
+  static transformBySource(
+    documents: MasterDocument[],
+    source: MessageSource,
+  ): TelegramMessageView[] | TwitterMessageView[] {
     switch (source) {
       case MessageSource.TELEGRAM:
         return this.toTelegramMessages(documents);
@@ -234,15 +242,23 @@ export class SourceRetrievalTransformer {
   /**
    * Filter documents by source
    */
-  static filterBySource(documents: MasterDocument[], source: MessageSource): MasterDocument[] {
-    return documents.filter(doc => doc.source === source);
+  static filterBySource(
+    documents: MasterDocument[],
+    source: MessageSource,
+  ): MasterDocument[] {
+    return documents.filter((doc) => doc.source === source);
   }
 
   /**
    * Group documents by source
    */
-  static groupBySource(documents: MasterDocument[]): Record<MessageSource, MasterDocument[]> {
-    const grouped: Record<MessageSource, MasterDocument[]> = {} as Record<MessageSource, MasterDocument[]>;
+  static groupBySource(
+    documents: MasterDocument[],
+  ): Record<MessageSource, MasterDocument[]> {
+    const grouped: Record<MessageSource, MasterDocument[]> = {} as Record<
+      MessageSource,
+      MasterDocument[]
+    >;
 
     for (const doc of documents) {
       if (!grouped[doc.source]) {
@@ -253,4 +269,4 @@ export class SourceRetrievalTransformer {
 
     return grouped;
   }
-} 
+}

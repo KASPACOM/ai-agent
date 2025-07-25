@@ -14,7 +14,59 @@ import { MessageSource } from '../../shared/models/message-source.enum';
  */
 export class TwitterMasterDocumentTransformer {
   /**
-   * Transform BaseMessage to MasterDocument format
+   * Transform raw tweet directly to MasterDocument format (bypasses BaseMessage)
+   */
+  static transformTweetToMasterDocument(
+    tweet: any,
+    accountHandle: string,
+  ): MasterDocument {
+    const now = new Date().toISOString();
+    const text = this.normalizeText(tweet.text || tweet.full_text || '');
+    const tweetId = tweet.id_str || tweet.id || `twitter_${Date.now()}`;
+
+    return {
+      id: tweetId,
+      source: MessageSource.TWITTER,
+      text: text,
+      author: tweet.author?.name || tweet.user?.name || accountHandle,
+      authorHandle: (
+        tweet.author?.username ||
+        tweet.user?.username ||
+        accountHandle
+      ).toLowerCase(),
+      createdAt: new Date(tweet.created_at || Date.now()).toISOString(),
+      url: tweet.url || `https://twitter.com/${accountHandle}/status/${tweetId}`,
+
+      // Processing metadata
+      processingStatus: ProcessingStatus.SCRAPED,
+      processedAt: now,
+      kaspaRelated: this.analyzeKaspaContent(text),
+      kaspaTopics: this.extractKaspaTopics(text),
+      hashtags: this.extractHashtags(text),
+      mentions: this.extractMentions(text),
+      links: this.extractLinks(text),
+      language: 'unknown',
+      errors: [],
+      retryCount: 0,
+
+      // Twitter-specific fields
+      twitterReplyCount: tweet.public_metrics?.reply_count || 0,
+      twitterRetweetCount: tweet.public_metrics?.retweet_count || 0,
+      twitterLikeCount: tweet.public_metrics?.like_count || 0,
+      twitterQuoteCount: tweet.public_metrics?.quote_count || 0,
+      twitterUserVerified: tweet.author?.verified || tweet.user?.verified || false,
+      twitterUserFollowersCount: tweet.author?.public_metrics?.followers_count || tweet.user?.public_metrics?.followers_count || 0,
+
+      // Fields that will be populated during storage
+      vector: undefined,
+      vectorDimensions: undefined,
+      embeddedAt: undefined,
+      storedAt: undefined,
+    };
+  }
+
+  /**
+   * Transform BaseMessage to MasterDocument format (legacy method for compatibility)
    */
   static transformToMasterDocument(
     baseMessage: any,
@@ -64,6 +116,14 @@ export class TwitterMasterDocumentTransformer {
       embeddedAt: undefined,
       storedAt: undefined,
     };
+  }
+
+  /**
+   * Normalize text content (remove extra whitespace, etc.)
+   */
+  static normalizeText(text: string): string {
+    if (!text) return '';
+    return text.trim().replace(/\s+/g, ' ');
   }
 
   /**

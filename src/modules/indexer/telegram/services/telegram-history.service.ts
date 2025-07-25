@@ -444,6 +444,18 @@ export class TelegramHistoryService {
         );
       }
     } catch (error) {
+      // Handle race condition: if another process created the collection, that's actually success
+      if (
+        error.message?.includes('Conflict') ||
+        error.message?.includes('already exists')
+      ) {
+        this.logger.debug(
+          `Collection ${this.config.getTelegramHistoryCollectionName()} already exists (created by another process)`,
+        );
+        return; // This is actually success - another process created it
+      }
+
+      // For other errors, log and throw
       this.logger.error(
         `Failed to ensure collection existence: ${error.message}`,
       );

@@ -2,17 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { QdrantClientService } from '../../../database/qdrant/services/qdrant-client.service';
 import { QdrantCollectionService } from '../../../database/qdrant/services/qdrant-collection.service';
 import { EmbeddingService } from '../../../embedding/embedding.service';
-import {
-  MasterDocument,
-  ProcessingStatus,
-} from '../models/master-document.model';
+import { MasterDocument } from '../models/master-document.model';
 import { MessageSource } from '../models/message-source.enum';
-import {
-  StorageOperationResult,
-  EmbeddingOperationResult,
-} from '../models/indexer-result.model';
+import { StorageOperationResult } from '../models/indexer-result.model';
 import { IndexerConfigService } from '../config/indexer.config';
 import { v5 as uuidv5 } from 'uuid';
+import { EmbeddingTransformer } from '../transformers/embedding.transformer';
 
 /**
  * Unified Storage Service
@@ -31,6 +26,13 @@ export class UnifiedStorageService {
     private readonly embeddingService: EmbeddingService,
     private readonly config: IndexerConfigService, // ✅ Use configuration service
   ) {}
+
+  /**
+   * Get the collection name used for unified storage
+   */
+  getCollectionName(): string {
+    return this.config.getUnifiedMessagesCollectionName();
+  }
 
   /**
    * Store multiple MasterDocument instances in batch
@@ -98,23 +100,53 @@ export class UnifiedStorageService {
         payload: this.preparePayloadForStorage(doc),
       }));
 
-      // Store in Qdrant
-      const upsertResult = await this.qdrantClient.upsertPoints(
-        this.config.getUnifiedMessagesCollectionName(),
-        points,
+      // Store in Qdrant using batches to avoid "Bad Request" errors
+      const batchSize = this.config.getQdrantUpsertBatchSize();
+      let totalStored = 0;
+      const collectionName = this.config.getUnifiedMessagesCollectionName();
+
+      this.logger.log(
+        `Storing ${points.length} documents in ${Math.ceil(points.length / batchSize)} batches of ${batchSize}`,
       );
 
-      if (upsertResult) {
-        result.stored = points.length;
-        result.failed = validDocuments.length - points.length;
-        result.success = true;
+      for (let i = 0; i < points.length; i += batchSize) {
+        const batch = points.slice(i, i + batchSize);
+        const batchNumber = Math.floor(i / batchSize) + 1;
+        const totalBatches = Math.ceil(points.length / batchSize);
 
-        this.logger.log(
-          `Successfully stored ${result.stored} documents in unified collection`,
-        );
-      } else {
-        throw new Error('Upsert operation returned no result');
+        try {
+          this.logger.debug(
+            `Upserting batch ${batchNumber}/${totalBatches} (${batch.length} points)`,
+          );
+
+          const upsertResult = await this.qdrantClient.upsertPoints(
+            collectionName,
+            batch,
+          );
+
+          if (upsertResult) {
+            totalStored += batch.length;
+            this.logger.debug(
+              `✅ Batch ${batchNumber}/${totalBatches} stored successfully`,
+            );
+          } else {
+            throw new Error(`Batch ${batchNumber} upsert returned no result`);
+          }
+        } catch (batchError) {
+          const errorMsg = `Failed to store batch ${batchNumber}/${totalBatches}: ${batchError.message}`;
+          this.logger.error(errorMsg);
+          result.errors.push(errorMsg);
+          result.failed += batch.length;
+        }
       }
+
+      result.stored = totalStored;
+      result.failed = points.length - totalStored;
+      result.success = totalStored > 0;
+
+      this.logger.log(
+        `Successfully stored ${result.stored}/${points.length} documents in unified collection`,
+      );
     } catch (error) {
       this.logger.error(`Failed to store documents batch: ${error.message}`);
       result.errors.push(error.message);
@@ -216,9 +248,12 @@ export class UnifiedStorageService {
         },
       );
 
-      if (searchResult.points.length > 0) {
+      // Handle cases where searchResult or points might be undefined
+      if (searchResult?.points?.length > 0) {
         const latestMessage = searchResult.points[0];
-        return new Date(latestMessage.payload.createdAt);
+        if (latestMessage?.payload?.createdAt) {
+          return new Date(latestMessage.payload.createdAt);
+        }
       }
 
       return undefined;
@@ -246,29 +281,35 @@ export class UnifiedStorageService {
       // Extract texts for bulk embedding
       const texts = documents.map((doc) => doc.text);
 
-      // Generate embeddings in bulk (more efficient)
-      const embeddings = await this.embeddingService.generateEmbeddings(texts);
+      // ✅ Use static transformer to create EmbeddingRequest
+      const embeddingRequest = EmbeddingTransformer.createEmbeddingRequest(
+        texts,
+        EmbeddingTransformer.getDefaultEmbeddingModel(),
+        EmbeddingTransformer.createBatchId('unified_storage'),
+      );
 
-      // Attach embeddings to documents
-      for (let i = 0; i < documents.length; i++) {
-        const doc = documents[i];
-        const embedding = embeddings[i];
-
-        if (embedding && embedding.length > 0) {
-          const updatedDoc: MasterDocument = {
-            ...doc,
-            vector: embedding,
-            vectorDimensions: embedding.length,
-            embeddedAt: new Date().toISOString(),
-            processingStatus: ProcessingStatus.EMBEDDED,
-          };
-          result.documents.push(updatedDoc);
-        } else {
-          result.errors.push(
-            `Failed to generate embedding for document: ${doc.id}`,
-          );
-        }
+      // Validate request
+      const validationErrors =
+        EmbeddingTransformer.validateEmbeddingRequest(embeddingRequest);
+      if (validationErrors.length > 0) {
+        throw new Error(
+          `Invalid embedding request: ${validationErrors.join(', ')}`,
+        );
       }
+
+      // Generate embeddings in bulk (more efficient)
+      const embeddingResponse =
+        await this.embeddingService.generateEmbeddings(embeddingRequest);
+
+      // ✅ Use static transformer to apply embeddings to documents
+      const { updatedDocuments, errors } =
+        EmbeddingTransformer.applyEmbeddingsToDocuments(
+          documents,
+          embeddingResponse,
+        );
+
+      result.documents.push(...updatedDocuments);
+      result.errors.push(...errors);
     } catch (error) {
       this.logger.error(`Failed to generate embeddings: ${error.message}`);
       result.errors.push(`Bulk embedding generation failed: ${error.message}`);
@@ -335,6 +376,18 @@ export class UnifiedStorageService {
         this.logger.log(`✅ Created unified collection: ${collectionName}`);
       }
     } catch (error) {
+      // Handle race condition: if another process created the collection, that's actually success
+      if (
+        error.message?.includes('Conflict') ||
+        error.message?.includes('already exists')
+      ) {
+        this.logger.debug(
+          `Collection ${this.config.getUnifiedMessagesCollectionName()} already exists (created by another process)`,
+        );
+        return; // This is actually success - another process created it
+      }
+
+      // For other errors, log and throw
       this.logger.error(
         `Failed to ensure collection existence: ${error.message}`,
       );
