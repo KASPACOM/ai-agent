@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { UnifiedStorageService } from './services/unified-storage.service';
-import { CronManager } from './services/cron-manager.service';
 import { IndexerConfigService } from './config/indexer.config';
 
 // Import database and embedding modules
 import { QdrantModule } from '../../database/qdrant/qdrant.module';
 import { EmbeddingModule } from '../../embedding/embedding.module';
 import { AppConfigModule } from '../../core/modules/config/app-config.module';
+import { CronManager } from './services/cron-manager.service';
 
 /**
  * Shared Module

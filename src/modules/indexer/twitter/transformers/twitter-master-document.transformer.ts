@@ -35,7 +35,8 @@ export class TwitterMasterDocumentTransformer {
         accountHandle
       ).toLowerCase(),
       createdAt: new Date(tweet.created_at || Date.now()).toISOString(),
-      url: tweet.url || `https://twitter.com/${accountHandle}/status/${tweetId}`,
+      url:
+        tweet.url || `https://twitter.com/${accountHandle}/status/${tweetId}`,
 
       // Processing metadata
       processingStatus: ProcessingStatus.SCRAPED,
@@ -54,8 +55,12 @@ export class TwitterMasterDocumentTransformer {
       twitterRetweetCount: tweet.public_metrics?.retweet_count || 0,
       twitterLikeCount: tweet.public_metrics?.like_count || 0,
       twitterQuoteCount: tweet.public_metrics?.quote_count || 0,
-      twitterUserVerified: tweet.author?.verified || tweet.user?.verified || false,
-      twitterUserFollowersCount: tweet.author?.public_metrics?.followers_count || tweet.user?.public_metrics?.followers_count || 0,
+      twitterUserVerified:
+        tweet.author?.verified || tweet.user?.verified || false,
+      twitterUserFollowersCount:
+        tweet.author?.public_metrics?.followers_count ||
+        tweet.user?.public_metrics?.followers_count ||
+        0,
 
       // Fields that will be populated during storage
       vector: undefined,

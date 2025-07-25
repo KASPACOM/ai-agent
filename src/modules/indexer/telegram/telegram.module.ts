@@ -12,7 +12,7 @@ import { TelegramController } from './controllers/telegram.controller';
 
 // Import local copies (independent from ETL)
 import { TelegramMTProtoService } from './services/telegram-mtproto.service';
-import { TelegramMessageTransformer } from '../../etl/transformers/telegram-message.transformer';
+
 import { AppConfigModule } from '../../core/modules/config/app-config.module';
 
 /**
@@ -44,7 +44,6 @@ import { AppConfigModule } from '../../core/modules/config/app-config.module';
 
     // ✅ Local copies (independent from ETL)
     TelegramMTProtoService, // Telegram API client (local copy)
-    TelegramMessageTransformer, // Message transformation (ETL copy - static methods)
   ],
   exports: [
     // ✅ Export services for potential external use

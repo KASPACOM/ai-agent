@@ -1,9 +1,8 @@
 import { Module } from '@nestjs/common';
 import { EmbeddingService } from './embedding.service';
-import { EtlConfigService } from '../etl/config/etl.config';
 
 @Module({
-  providers: [EmbeddingService, EtlConfigService],
+  providers: [EmbeddingService ],
   exports: [EmbeddingService],
 })
 export class EmbeddingModule {} 

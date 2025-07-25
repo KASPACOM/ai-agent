@@ -5,9 +5,9 @@ import {
   EmbeddingResponse,
   EmbeddingVector,
   EmbeddingStats,
-} from '../etl/models/embedding.model';
-import { EmbeddingModel } from '../etl/models/etl.enums';
-import { EtlConfigService } from '../etl/config/etl.config';
+  EmbeddingModel,
+} from '../indexer/shared/models/embedding.model';
+import { AppConfigService } from '../core/modules/config/app-config.service';
 
 /**
  * Embedding Service
@@ -35,7 +35,7 @@ export class EmbeddingService {
     errors: [] as string[],
   };
 
-  constructor(private readonly etlConfig: EtlConfigService) {
+  constructor(private readonly appConfig: AppConfigService) {
     // Initialize OpenAI client
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
@@ -62,7 +62,7 @@ export class EmbeddingService {
 
     try {
       // Process texts in batches to handle rate limits
-      const batchSize = this.etlConfig.getEmbeddingConfig().maxBatchSize;
+      const batchSize = 50; // Default batch size for embeddings
       const batches = this.chunkArray(request.texts, batchSize);
 
       for (let i = 0; i < batches.length; i++) {
@@ -73,7 +73,7 @@ export class EmbeddingService {
 
         try {
           const batchResult = await this.processBatch(
-            batch,
+            batch as string[],
             request.model,
             request.batchId,
           );
@@ -191,10 +191,10 @@ export class EmbeddingService {
     );
 
     try {
-      const config = this.etlConfig.getEmbeddingConfig();
+      const model = this.appConfig.getOpenAiEmbeddingModel as EmbeddingModel;
       const response = await this.generateEmbeddings({
         texts: [text],
-        model: config.model,
+        model: model,
         batchId: `single_${Date.now()}`,
       });
 
@@ -337,12 +337,12 @@ export class EmbeddingService {
     errors: string[];
     stats: EmbeddingStats;
   }> {
-    const config = this.etlConfig.getEmbeddingConfig();
+    const model = this.appConfig.getOpenAiEmbeddingModel as EmbeddingModel;
 
     // Test API availability
     let isAvailable = false;
     try {
-      await this.openai.models.retrieve(this.getOpenAIModelName(config.model));
+      await this.openai.models.retrieve(this.getOpenAIModelName(model));
       isAvailable = true;
     } catch (error) {
       this.logger.warn(`OpenAI API unavailable: ${error.message}`);
@@ -350,8 +350,8 @@ export class EmbeddingService {
 
     return {
       isAvailable,
-      model: config.model,
-      dimensions: config.dimensions,
+      model: model,
+      dimensions: this.appConfig.getOpenAiEmbeddingDimensions,
       totalGenerated: this.embeddingStats.totalGenerated,
       errors: [...this.embeddingStats.errors],
       stats: {

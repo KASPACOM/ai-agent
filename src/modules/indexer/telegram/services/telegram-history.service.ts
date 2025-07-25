@@ -344,10 +344,7 @@ export class TelegramHistoryService {
   /**
    * Reset completion status for a channel/topic to force re-indexing
    */
-  async resetCompletion(
-    channelName: string,
-    topicId?: number,
-  ): Promise<void> {
+  async resetCompletion(channelName: string, topicId?: number): Promise<void> {
     const normalizedChannelName = channelName.toLowerCase().replace('@', '');
     const historyId = this.generateHistoryId(normalizedChannelName, topicId);
 

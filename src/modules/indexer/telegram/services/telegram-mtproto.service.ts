@@ -10,7 +10,7 @@ import {
   TelegramMTProtoMessage,
   TelegramForumTopicInfo,
   TelegramChannelMessageOptions,
-} from '../../../etl/models/telegram.model';
+} from '../models/telegram-api.model';
 
 /**
  * Telegram MTProto Service (Indexer Module)

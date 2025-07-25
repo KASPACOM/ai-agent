@@ -16,7 +16,7 @@ import { IndexingResult } from '../../shared/models/indexer-result.model';
 
 // Import local telegram services (independent copies)
 import { TelegramMTProtoService } from './telegram-mtproto.service';
-import { TelegramMessageTransformer } from '../../../etl/transformers/telegram-message.transformer';
+
 import { TelegramChannelConfig } from '../models/telegram-history.model';
 import { TelegramMasterDocumentTransformer } from '../transformers/telegram-master-document.transformer';
 
@@ -49,7 +49,6 @@ export class TelegramIndexerService extends BaseIndexerService {
     private readonly telegramHistory: TelegramHistoryService,
     private readonly config: IndexerConfigService,
     private readonly telegramMtproto: TelegramMTProtoService,
-    private readonly telegramTransformer: TelegramMessageTransformer,
   ) {
     super(unifiedStorage);
   }

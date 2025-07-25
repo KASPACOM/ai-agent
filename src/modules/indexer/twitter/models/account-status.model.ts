@@ -1,3 +1,10 @@
+/**
+ * Account Status Models for Twitter Indexer
+ *
+ * Local copy of account status models to eliminate ETL dependency.
+ * Used for Twitter account rotation and status tracking.
+ */
+
 export interface AccountStatus {
   account: string;
   lastFullSync: Date | null; // When account was fully processed

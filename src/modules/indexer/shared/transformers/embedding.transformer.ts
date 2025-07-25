@@ -5,8 +5,8 @@ import {
 import {
   EmbeddingRequest,
   EmbeddingResponse,
-} from '../../../etl/models/embedding.model';
-import { EmbeddingModel } from '../../../etl/models/etl.enums';
+  EmbeddingModel,
+} from '../models/embedding.model';
 
 /**
  * Embedding Transformer

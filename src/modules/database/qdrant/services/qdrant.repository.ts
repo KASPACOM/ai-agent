@@ -5,7 +5,7 @@ import { QdrantConfigService } from '../config/qdrant.config';
 import { QdrantPoint, QdrantSearchResult } from '../models/qdrant.model';
 import { v5 as uuidv5 } from 'uuid';
 import { EmbeddingService } from '../../../embedding/embedding.service';
-import { TelegramMessage } from '../../../etl/models/telegram.model';
+// import { TelegramMessage } from '../../../etl/models/telegram.model'; // Removed ETL dependency
 
 /**
  * Qdrant Repository Service
@@ -221,109 +221,109 @@ export class QdrantRepository {
   /**
    * Store multiple Telegram vectors in batch (preserves all metadata fields)
    */
-  async storeTelegramVectorsBatch(
-    messages: Array<{
-      tweetId: string;
-      vector: number[];
-      metadata: TelegramMessage;
-    }>,
-    collectionName?: string,
-  ): Promise<{
-    success: boolean;
-    stored: number;
-    failed: number;
-    errors: string[];
-  }> {
-    const result = {
-      success: false,
-      stored: 0,
-      failed: 0,
-      errors: [] as string[],
-    };
+  // async storeTelegramVectorsBatch(
+  //   messages: Array<{
+  //     tweetId: string;
+  //     vector: number[];
+  //     metadata: any; // Legacy method - replaced TelegramMessage with any
+  //   }>,
+  //   collectionName?: string,
+  // ): Promise<{
+  //   success: boolean;
+  //   stored: number;
+  //   failed: number;
+  //   errors: string[];
+  // }> {
+  //   const result = {
+  //     success: false,
+  //     stored: 0,
+  //     failed: 0,
+  //     errors: [] as string[],
+  //   };
 
-    if (messages.length === 0) {
-      this.logger.warn('No messages provided for batch storage');
-      result.success = true;
-      return result;
-    }
+  //   if (messages.length === 0) {
+  //     this.logger.warn('No messages provided for batch storage');
+  //     result.success = true;
+  //     return result;
+  //   }
 
-    try {
-      const targetCollection =
-        collectionName || this.qdrantConfig.getCollectionName();
-      this.logger.log(
-        `Storing ${messages.length} Telegram vectors in batch to collection: ${targetCollection}`,
-      );
+  //   try {
+  //     const targetCollection =
+  //       collectionName || this.qdrantConfig.getCollectionName();
+  //     this.logger.log(
+  //       `Storing ${messages.length} Telegram vectors in batch to collection: ${targetCollection}`,
+  //     );
 
-      // Ensure collection exists
-      if (!this.qdrantCollection.isCollectionInitialized()) {
-        await this.qdrantCollection.ensureCollectionExists();
-      }
+  //     // Ensure collection exists
+  //     if (!this.qdrantCollection.isCollectionInitialized()) {
+  //       await this.qdrantCollection.ensureCollectionExists();
+  //     }
 
-      // Prepare all points - just convert Date objects to ISO strings
-      const points = messages.map((message) => {
-        const payload = {
-          ...message.metadata,
-          // Convert Date objects to ISO strings for Qdrant
-          createdAt: message.metadata.createdAt.toISOString(),
-          processedAt: message.metadata.processedAt.toISOString(),
-          telegramEditDate: message.metadata.telegramEditDate?.toISOString(),
-          // Add Qdrant-specific metadata
-          originalTweetId: String(message.tweetId),
-          stored_at: new Date().toISOString(),
-          vector_dimensions: message.vector.length,
-        };
+  //     // Prepare all points - just convert Date objects to ISO strings
+  //     const points = messages.map((message) => {
+  //       const payload = {
+  //         ...message.metadata,
+  //         // Convert Date objects to ISO strings for Qdrant
+  //         createdAt: message.metadata.createdAt.toISOString(),
+  //         processedAt: message.metadata.processedAt.toISOString(),
+  //         telegramEditDate: message.metadata.telegramEditDate?.toISOString(),
+  //         // Add Qdrant-specific metadata
+  //         originalTweetId: String(message.tweetId),
+  //         stored_at: new Date().toISOString(),
+  //         vector_dimensions: message.vector.length,
+  //       };
 
-        return {
-          id: this.generateUuidFromTwitterId(message.tweetId),
-          vector: message.vector,
-          payload,
-        };
-      });
+  //       return {
+  //         id: this.generateUuidFromTwitterId(message.tweetId),
+  //         vector: message.vector,
+  //         payload,
+  //       };
+  //     });
 
-      // Debug logging for first point to see structure
-      if (points.length > 0) {
-        const firstPoint = points[0];
-        this.logger.debug(`🔍 Sample Telegram point structure:`);
-        this.logger.debug(`Point ID: ${firstPoint.id}`);
-        this.logger.debug(`Vector length: ${firstPoint.vector.length}`);
-        this.logger.debug(
-          `Vector sample: [${firstPoint.vector.slice(0, 5).join(', ')}...]`,
-        );
-        this.logger.debug(
-          `Payload keys: [${Object.keys(firstPoint.payload).join(', ')}]`,
-        );
+  //     // Debug logging for first point to see structure
+  //     if (points.length > 0) {
+  //       const firstPoint = points[0];
+  //       this.logger.debug(`🔍 Sample Telegram point structure:`);
+  //       this.logger.debug(`Point ID: ${firstPoint.id}`);
+  //       this.logger.debug(`Vector length: ${firstPoint.vector.length}`);
+  //       this.logger.debug(
+  //         `Vector sample: [${firstPoint.vector.slice(0, 5).join(', ')}...]`,
+  //       );
+  //       this.logger.debug(
+  //         `Payload keys: [${Object.keys(firstPoint.payload).join(', ')}]`,
+  //       );
 
-        // Check for problematic vector values
-        const hasNaN = firstPoint.vector.some((v) => isNaN(v));
-        const hasInfinity = firstPoint.vector.some((v) => !isFinite(v));
-        this.logger.debug(
-          `Vector issues - NaN: ${hasNaN}, Infinity: ${hasInfinity}`,
-        );
-      }
+  //       // Check for problematic vector values
+  //       const hasNaN = firstPoint.vector.some((v) => isNaN(v));
+  //       const hasInfinity = firstPoint.vector.some((v) => !isFinite(v));
+  //       this.logger.debug(
+  //         `Vector issues - NaN: ${hasNaN}, Infinity: ${hasInfinity}`,
+  //       );
+  //     }
 
-      // Store all vectors in batch
-      const batchResult = await this.qdrantClient.upsertPoints(
-        targetCollection,
-        points,
-      );
+  //     // Store all vectors in batch
+  //     const batchResult = await this.qdrantClient.upsertPoints(
+  //       targetCollection,
+  //       points,
+  //     );
 
-      if (batchResult) {
-        result.stored = messages.length;
-        result.success = true;
-        this.logger.log(
-          `Successfully stored ${messages.length} Telegram vectors`,
-        );
-      } else {
-        throw new Error('Batch upsert operation returned no result');
-      }
-    } catch (error) {
-      this.logger.error(`Batch storage failed: ${error.message}`);
-      result.failed = messages.length;
-      result.errors.push(error.message);
-    }
+  //     if (batchResult) {
+  //       result.stored = messages.length;
+  //       result.success = true;
+  //       this.logger.log(
+  //         `Successfully stored ${messages.length} Telegram vectors`,
+  //       );
+  //     } else {
+  //       throw new Error('Batch upsert operation returned no result');
+  //     }
+  //   } catch (error) {
+  //     this.logger.error(`Batch storage failed: ${error.message}`);
+  //     result.failed = messages.length;
+  //     result.errors.push(error.message);
+  //   }
 
-    return result;
-  }
+  //   return result;
+  // }
 
   /**
    * Search for similar tweets

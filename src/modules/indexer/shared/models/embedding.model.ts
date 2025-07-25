@@ -1,4 +1,18 @@
-import { EmbeddingModel } from './etl.enums';
+/**
+ * Embedding Models for Indexer
+ *
+ * Local copy of embedding models to eliminate ETL dependency.
+ * Contains all embedding-related interfaces and enums.
+ */
+
+/**
+ * OpenAI embedding model options
+ */
+export enum EmbeddingModel {
+  TEXT_EMBEDDING_3_SMALL = 'text-embedding-3-small',
+  TEXT_EMBEDDING_3_LARGE = 'text-embedding-3-large',
+  TEXT_EMBEDDING_ADA_002 = 'text-embedding-ada-002',
+}
 
 /**
  * Embedding Vector Interface

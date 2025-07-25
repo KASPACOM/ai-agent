@@ -8,7 +8,7 @@ import {
   AccountWithStatus,
   AccountRotationConfig,
   AccountSyncStatus,
-} from '../../../etl/models/account-status.model';
+} from '../models/account-status.model';
 
 /**
  * Account Rotation Service (Indexer Module)
@@ -17,7 +17,7 @@ import {
  * despite rate limits that prevent processing all accounts in a single run.
  *
  * ✅ Copied from ETL module for independence - can be deleted when ETL is removed
- * 
+ *
  * STRATEGY:
  * 1. 🎯 Priority-based selection (never synced > stale > partial > complete)
  * 2. ⏱️ Cooldown periods for recently completed accounts
@@ -49,7 +49,8 @@ export class AccountRotationService {
     private readonly appConfig: AppConfigService,
   ) {
     // Initialize collection name from configuration
-    this.TWITTER_HISTORY_COLLECTION = this.indexerConfig.getTwitterHistoryCollectionName();
+    this.TWITTER_HISTORY_COLLECTION =
+      this.indexerConfig.getTwitterHistoryCollectionName();
   }
 
   /**
@@ -94,7 +95,10 @@ export class AccountRotationService {
       );
     } catch (error) {
       // Handle race condition: if another process created the collection, that's actually success
-      if (error.message?.includes('Conflict') || error.message?.includes('already exists')) {
+      if (
+        error.message?.includes('Conflict') ||
+        error.message?.includes('already exists')
+      ) {
         this.logger.debug(
           `Collection ${this.TWITTER_HISTORY_COLLECTION} already exists (created by another process)`,
         );
@@ -162,15 +166,21 @@ export class AccountRotationService {
     const now = new Date();
 
     const updated: Partial<AccountStatus> = {
-      syncedTweets: (existing?.syncedTweets || 0) + (result.messagesIndexed || 0),
+      syncedTweets:
+        (existing?.syncedTweets || 0) + (result.messagesIndexed || 0),
       // Only update lastPartialSync if we actually processed messages
-      ...(result.messagesIndexed && result.messagesIndexed > 0 && { lastPartialSync: now }),
+      ...(result.messagesIndexed &&
+        result.messagesIndexed > 0 && { lastPartialSync: now }),
       updatedAt: now,
       consecutiveRuns: (this.processingSession.get(account) || 0) + 1,
     };
 
     // Update completion status
-    if (result.messagesIndexed && result.messagesIndexed > 0 && !result.hasMoreData) {
+    if (
+      result.messagesIndexed &&
+      result.messagesIndexed > 0 &&
+      !result.hasMoreData
+    ) {
       updated.isComplete = true;
       updated.lastFullSync = now;
       updated.consecutiveRuns = 0; // Reset counter on completion
@@ -194,12 +204,14 @@ export class AccountRotationService {
     accountsWithErrors: number;
   }> {
     const allStatuses = await this.getAllAccountStatuses();
-    
+
     return {
       totalAccounts: allStatuses.length,
-      accountsNeedingSync: allStatuses.filter(a => !a.isComplete).length,
-      completedAccounts: allStatuses.filter(a => a.isComplete).length,
-      accountsWithErrors: allStatuses.filter(a => a.syncStatus === AccountSyncStatus.COOLING_DOWN).length,
+      accountsNeedingSync: allStatuses.filter((a) => !a.isComplete).length,
+      completedAccounts: allStatuses.filter((a) => a.isComplete).length,
+      accountsWithErrors: allStatuses.filter(
+        (a) => a.syncStatus === AccountSyncStatus.COOLING_DOWN,
+      ).length,
     };
   }
 
@@ -225,7 +237,9 @@ export class AccountRotationService {
     try {
       return this.appConfig.getTwitterAccountsConfig;
     } catch (error) {
-      this.logger.warn(`Failed to get Twitter accounts config: ${error.message}`);
+      this.logger.warn(
+        `Failed to get Twitter accounts config: ${error.message}`,
+      );
       return [];
     }
   }
@@ -614,4 +628,4 @@ export class AccountRotationService {
     // Ensure we always return a positive number within Qdrant's acceptable range
     return Math.abs(hash) || 1; // Use 1 if hash is 0
   }
-} 
+}

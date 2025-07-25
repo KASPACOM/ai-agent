@@ -1,13 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { UnifiedStorageService } from './unified-storage.service';
-import {
-  MasterDocument,
-  ProcessingStatus,
-} from '../models/master-document.model';
+import { MasterDocument } from '../models/master-document.model';
 import { MessageSource } from '../models/message-source.enum';
 import {
   IndexingResult,
-  MessageProcessingResult,
   BatchProcessingResult,
   IndexerHealth,
   IndexerStatistics,
