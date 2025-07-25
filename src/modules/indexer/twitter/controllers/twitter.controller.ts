@@ -1,8 +1,8 @@
 import { Controller, Post, Logger, OnModuleInit } from '@nestjs/common';
 import { TwitterIndexerService } from '../services/twitter-indexer.service';
 import { AccountRotationService } from '../services/account-rotation.service';
-import { CronManager } from '../../shared/services/cron-manager.service';
 import { IndexingResult } from '../../shared/models/indexer-result.model';
+import { CronManager } from '../../shared/services/cron-manager.service';
 
 /**
  * Twitter Controller
