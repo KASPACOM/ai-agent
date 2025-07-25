@@ -1,36 +1,61 @@
 import { BaseMessageTransformer } from './base-message.transformer';
 import { BaseMessage } from '../models/base-indexer.model';
+import { TelegramMessage, TelegramMessageType } from '../models/telegram.model';
 import { TweetProcessingStatus, TweetSource } from '../models/etl.enums';
 
 /**
  * Telegram Message Transformer
  *
  * Handles Telegram-specific message transformations
- * TODO: Implement when Telegram integration is added
- * Extends base transformer functionality
+ * Extends base transformer functionality with proper typing
  */
 export class TelegramMessageTransformer extends BaseMessageTransformer {
   /**
-   * Transform Telegram message for Qdrant storage
+   * Transform Telegram message for Qdrant storage with proper typing
    */
-  public static transformMessageForStorage(message: BaseMessage): any {
+  public static transformMessageForStorage(message: TelegramMessage): any {
     const baseMetadata = this.createBaseStorageMetadata(message);
 
-    // Add Telegram-specific metadata
+    // Add Telegram-specific metadata with properly separated fields
     return {
       ...baseMetadata,
+
+      // Core message identification
       originalMessageId: message.id,
-      channelName: message.authorHandle,
-      // Telegram-specific fields (to be implemented)
-      messageType: this.determineMessageType(message.text),
-      isForwarded: this.isForwardedMessage(message.text),
-      forwardedFrom: this.extractForwardedFrom(message.text),
-      hasMedia: this.hasMediaContent(message.text),
-      // TODO: Add when implementing Telegram API
-      // views: (message as any).views || 0,
-      // reactions: (message as any).reactions || [],
-      // editDate: (message as any).editDate,
-      // replyToMessageId: (message as any).replyToMessageId,
+      telegramMessageId: message.telegramMessageId,
+
+      // Channel/Group Information (clearly separated)
+      channelTitle: message.telegramChannelTitle,
+      channelUsername: message.telegramChannelUsername,
+      channelId: message.telegramChannelId,
+
+      // Topic Information (for forum-style groups)
+      topicId: message.telegramTopicId,
+      topicTitle: message.telegramTopicTitle,
+
+      // Message Author Information (clearly separated)
+      messageAuthorName: message.telegramAuthorName,
+      messageAuthorUsername: message.telegramAuthorUsername,
+      messageAuthorId: message.telegramAuthorId,
+      isAuthorChannel: message.telegramIsAuthorChannel,
+
+      // Message Metadata (telegram-specific)
+      messageType:
+        message.telegramMessageType || this.determineMessageType(message.text),
+      isForwarded:
+        message.telegramIsForwarded ?? this.isForwardedMessage(message.text),
+      forwardedFrom:
+        message.telegramForwardedFrom ||
+        this.extractForwardedFrom(message.text),
+      hasMedia: message.telegramHasMedia ?? this.hasMediaContent(message.text),
+      views: message.telegramViews || 0,
+      editDate: message.telegramEditDate
+        ? message.telegramEditDate.toISOString()
+        : undefined,
+      replyToMessageId: message.telegramReplyToMessageId,
+
+      // Processing metadata (override base source)
+      source: 'telegram',
     };
   }
 
@@ -127,15 +152,14 @@ export class TelegramMessageTransformer extends BaseMessageTransformer {
   }
 
   /**
-   * Determine message type based on content
-   * TODO: Enhance when Telegram API is implemented
+   * Determine message type based on content using enum
    */
-  public static determineMessageType(text: string): string {
-    if (this.isForwardedMessage(text)) return 'forwarded';
-    if (this.hasMediaContent(text)) return 'media';
-    if (this.isReplyMessage(text)) return 'reply';
-    if (this.isChannelPost(text)) return 'channel_post';
-    return 'text';
+  public static determineMessageType(text: string): TelegramMessageType {
+    if (this.isForwardedMessage(text)) return TelegramMessageType.FORWARDED;
+    if (this.hasMediaContent(text)) return TelegramMessageType.MEDIA;
+    if (this.isReplyMessage(text)) return TelegramMessageType.REPLY;
+    if (this.isChannelPost(text)) return TelegramMessageType.CHANNEL_POST;
+    return TelegramMessageType.TEXT;
   }
 
   /**
@@ -169,7 +193,10 @@ export class TelegramMessageTransformer extends BaseMessageTransformer {
   /**
    * Check if message is a channel post
    */
-  public static isChannelPost(text: string): boolean {
+  public static isChannelPost(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _text: string,
+  ): boolean {
     // Channel posts typically don't have specific indicators in text
     // This would need to be determined from Telegram API metadata
     return false; // TODO: Implement when API is available

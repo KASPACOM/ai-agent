@@ -37,6 +37,10 @@ ENV/
 .env.*.local
 development.env
 
+# Telegram session files (sensitive)
+telegram-session.txt
+telegram-session.json
+
 # Logs
 *.log
 logs/

@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { TelegramClient, Api } from 'telegram';
 import { StringSession } from 'telegram/sessions';
-import { EtlConfigService } from '../config/etl.config';
+import { IndexerConfigService } from '../../shared/config/indexer.config';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
@@ -9,13 +9,15 @@ import {
   TelegramMTProtoMessage,
   TelegramForumTopicInfo,
   TelegramChannelMessageOptions,
-} from '../models/telegram.model';
+} from '../../../etl/models/telegram.model';
 
 /**
- * Telegram MTProto Service
+ * Telegram MTProto Service (Indexer Module)
  *
  * Uses Telegram's native MTProto protocol (GramJS) to access full chat history
  * Authenticates as a user account instead of a bot for complete access
+ * 
+ * ✅ Copied from ETL module for independence - can be deleted when ETL is removed
  */
 @Injectable()
 export class TelegramMTProtoService implements OnModuleInit {
@@ -28,9 +30,10 @@ export class TelegramMTProtoService implements OnModuleInit {
   private readonly sessionFilePath: string;
   private sessionString: string = '';
 
-  constructor(private readonly etlConfig: EtlConfigService) {
-    this.apiId = this.etlConfig.getTelegramApiId();
-    this.apiHash = this.etlConfig.getTelegramApiHash();
+  constructor(private readonly config: IndexerConfigService) {
+    // ✅ Use IndexerConfigService methods (fallback to environment variables)
+    this.apiId = process.env.TELEGRAM_API_ID || '';
+    this.apiHash = process.env.TELEGRAM_API_HASH || '';
     // Session file path - store in project root or data directory
     this.sessionFilePath = path.join(process.cwd(), 'telegram-session.txt');
 
@@ -384,24 +387,17 @@ export class TelegramMTProtoService implements OnModuleInit {
         // Apply date filtering if specified
         let filteredMessages = batchMessages;
         if (options.offsetDate) {
-          if (isHistorical) {
-            // For historical processing: get messages OLDER than offsetDate
-            filteredMessages = batchMessages.filter(
-              (msg) => new Date(msg.date * 1000) < options.offsetDate!,
-            );
-          } else {
-            // For incremental processing: get messages NEWER than offsetDate
-            filteredMessages = batchMessages.filter(
-              (msg) => new Date(msg.date * 1000) > options.offsetDate!,
-            );
-          }
+          // ✅ HISTORICAL ETL: Always get messages NEWER than offsetDate
+          // This allows us to start from bottom of chat and work UP chronologically
+          filteredMessages = batchMessages.filter(
+            (msg) => new Date(msg.date * 1000) > options.offsetDate!,
+          );
 
           // Log filtering results
           if (filteredMessages.length < batchMessages.length) {
             const dateLimit = options.offsetDate.toISOString();
-            const comparison = isHistorical ? 'older than' : 'newer than';
             this.logger.log(
-              `Filtered to ${filteredMessages.length}/${batchMessages.length} messages ${comparison} ${dateLimit}`,
+              `Filtered to ${filteredMessages.length}/${batchMessages.length} messages newer than ${dateLimit}`,
             );
           }
         }
@@ -417,9 +413,8 @@ export class TelegramMTProtoService implements OnModuleInit {
         // If we filtered out messages due to date, and we got fewer than requested, we may have hit our limit
         if (options.offsetDate && filteredMessages.length < result.length) {
           const dateLimit = options.offsetDate.toISOString();
-          const comparison = isHistorical ? 'older than' : 'newer than';
           this.logger.log(
-            `Reached date limit (${comparison} ${dateLimit}) - stopping fetch`,
+            `Reached date limit (newer than ${dateLimit}) - stopping fetch`,
           );
           break;
         }
@@ -658,4 +653,5 @@ export class TelegramMTProtoService implements OnModuleInit {
     }
   }
 }
-export { TelegramMTProtoMessage };
+
+export { TelegramMTProtoMessage }; 

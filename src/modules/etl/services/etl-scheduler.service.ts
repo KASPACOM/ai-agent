@@ -31,7 +31,7 @@ export class EtlSchedulerService implements OnModuleInit {
 
   async onModuleInit() {
     await this.runScheduledTwitterIndexing();
-    // await this.runScheduledTelegramIndexing();
+    await this.runScheduledTelegramIndexing();
   }
 
   /**
