@@ -19,13 +19,13 @@ import { TwitterModule } from './twitter/twitter.module'; // ✅ Twitter module 
 @Module({
   imports: [
     SharedModule,
-    // TelegramModule,  // ✅ Independent telegram indexing
+    TelegramModule, // ✅ Independent telegram indexing
     TwitterModule, // ✅ Independent twitter indexing
   ],
   providers: [],
   exports: [
     SharedModule,
-    // TelegramModule,  // ✅ Export telegram services
+    TelegramModule, // ✅ Export telegram services
     TwitterModule, // ✅ Export twitter services
   ],
 })

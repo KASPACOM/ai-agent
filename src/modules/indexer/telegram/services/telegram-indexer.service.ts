@@ -242,21 +242,15 @@ export class TelegramIndexerService extends BaseIndexerService {
         {
           topicId,
           offsetDate, // Get messages NEWER than this (progressing up through chat history)
-          limit: 100,
+          limit: this.config.getTelegramMaxMessagesPerRun(),
           reverse: true, // ✅ Ensures chronological order (oldest first in each batch)
         },
       );
 
       if (telegramMessages.length === 0) {
         this.logger.debug(
-          `No more historical messages for ${channel.username}:${topicId || 'main'} - reached current time`,
+          `No more messages available for ${channel.username}:${topicId || 'main'}`,
         );
-
-        // Mark as complete if we've reached current time (no more messages to process)
-        await this.telegramHistory.updateHistory(channel.username, topicId, {
-          isComplete: true,
-        });
-
         return {
           success: true,
           processed: 0,
@@ -282,6 +276,7 @@ export class TelegramIndexerService extends BaseIndexerService {
             TelegramMasterDocumentTransformer.transformTelegramApiResponseToMasterDocument(
               telegramMsg,
               channel,
+              history.topicTitle, // ✅ Pass topic title from history
             );
           masterDocuments.push(masterDoc);
           processed++;
@@ -305,26 +300,31 @@ export class TelegramIndexerService extends BaseIndexerService {
         const oldestMessage = telegramMessages[0]; // First = oldest in this batch
         const newestMessage = telegramMessages[telegramMessages.length - 1]; // Last = newest in this batch
 
-        await this.telegramHistory.updateHistory(channel.username, topicId, {
-          messagesIndexed: processed,
-          // Update our earliest bound if this is the first batch or we got older messages
-          earliestMessageDate:
-            !history.earliestMessageDate ||
-            new Date(oldestMessage.date * 1000) <
-              new Date(history.earliestMessageDate)
-              ? new Date(oldestMessage.date * 1000).toISOString()
-              : history.earliestMessageDate,
-          earliestMessageId:
-            !history.earliestMessageId ||
-            oldestMessage.id < history.earliestMessageId
-              ? oldestMessage.id
-              : history.earliestMessageId,
-          // Update latest message for next pagination (this becomes our offset)
-          latestMessageDate: new Date(newestMessage.date * 1000).toISOString(),
-          latestMessageId: newestMessage.id,
-          errors: errors.length > 0 ? errors : undefined,
-          clearErrors: errors.length === 0,
-        });
+        // ✅ Only update history AFTER successful storage
+        if (storageResult.stored > 0) {
+          await this.telegramHistory.updateHistory(channel.username, topicId, {
+            messagesIndexed: storageResult.stored, // Only count actually stored messages
+            // Update our earliest bound if this is the first batch or we got older messages
+            earliestMessageDate:
+              !history.earliestMessageDate ||
+              new Date(oldestMessage.date * 1000) <
+                new Date(history.earliestMessageDate)
+                ? new Date(oldestMessage.date * 1000).toISOString()
+                : history.earliestMessageDate,
+            earliestMessageId:
+              !history.earliestMessageId ||
+              oldestMessage.id < history.earliestMessageId
+                ? oldestMessage.id
+                : history.earliestMessageId,
+            // Update latest message for next pagination (this becomes our offset)
+            latestMessageDate: new Date(
+              newestMessage.date * 1000,
+            ).toISOString(),
+            latestMessageId: newestMessage.id,
+            errors: errors.length > 0 ? errors : undefined,
+            clearErrors: errors.length === 0,
+          });
+        }
       }
 
       return {
@@ -537,10 +537,15 @@ export class TelegramIndexerService extends BaseIndexerService {
     channelUsername: string,
   ): Promise<{ id: number; title: string }[]> {
     try {
-      // ✅ Use existing TelegramMtproto methods if available
+      // ✅ Use TelegramMTProto service to get forum topics
       this.logger.debug(`Getting topics for channel: ${channelUsername}`);
-      // For now, return empty array - topics will be discovered during channel processing
-      return [];
+      const forumTopics =
+        await this.telegramMtproto.getForumTopics(channelUsername);
+
+      return forumTopics.map((topic) => ({
+        id: topic.id,
+        title: topic.title,
+      }));
     } catch (error) {
       this.logger.warn(
         `Failed to get topics for ${channelUsername}: ${error.message}`,

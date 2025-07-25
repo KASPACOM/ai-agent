@@ -342,6 +342,46 @@ export class TelegramHistoryService {
   }
 
   /**
+   * Reset completion status for a channel/topic to force re-indexing
+   */
+  async resetCompletion(
+    channelName: string,
+    topicId?: number,
+  ): Promise<void> {
+    const normalizedChannelName = channelName.toLowerCase().replace('@', '');
+    const historyId = this.generateHistoryId(normalizedChannelName, topicId);
+
+    try {
+      const existingHistory = await this.getHistory(historyId);
+      if (!existingHistory) {
+        this.logger.warn(
+          `No history found for ${normalizedChannelName}:${topicId} - cannot reset completion`,
+        );
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const updatedHistory: TelegramIndexingHistory = {
+        ...existingHistory,
+        isComplete: false, // Reset completion status
+        consecutiveErrors: 0, // Clear error count
+        indexingErrors: [], // Clear errors
+        updatedAt: now,
+      };
+
+      await this.upsertHistory(updatedHistory);
+      this.logger.log(
+        `Reset completion status for ${normalizedChannelName}:${topicId || 'main'}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to reset completion for ${normalizedChannelName}:${topicId}: ${error.message}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Generate consistent history ID for channel/topic combination
    */
   private generateHistoryId(channelName: string, topicId?: number): string {

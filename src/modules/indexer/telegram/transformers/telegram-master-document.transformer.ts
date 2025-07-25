@@ -1,23 +1,27 @@
-import { MasterDocument, ProcessingStatus, TelegramMessageType } from '../../shared/models/master-document.model';
+import {
+  MasterDocument,
+  ProcessingStatus,
+  TelegramMessageType,
+} from '../../shared/models/master-document.model';
 import { MessageSource } from '../../shared/models/message-source.enum';
 import { TelegramChannelConfig } from '../models/telegram-history.model';
 
 /**
  * Telegram Master Document Transformer
- * 
+ *
  * Static helper methods for transforming Telegram API responses to MasterDocument format.
  * Moved from TelegramIndexerService to follow proper separation of concerns.
- * 
+ *
  * ✅ Static methods only - no dependencies, pure transformations
  */
 export class TelegramMasterDocumentTransformer {
-  
   /**
    * Transform Telegram API response directly to MasterDocument format
    */
   static transformTelegramApiResponseToMasterDocument(
-    telegramMsg: any, 
-    channel: TelegramChannelConfig
+    telegramMsg: any,
+    channel: TelegramChannelConfig,
+    topicTitle?: string,
   ): MasterDocument {
     const now = new Date().toISOString();
     const text = telegramMsg.text || telegramMsg.message || '';
@@ -28,7 +32,9 @@ export class TelegramMasterDocumentTransformer {
       text,
       author: telegramMsg.from_id?.user_id || channel.title || channel.username,
       authorHandle: channel.username,
-      createdAt: telegramMsg.date ? new Date(telegramMsg.date * 1000).toISOString() : now,
+      createdAt: telegramMsg.date
+        ? new Date(telegramMsg.date * 1000).toISOString()
+        : now,
       url: `https://t.me/${channel.username}/${telegramMsg.id}`,
       processingStatus: ProcessingStatus.PROCESSED,
       processedAt: now,
@@ -44,6 +50,7 @@ export class TelegramMasterDocumentTransformer {
       // Telegram-specific fields
       telegramChannelTitle: channel.title,
       telegramTopicId: telegramMsg.topic_id,
+      telegramTopicTitle: topicTitle, // ✅ Now capturing topic title
       telegramMessageType: this.determineTelegramMessageType(telegramMsg),
 
       // Fields that will be populated during storage
@@ -59,7 +66,9 @@ export class TelegramMasterDocumentTransformer {
    */
   static analyzeKaspaContent(text: string): boolean {
     const kaspaKeywords = ['kaspa', '$kas', 'blockdag', 'pow'];
-    return kaspaKeywords.some(keyword => text.toLowerCase().includes(keyword));
+    return kaspaKeywords.some((keyword) =>
+      text.toLowerCase().includes(keyword),
+    );
   }
 
   /**
@@ -117,4 +126,4 @@ export class TelegramMasterDocumentTransformer {
     }
     return TelegramMessageType.TEXT;
   }
-} 
+}

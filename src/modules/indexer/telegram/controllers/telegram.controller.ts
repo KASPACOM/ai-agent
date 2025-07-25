@@ -21,10 +21,18 @@ export class TelegramController implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    try {
+      const result = await this.telegramIndexer.runIndexer();
+      this.logger.log(
+        `Telegram indexing completed: ${result.processed} processed, ${result.errors.length} errors`,
+      );
+    } catch (error) {
+      this.logger.error(`Telegram indexing failed: ${error.message}`);
+    }
     // ✅ Setup cron job using shared CronManager (builder pattern)
     this.cronManager.addJob({
       name: 'telegram-indexer',
-      cronExpression: '0 0 20 * * *', // Daily at 8pm UTC
+      cronExpression: '*/15 * * * * *', // Daily at 8pm UTC
       handler: async () => {
         try {
           const result = await this.telegramIndexer.runIndexer();

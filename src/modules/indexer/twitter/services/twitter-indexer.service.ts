@@ -11,6 +11,7 @@ import { IndexingResult } from '../../shared/models/indexer-result.model';
 
 // Import existing ETL services for Twitter functionality
 import { TwitterApiService } from '../../../integrations/twitter/twitter-api.service';
+import { TwitterMessageTransformer } from '../../../etl/transformers/twitter-message.transformer';
 import { AccountRotationService } from './account-rotation.service';
 import { TwitterMasterDocumentTransformer } from '../transformers/twitter-master-document.transformer';
 

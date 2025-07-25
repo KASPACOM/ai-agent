@@ -280,7 +280,7 @@ export class TelegramMTProtoService implements OnModuleInit {
       const result = await this.client.invoke(
         new Api.channels.GetForumTopics({
           channel: channel,
-          limit: 100,
+          limit: 100, // Keep reasonable limit for topics
         }),
       );
 
@@ -327,8 +327,9 @@ export class TelegramMTProtoService implements OnModuleInit {
       const channel = await this.getChannelEntity(channelIdentifier);
       const allMessages: TelegramMTProtoMessage[] = [];
 
-      const batchSize = Math.min(options.limit || 100, 100); // Max 100 per batch
-      const maxMessages = options.limit || 1000; // Max total messages
+      const batchSize = this.config.getTelegramBatchSize(); // 1000 per batch
+      const maxMessages =
+        options.limit || this.config.getTelegramMaxMessagesPerRun(); // Max total messages
       let offsetId = 0; // Start from newest (or oldest if reverse)
       let fetchedCount = 0;
 
@@ -573,7 +574,7 @@ export class TelegramMTProtoService implements OnModuleInit {
   private async fetchMessagesFromTopic(
     entity: any,
     topicId: number,
-    limit = 100,
+    limit = this.config.getTelegramBatchSize(),
   ): Promise<any[]> {
     try {
       // Add delay between requests to avoid rate limiting

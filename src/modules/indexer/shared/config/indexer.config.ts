@@ -75,24 +75,21 @@ export class IndexerConfigService {
   }
 
   /**
-   * Telegram-specific Configuration
+   * Telegram Configuration
    */
-  getTelegramMaxConsecutiveFailures(): number {
+  getTelegramMaxMessagesPerRun(): number {
     return this.configService.get<number>(
-      'INDEXER_TELEGRAM_MAX_CONSECUTIVE_FAILURES',
-      5,
+      'INDEXER_TELEGRAM_MAX_MESSAGES_PER_RUN',
+      10000,
     );
   }
 
-  getTelegramScheduleCron(): string {
-    return this.configService.get<string>(
-      'INDEXER_TELEGRAM_SCHEDULE_CRON',
-      '0 0 20 * * *',
-    );
+  getTelegramBatchSize(): number {
+    return this.configService.get<number>('INDEXER_TELEGRAM_BATCH_SIZE', 1000);
   }
 
   /**
-   * Twitter-specific Configuration
+   * Twitter Configuration
    */
   getTwitterMaxConsecutiveFailures(): number {
     return this.configService.get<number>(
@@ -113,7 +110,7 @@ export class IndexerConfigService {
   }
 
   /**
-   * Qdrant Storage Configuration
+   * Qdrant Configuration
    */
   getQdrantUpsertBatchSize(): number {
     return this.configService.get<number>(
