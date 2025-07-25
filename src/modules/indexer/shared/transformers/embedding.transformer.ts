@@ -1,5 +1,11 @@
-import { MasterDocument, ProcessingStatus } from '../models/master-document.model';
-import { EmbeddingRequest, EmbeddingResponse } from '../../../etl/models/embedding.model';
+import {
+  MasterDocument,
+  ProcessingStatus,
+} from '../models/master-document.model';
+import {
+  EmbeddingRequest,
+  EmbeddingResponse,
+} from '../../../etl/models/embedding.model';
 import { EmbeddingModel } from '../../../etl/models/etl.enums';
 
 /**
@@ -14,7 +20,7 @@ export class EmbeddingTransformer {
    */
   static createEmbeddingRequest(
     texts: string[],
-    model: EmbeddingModel = EmbeddingModel.TEXT_EMBEDDING_3_SMALL,
+    model: EmbeddingModel = EmbeddingModel.TEXT_EMBEDDING_3_LARGE,
     batchId?: string,
   ): EmbeddingRequest {
     return {
@@ -93,7 +99,10 @@ export class EmbeddingTransformer {
       errors.push('EmbeddingRequest must specify a model');
     }
 
-    if (request.texts && request.texts.some((text) => !text || text.trim().length === 0)) {
+    if (
+      request.texts &&
+      request.texts.some((text) => !text || text.trim().length === 0)
+    ) {
       errors.push('EmbeddingRequest contains empty or invalid texts');
     }
 
@@ -104,7 +113,7 @@ export class EmbeddingTransformer {
    * Get default embedding model from configuration
    */
   static getDefaultEmbeddingModel(): EmbeddingModel {
-    return EmbeddingModel.TEXT_EMBEDDING_3_SMALL;
+    return EmbeddingModel.TEXT_EMBEDDING_3_LARGE;
   }
 
   /**
@@ -113,4 +122,4 @@ export class EmbeddingTransformer {
   static createBatchId(prefix: string = 'batch'): string {
     return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
-} 
+}

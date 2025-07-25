@@ -87,13 +87,13 @@ export class AppConfigService {
   get getOpenAiEmbeddingModel(): string {
     return (
       this.configService.get('OPENAI_EMBEDDING_MODEL') ||
-      'text-embedding-3-small'
+      'text-embedding-3-large'
     );
   }
 
   get getOpenAiEmbeddingDimensions(): number {
     return parseInt(
-      this.configService.get('OPENAI_EMBEDDING_DIMENSIONS') || '1536',
+      this.configService.get('OPENAI_EMBEDDING_DIMENSIONS') || '3072',
       10,
     );
   }

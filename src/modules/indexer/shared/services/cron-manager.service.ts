@@ -211,6 +211,8 @@ export class CronManager implements OnModuleDestroy {
   private cronToInterval(cronExpression: string): number | null {
     // Handle common cron patterns
     switch (cronExpression) {
+      case '*/15 * * * * *': // Every 15 minutes
+        return 15 * 60 * 1000;
       case '*/30 * * * * *': // Every 30 minutes
         return 30 * 60 * 1000;
       case '0 0 20 * * *': // Daily at 8pm UTC

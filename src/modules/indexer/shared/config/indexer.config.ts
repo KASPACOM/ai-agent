@@ -49,7 +49,7 @@ export class IndexerConfigService {
    * Vector Configuration
    */
   getVectorDimensions(): number {
-    return this.configService.get<number>('INDEXER_VECTOR_DIMENSIONS', 384);
+    return this.configService.get<number>('INDEXER_VECTOR_DIMENSIONS', 3072);
   }
 
   getVectorDistance(): string {
