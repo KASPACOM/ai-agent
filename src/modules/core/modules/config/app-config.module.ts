@@ -58,11 +58,18 @@ import { AppConfigService } from './app-config.service';
         TELEGRAM_API_HASH: Joi.string().optional(),
         TELEGRAM_CHANNELS_CONFIG: Joi.string().optional().default('[]'),
 
+
         // Service Configuration
         SERVICE_TYPE: Joi.string()
           .valid('ETL', 'AGENT')
           .optional()
           .default('ETL'),
+
+        SKIP_INDEXERS: Joi.string()
+        .valid('true', 'false')
+        .optional()
+        .default('false'),
+
       }),
       validationOptions: {
         abortEarly: true,
@@ -72,4 +79,4 @@ import { AppConfigService } from './app-config.service';
   providers: [AppConfigService],
   exports: [AppConfigService],
 })
-export class AppConfigModule {}
+export class AppConfigModule { }
