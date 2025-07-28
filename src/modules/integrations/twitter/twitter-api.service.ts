@@ -4,6 +4,7 @@ import {
   UserV2,
   TweetSearchRecentV2Paginator,
   TwitterApiReadOnly,
+  TweetV2,
 } from 'twitter-api-v2';
 import {
   Tweet,
@@ -13,6 +14,7 @@ import {
 } from './models/twitter.model';
 import { TwitterTransformer } from './transformers/twitter-api.transformer';
 import { AppConfigService } from 'src/modules/core/modules/config/app-config.service';
+import { TelegramPublisherService } from '../telegram/publisher.service';
 
 /**
  * Twitter API Service
@@ -34,7 +36,7 @@ export class TwitterApiService {
     lastRun: null as Date | null,
   };
 
-  constructor(private readonly appConfig: AppConfigService) {
+  constructor(private readonly appConfig: AppConfigService, private readonly telegramPublisherService: TelegramPublisherService) {
     // Initialize Twitter API client
     this.twitterClient = this.initializeTwitterClient();
     this.logger.log('TwitterApiService initialized');
@@ -433,40 +435,116 @@ export class TwitterApiService {
    * Post a new tweet
    */
   async postTweet(status: string): Promise<any> {
-    try {
-      const writeClient = this.getWriteTwitterClient();
-      if (!writeClient) {
-        throw new Error('Twitter write client not initialized');
-      }
-      const result = await writeClient.v2.tweet(status);
-      this.logger.log(`Tweet posted successfully: ${result.data?.id}`);
-      return result.data;
-    } catch (error) {
-      this.logger.error(`Failed to post tweet: ${error.message}`);
-      this.apiStats.errors.push(`Post tweet failed: ${error.message}`);
-      throw error;
-    }
+    return await this.notifyTelegramAboutTwitterIntent(status);
+    // try {
+    //   const writeClient = this.getWriteTwitterClient();
+    //   if (!writeClient) {
+    //     throw new Error('Twitter write client not initialized');
+    //   }
+    //   const result = await writeClient.v2.tweet(status);
+    //   this.logger.log(`Tweet posted successfully: ${result.data?.id}`);
+    //   return result.data;
+    // } catch (error) {
+    //   this.logger.error(`Failed to post tweet: ${error.message}`);
+    //   this.apiStats.errors.push(`Post tweet failed: ${error.message}`);
+    //   throw error;
+    // }
   }
 
   /**
    * Post a comment (reply) to a tweet
    */
   async postComment(status: string, inReplyToTweetId: string): Promise<any> {
-    try {
-      const writeClient = this.getWriteTwitterClient();
+    return await this.notifyTelegramAboutTwitterIntent(status, inReplyToTweetId);
+    // try {
+    //   const writeClient = this.getWriteTwitterClient();
 
-      if (!writeClient) {
-        throw new Error('Twitter write client not initialized');
-      }
-      const result = await writeClient.v2.tweet({
-        text: status,
-        reply: { in_reply_to_tweet_id: inReplyToTweetId },
-      });
-      this.logger.log(`Comment posted successfully: ${result.data?.id}`);
-      return result.data;
+    //   if (!writeClient) {
+    //     throw new Error('Twitter write client not initialized');
+    //   }
+    //   const result = await writeClient.v2.tweet({
+    //     text: status,
+    //     reply: { in_reply_to_tweet_id: inReplyToTweetId },
+    //   });
+    //   this.logger.log(`Comment posted successfully: ${result.data?.id}`);
+    //   return result.data;
+    // } catch (error) {
+    //   this.logger.error(`Failed to post comment: ${error.message}`);
+    //   this.apiStats.errors.push(`Post comment failed: ${error.message}`);
+    //   throw error;
+    // }
+  }
+
+  /**
+   * Dummy function to notify telegram that the bot wants to post/comment on Twitter
+   * (because this is a bad idea)
+   */
+  async notifyTelegramAboutTwitterIntent(status: string, postId?: string): Promise<void> {
+    this.telegramPublisherService.sendChannelMessage(`Bot wants to ${postId ? 'comment' : 'post'} on Twitter: "${status}"${postId ? ` (replying to ${postId} - https://twitter.com/unknown/status/${postId})` : ''}`);
+  }
+
+
+  /**
+   * Get tweet by ID
+   */
+  async getTweetById(tweetId: string): Promise<TweetV2 | null> {
+    try {
+      const tweet = await this.twitterClient.v2.singleTweet(tweetId);
+      return tweet.data;
     } catch (error) {
-      this.logger.error(`Failed to post comment: ${error.message}`);
-      this.apiStats.errors.push(`Post comment failed: ${error.message}`);
+      this.logger.error(`Failed to get tweet ${tweetId}: ${error.message}`);
+      this.apiStats.errors.push(`Get tweet by ID failed: ${error.message}`);
+      return null;
+    }
+  }
+
+
+
+  /**
+   * Fetch tweets mentioning the specified user
+   */
+  async getMentions(username: string, maxResults: number = 100, userId?: string): Promise<Tweet[]> {
+    try {
+
+      if (!userId) {
+        // Step 1: Get user ID
+        const user = await this.getUserByUsername(username);
+        userId = user.id;
+      }
+
+      // Step 2: Fetch mentions timeline
+      const mentions = await this.twitterClient.v2.userMentionTimeline(userId, {
+        max_results: Math.min(maxResults, 100),
+        'tweet.fields': [
+          'id',
+          'text',
+          'author_id',
+          'created_at',
+          'public_metrics',
+          'lang',
+          'context_annotations',
+          'entities',
+          'referenced_tweets',
+        ],
+        'user.fields': ['id', 'name', 'username', 'verified'],
+        expansions: ['author_id', 'referenced_tweets.id'],
+      });
+
+      // Step 3: Transform and return
+      const tweets: Tweet[] = [];
+      const mentionsData = Array.isArray(mentions.data?.data) ? mentions.data.data : [];
+      for (const tweet of mentionsData) {
+        const author = mentions.data?.includes?.users?.find(
+          (u) => u.id === tweet.author_id,
+        );
+        const transformedTweet = TwitterTransformer.transformApiTweet(tweet, author);
+        tweets.push(transformedTweet);
+      }
+      this.logger.log(`Fetched ${tweets.length} mentions for @${username}`);
+      return tweets;
+    } catch (error) {
+      this.logger.error(`Failed to fetch mentions for @${username}: ${error.message}`);
+      this.apiStats.errors.push(`Fetch mentions failed: ${error.message}`);
       throw error;
     }
   }

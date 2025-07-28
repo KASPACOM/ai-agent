@@ -5,6 +5,7 @@ import { TasksModule } from './modules/tasks/tasks.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { MultiAgentModule } from './modules/multiagent/multiagent.module';
 import { IndexerModule } from './modules/indexer/indexer.module';
+import { CronModule } from './modules/cron/cron.module';
 
 @Module({})
 export class AppModule {
@@ -18,10 +19,13 @@ export class AppModule {
 
     // Conditional modules based on service type
     let serviceModules: any[] = [];
+    let serviceProviders: any[] = [];
 
     if (serviceType === 'ETL') {
       // ETL Service Mode - Data processing and indexing only
-      serviceModules = [IndexerModule];
+      serviceModules = [
+        CronModule,
+      ];
       console.log('📊 Loading ETL modules: Data processing and indexing');
     } else if (serviceType === 'AGENT') {
       // Agent Service Mode - AI orchestration and multi-agent system
@@ -36,15 +40,14 @@ export class AppModule {
       );
     } else {
       console.warn(
-        `⚠️  Unknown SERVICE_TYPE: ${serviceType}. Defaulting to ETL mode.`,
+        `⚠️  Unknown SERVICE_TYPE: ${serviceType}.`,
       );
-      serviceModules = [IndexerModule];
     }
 
     return {
       module: AppModule,
       imports: [...baseModules, ...serviceModules],
-      providers: [],
+      providers: [...serviceProviders],
     };
   }
 }
