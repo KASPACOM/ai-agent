@@ -4,9 +4,9 @@ import { ScheduleModule } from '@nestjs/schedule';
 // Import indexer services for cron jobs
 import { TwitterModule } from '../indexer/twitter/twitter.module';
 import { TelegramModule } from '../indexer/telegram/telegram.module';
-import { TelegramCron } from './cron-jobs/telegram.cron';
 import { TwitterCron } from './cron-jobs/twitter.cron';
 import { AppConfigModule } from '../core/modules/config/app-config.module';
+import { IndexersCron } from './cron-jobs/indexers.cron';
 
 /**
  * Centralized Cron Module using @nestjs/schedule
@@ -33,7 +33,7 @@ import { AppConfigModule } from '../core/modules/config/app-config.module';
     TelegramModule, // Import to access Telegram indexer services
     AppConfigModule,
   ],
-  providers: [TelegramCron, TwitterCron],
+  providers: [IndexersCron, TwitterCron],
   exports: [],
 })
 export class CronModule {}
