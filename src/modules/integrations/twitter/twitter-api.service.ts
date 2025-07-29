@@ -480,7 +480,7 @@ export class TwitterApiService {
    * (because this is a bad idea)
    */
   async notifyTelegramAboutTwitterIntent(status: string, postId?: string): Promise<void> {
-    this.telegramPublisherService.sendChannelMessage(`Bot wants to ${postId ? 'comment' : 'post'} on Twitter: "${status}"${postId ? ` (replying to ${postId} - https://twitter.com/unknown/status/${postId})` : ''}`);
+    this.telegramPublisherService.sendChannelMessage(`Bot wants to ${postId ? 'comment' : 'post'} on Twitter: "${status}"${postId ? ` (replying to ${postId} - https://twitter.com/user/status/${postId})` : ''}`);
   }
 
 
@@ -503,18 +503,26 @@ export class TwitterApiService {
   /**
    * Fetch tweets mentioning the specified user
    */
-  async getMentions(username: string, maxResults: number = 100, userId?: string): Promise<Tweet[]> {
+  async getMentions(options: {
+    username?: string;
+    maxResults?: number;
+    userId?: string;
+  }): Promise<Tweet[]> {
     try {
 
-      if (!userId) {
-        // Step 1: Get user ID
-        const user = await this.getUserByUsername(username);
-        userId = user.id;
+      if (!options.userId) {
+
+        if (!options.username) {
+          throw new Error('Username or user ID is required');
+        }
+
+        const user = await this.getUserByUsername(options.username);
+        options.userId = user.id;
       }
 
       // Step 2: Fetch mentions timeline
-      const mentions = await this.twitterClient.v2.userMentionTimeline(userId, {
-        max_results: Math.min(maxResults, 100),
+      const mentions = await this.twitterClient.v2.userMentionTimeline(options.userId, {
+        max_results: Math.min(options.maxResults || 10, 100),
         'tweet.fields': [
           'id',
           'text',
@@ -540,10 +548,10 @@ export class TwitterApiService {
         const transformedTweet = TwitterTransformer.transformApiTweet(tweet, author);
         tweets.push(transformedTweet);
       }
-      this.logger.log(`Fetched ${tweets.length} mentions for @${username}`);
+      this.logger.log(`Fetched ${tweets.length} mentions for ${options.username ? options.username : options.userId}`);
       return tweets;
     } catch (error) {
-      this.logger.error(`Failed to fetch mentions for @${username}: ${error.message}`);
+      this.logger.error(`Failed to fetch mentions for ${options.username ? options.username : options.userId}: ${error.message}`);
       this.apiStats.errors.push(`Fetch mentions failed: ${error.message}`);
       throw error;
     }

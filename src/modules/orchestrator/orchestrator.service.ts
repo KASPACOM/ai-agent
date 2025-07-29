@@ -69,6 +69,7 @@ export class OrchestratorService implements OnModuleInit {
     userId: string,
     message: string,
     metadata?: Record<string, any>,
+    answerOnlyIfNeeded?: boolean,
   ): Promise<OpenServResponse> {
     this.logger.log(`[ORCHESTRATOR] Processing message from user: ${userId}`);
     this.logger.debug(`[ORCHESTRATOR] User message: "${message}"`);
@@ -88,6 +89,20 @@ export class OrchestratorService implements OnModuleInit {
         timestamp: new Date(),
         metadata,
       });
+
+      if (answerOnlyIfNeeded) {
+        const shouldAnswer = await this.callShouldAnswerDecisionLLM(message);
+        if (!shouldAnswer.shouldAnswer) {
+          this.logger.log(
+            `[ORCHESTRATOR] User message is not expected to get an answer, skipping orchestration`,
+          );
+          return {
+            response: shouldAnswer.reasoning,
+            messageNotRequireAnswer: true,
+            actions: [],
+          };
+        }
+      }
 
       // Execute 3-stage orchestration
       this.logger.log(
@@ -409,11 +424,12 @@ export class OrchestratorService implements OnModuleInit {
 
     try {
       // Build synthesis prompt using PromptBuilder
-      this.logger.log(`[SYNTHESIS] ${stageId} - Building synthesis prompt`);
+      this.logger.log(`[SYNTHESIS] ${stageId} - Building synthesis prompt using ${session.metadata.platform === 'twitter' ? 'twitter-synthesis-agent' : 'synthesis-agent'}`);
       const builtPrompt = this.promptBuilder.buildSynthesisPrompt({
         originalInput: flow.originalInput,
         agentResponses: flow.executionStage.agentResponses,
         session,
+        synthesisAgentPrompt: session.metadata.platform === 'twitter' ? 'twitter-synthesis-agent' : 'synthesis-agent',
       });
       this.logger.debug(
         `[SYNTHESIS] ${stageId} - Built prompt length: ${builtPrompt.prompt.length} characters`,
@@ -489,6 +505,94 @@ export class OrchestratorService implements OnModuleInit {
       return [];
     }
   }
+
+
+  /**
+ * Call Decision LLM using OpenAI
+ */
+  private async callShouldAnswerDecisionLLM(prompt: string): Promise<{
+    shouldAnswer: boolean;
+    reasoning: string;
+  }> {
+    const llmCallId = this.generateId();
+    this.logger.log(`[LLM-DECISION] ${llmCallId} - Starting decision LLM call`);
+    this.logger.debug(
+      `[LLM-DECISION] ${llmCallId} - Prompt length: ${prompt.length} characters`,
+    );
+
+    try {
+      const conversation: LlmConversation = {
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a Ai Agent for DeFi platform, that decides whether to answer a user message or not. You should response if the user is expecting an answer to his message. Respond only with valid JSON. Do not include any additional text or explanation. the response structure should be { shouldAnswer: boolean; reasoning: string; }. shouldAnswer should be true if the user is expecting an answer to his message. reasoning should be a short explanation of why you think the user is expecting an answer to his message, or why not.',
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+      };
+
+      this.logger.log(
+        `[LLM-DECISION] ${llmCallId} - Calling OpenAI with ${conversation.messages.length} messages`,
+      );
+
+      const startTime = Date.now();
+      const response = await this.openaiAdapter.generateStructuredOutput<{
+        shouldAnswer: boolean;
+        reasoning: string;
+      }>(
+        conversation,
+        {
+          type: 'object',
+          properties: {
+            shouldAnswer: { type: 'boolean' },
+            reasoning: { type: 'string' },
+          },
+          required: ['shouldAnswer', 'reasoning'],
+        },
+        {
+          temperature: 0.3,
+          maxTokens: 1000,
+        },
+      );
+
+      const duration = Date.now() - startTime;
+      this.logger.log(
+        `[LLM-DECISION] ${llmCallId} - OpenAI call completed in ${duration}ms`,
+      );
+      this.logger.log(
+        `[LLM-DECISION] ${llmCallId} - Should answer: ${response.shouldAnswer}, Reasoning: ${response.reasoning}`,
+      );
+      this.logger.debug(
+        `[LLM-DECISION] ${llmCallId} - Response:`,
+        JSON.stringify(response, null, 2),
+      );
+
+      return response;
+    } catch (error) {
+      this.logger.error(
+        `[LLM-DECISION] ${llmCallId} - Decision LLM call failed:`,
+        error,
+      );
+      this.logger.error(
+        `[LLM-DECISION] ${llmCallId} - Error stack:`,
+        error.stack,
+      );
+
+      // Fallback to simple routing
+      this.logger.warn(`[LLM-DECISION] ${llmCallId} - Using fallback routing`);
+      return {
+        shouldAnswer: false,
+        reasoning: 'Fallback routing due to LLM error',
+      };
+    }
+  }
+
+
+
 
   /**
    * Call Decision LLM using OpenAI

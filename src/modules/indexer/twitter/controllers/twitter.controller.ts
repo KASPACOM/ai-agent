@@ -2,6 +2,7 @@ import { Controller, Post, Logger, OnModuleInit } from '@nestjs/common';
 import { TwitterIndexerService } from '../services/twitter-indexer.service';
 import { AccountRotationService } from '../services/account-rotation.service';
 import { IndexingResult } from '../../shared/models/indexer-result.model';
+import { TwitterService } from '../services/twitter.service';
 
 /**
  * Twitter Controller
@@ -15,6 +16,7 @@ export class TwitterController {
 
   constructor(
     private readonly twitterIndexer: TwitterIndexerService,
+    private readonly twitterService: TwitterService,
   ) {}
 
   /**
@@ -25,5 +27,11 @@ export class TwitterController {
   async triggerManualRun(): Promise<IndexingResult> {
     this.logger.log('Manual twitter indexing triggered via API');
     return this.twitterIndexer.runIndexer();
+  }
+
+  @Post('mentions')
+  async triggerManualRunMentions(): Promise<IndexingResult> {
+    this.logger.log('Manual twitter mentions indexing triggered via API');
+    return await this.twitterService.checkForBotMentionsAndRespondIfNeeded(); 
   }
 }

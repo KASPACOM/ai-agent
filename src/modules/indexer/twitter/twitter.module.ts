@@ -13,6 +13,8 @@ import { TwitterController } from './controllers/twitter.controller';
 import { TwitterApiModule } from '../../integrations/twitter/twitter-api.module';
 import { AppConfigModule } from '../../core/modules/config/app-config.module';
 import { AccountRotationService } from './services/account-rotation.service';
+import { TwitterService } from './services/twitter.service';
+import { OrchestratorModule } from 'src/modules/orchestrator/orchestrator.module';
 
 /**
  * Twitter Module
@@ -32,6 +34,7 @@ import { AccountRotationService } from './services/account-rotation.service';
     SharedModule, // ✅ Gets UnifiedStorageService, IndexerConfigService
     TwitterApiModule, // ✅ Gets TwitterApiService with proper dependencies
     AppConfigModule, // ✅ Gets AppConfigService for Twitter accounts configuration
+    OrchestratorModule,
   ],
   controllers: [
     TwitterController, // ✅ Simple controller with cron management
@@ -42,11 +45,13 @@ import { AccountRotationService } from './services/account-rotation.service';
 
     // ✅ Local copies and dependencies
     AccountRotationService, // Account management and rotation (local copy)
+    TwitterService,
   ],
   exports: [
     // ✅ Export services for potential external use
     TwitterIndexerService,
     AccountRotationService, // Export for potential shared use
+    TwitterService,
   ],
 })
 export class TwitterModule {}
