@@ -32,7 +32,9 @@ export interface Tweet {
   id: string;
   text: string;
   author: string;
+  authorName: string;
   createdAt: Date;
+  conversationId: string;
   url: string;
   source: TweetSource;
   status: TweetProcessingStatus;

@@ -31,6 +31,7 @@ import { PromptBuilderService } from '../prompt-builder/prompt-builder.service';
 // Import LLM service
 import { OpenAiAdapter } from './llms/openai.service';
 import { LlmConversation } from './llms/llm-adapter.interface';
+import { SHOULD_ANSWER_QUESTIONS_ROLE } from '../prompt-builder/roles/should-answer-questions.role';
 
 /**
  * OrchestratorService
@@ -69,7 +70,7 @@ export class OrchestratorService implements OnModuleInit {
     userId: string,
     message: string,
     metadata?: Record<string, any>,
-    answerOnlyIfNeeded?: boolean,
+    resspondOnlyIfNeededRole?: string,
   ): Promise<OpenServResponse> {
     this.logger.log(`[ORCHESTRATOR] Processing message from user: ${userId}`);
     this.logger.debug(`[ORCHESTRATOR] User message: "${message}"`);
@@ -90,14 +91,17 @@ export class OrchestratorService implements OnModuleInit {
         metadata,
       });
 
-      if (answerOnlyIfNeeded) {
-        const shouldAnswer = await this.callShouldAnswerDecisionLLM(message);
-        if (!shouldAnswer.shouldAnswer) {
+      if (resspondOnlyIfNeededRole) {
+        const shouldRespondResult = await this.callShouldRespondDecisionLLM(
+          message,
+          resspondOnlyIfNeededRole,
+        );
+        if (!shouldRespondResult.shouldRespond) {
           this.logger.log(
             `[ORCHESTRATOR] User message is not expected to get an answer, skipping orchestration`,
           );
           return {
-            response: shouldAnswer.reasoning,
+            response: shouldRespondResult.reasoning,
             messageNotRequireAnswer: true,
             actions: [],
           };
@@ -510,14 +514,14 @@ export class OrchestratorService implements OnModuleInit {
   /**
  * Call Decision LLM using OpenAI
  */
-  private async callShouldAnswerDecisionLLM(prompt: string): Promise<{
-    shouldAnswer: boolean;
+  private async callShouldRespondDecisionLLM(userInput: string, role: string = SHOULD_ANSWER_QUESTIONS_ROLE.template): Promise<{
+    shouldRespond: boolean;
     reasoning: string;
   }> {
     const llmCallId = this.generateId();
     this.logger.log(`[LLM-DECISION] ${llmCallId} - Starting decision LLM call`);
     this.logger.debug(
-      `[LLM-DECISION] ${llmCallId} - Prompt length: ${prompt.length} characters`,
+      `[LLM-DECISION] ${llmCallId} - Prompt length: ${userInput.length} characters`,
     );
 
     try {
@@ -526,11 +530,11 @@ export class OrchestratorService implements OnModuleInit {
           {
             role: 'system',
             content:
-              'You are a Ai Agent for DeFi platform, that decides whether to answer a user message or not. You should response if the user is expecting an answer to his message. Respond only with valid JSON. Do not include any additional text or explanation. the response structure should be { shouldAnswer: boolean; reasoning: string; }. shouldAnswer should be true if the user is expecting an answer to his message. reasoning should be a short explanation of why you think the user is expecting an answer to his message, or why not.',
+              role,
           },
           {
             role: 'user',
-            content: prompt,
+            content: userInput,
           },
         ],
       };
@@ -541,17 +545,17 @@ export class OrchestratorService implements OnModuleInit {
 
       const startTime = Date.now();
       const response = await this.openaiAdapter.generateStructuredOutput<{
-        shouldAnswer: boolean;
+        shouldRespond: boolean;
         reasoning: string;
       }>(
         conversation,
         {
           type: 'object',
           properties: {
-            shouldAnswer: { type: 'boolean' },
+            shouldRespond: { type: 'boolean' },
             reasoning: { type: 'string' },
           },
-          required: ['shouldAnswer', 'reasoning'],
+          required: ['shouldRespond', 'reasoning'],
         },
         {
           temperature: 0.3,
@@ -564,7 +568,7 @@ export class OrchestratorService implements OnModuleInit {
         `[LLM-DECISION] ${llmCallId} - OpenAI call completed in ${duration}ms`,
       );
       this.logger.log(
-        `[LLM-DECISION] ${llmCallId} - Should answer: ${response.shouldAnswer}, Reasoning: ${response.reasoning}`,
+        `[LLM-DECISION] ${llmCallId} - Should answer: ${response.shouldRespond}, Reasoning: ${response.reasoning}`,
       );
       this.logger.debug(
         `[LLM-DECISION] ${llmCallId} - Response:`,
@@ -585,7 +589,7 @@ export class OrchestratorService implements OnModuleInit {
       // Fallback to simple routing
       this.logger.warn(`[LLM-DECISION] ${llmCallId} - Using fallback routing`);
       return {
-        shouldAnswer: false,
+        shouldRespond: false,
         reasoning: 'Fallback routing due to LLM error',
       };
     }

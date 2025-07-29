@@ -2,6 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { Tweet } from "src/modules/integrations/twitter/models/twitter.model";
 import { TwitterApiService } from "src/modules/integrations/twitter/twitter-api.service";
 import { OrchestratorService } from "src/modules/orchestrator/orchestrator.service";
+import { SHOULD_ANSWER_QUESTIONS_ROLE } from "src/modules/prompt-builder/roles/should-answer-questions.role";
 
 const KASPA_BOT_USER_ID = '1946644555027070976';
 
@@ -35,6 +36,10 @@ export class TwitterService {
 
             const latestMention = mentions[0];
 
+            // const latestMention = await this.twitterApiService.getTweetById(
+            //     '1950039464643797295',
+            // );
+
             await this.respondToTweetIfNeeded(latestMention);
             return;
 
@@ -45,31 +50,50 @@ export class TwitterService {
     }
 
     protected async respondToTweetIfNeeded(tweet: Tweet) {
-        const authorName = tweet.author ? `@${(tweet.author as any).username}` : 'unknown';
+        const authorName = tweet.author;
         this.logger.log(`Found mention from ${authorName}: ${tweet.text}`);
 
+        let tweetsToProcess = [tweet];
 
+        const isReply = tweet.metadata?.raw_tweet?.referenced_tweets?.length;
+
+        if (isReply) {
+            tweetsToProcess = await this.twitterApiService.getThreadByConversationId(tweet.conversationId, tweet);
+        }
+
+        const textToProcess = this.transformTweetsToSendToOrchestrator(tweetsToProcess);
+
+        console.log('textToProcess', textToProcess);
+        
         const orchestratorResponse = await this.orchestratorService.processMessage(
-            tweet.metadata?.raw_tweet?.referenced_tweets?.[0]?.id || tweet.id,
-            tweet.text,
+            isReply?.id || tweet.id,
+            textToProcess,
             {
                 platform: 'twitter',
                 messageId: tweet.id,
                 isChannel: false,
-                channelTitle: tweet.author ? `@${(tweet.author as any).username}` : 'unknown',
-                chatId: tweet.author ? (tweet.author as any).id : 'unknown',
+                channelTitle: tweet.author,
+                chatId: tweet.author,
             },
-            true,
+            SHOULD_ANSWER_QUESTIONS_ROLE.template,
         );
 
 
         console.log(
-            `Orchestrator response: "${orchestratorResponse.response?.substring(0, 100)}..."`,
+            `Orchestrator response: "${orchestratorResponse.response}"`,
         );
 
 
         if (!orchestratorResponse.messageNotRequireAnswer) {
             await this.twitterApiService.postComment(orchestratorResponse.response, tweet.id);
         }
+    }
+
+    transformTweetsToSendToOrchestrator(tweets: Tweet[]) {
+        return tweets.map(tweet => {
+            const username = tweet.author ? `@${(tweet.author)}` : 'unknown';
+            const name = tweet.authorName ? (tweet.authorName) : 'unknown';
+            return `${username} (Name: ${name}) posted at ${new Date(tweet.createdAt).toLocaleString()}: ${tweet.text}`;
+        }).join('\n\n');
     }
 }
