@@ -37,6 +37,7 @@ export interface SynthesisPromptContext extends PromptContext {
   originalInput: string;
   agentResponses: AgentResponse[];
   session: UserSession;
+  synthesisAgentPrompt?: 'synthesis-agent' | 'twitter-synthesis-agent';
 }
 
 // Re-export types for convenience

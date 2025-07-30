@@ -124,6 +124,10 @@ export class AppConfigService {
     return this.configService.get('ETL_ENABLED') === 'true';
   }
 
+  get getSkipIndexers(): boolean {
+    return this.configService.get('SKIP_INDEXERS') === 'true';
+  }
+
   get getEtlBatchSize(): number {
     return parseInt(this.configService.get('ETL_BATCH_SIZE') || '100', 10);
   }

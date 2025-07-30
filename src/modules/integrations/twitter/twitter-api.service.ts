@@ -4,6 +4,8 @@ import {
   UserV2,
   TweetSearchRecentV2Paginator,
   TwitterApiReadOnly,
+  TweetV2,
+  TweetV2PaginableTimelineParams,
 } from 'twitter-api-v2';
 import {
   Tweet,
@@ -13,6 +15,25 @@ import {
 } from './models/twitter.model';
 import { TwitterTransformer } from './transformers/twitter-api.transformer';
 import { AppConfigService } from 'src/modules/core/modules/config/app-config.service';
+import { TelegramPublisherService } from '../telegram/publisher.service';
+
+
+const DEFAULT_TWEET_FIELDS: Partial<TweetV2PaginableTimelineParams> = {
+  'tweet.fields': [
+    'id',
+    'text',
+    'author_id',
+    'conversation_id',
+    'created_at',
+    'public_metrics',
+    'lang',
+    'context_annotations',
+    'entities',
+    'referenced_tweets',
+  ],
+  'user.fields': ['id', 'name', 'username', 'verified'],
+  expansions: ['author_id'],
+}
 
 /**
  * Twitter API Service
@@ -34,7 +55,7 @@ export class TwitterApiService {
     lastRun: null as Date | null,
   };
 
-  constructor(private readonly appConfig: AppConfigService) {
+  constructor(private readonly appConfig: AppConfigService, private readonly telegramPublisherService: TelegramPublisherService) {
     // Initialize Twitter API client
     this.twitterClient = this.initializeTwitterClient();
     this.logger.log('TwitterApiService initialized');
@@ -272,7 +293,7 @@ export class TwitterApiService {
             // Process this new tweet using the transformer
             const transformedTweet = TwitterTransformer.transformApiTweet(
               tweet,
-              user,
+              { [user.id]: user },
             );
             allNewTweets.push(transformedTweet);
           }
@@ -337,12 +358,22 @@ export class TwitterApiService {
 
   /**
    * Search for tweets using Twitter API
+   * @param query The search query
+   * @param maxResults The maximum number of results to return
+   * @param startTime The start time for the search
+   * @param endTime The end time for the search
+   * @param notFromIndexer Whether the search is not from the indexer
+   * @param getAll Whether to get all results
+   * @param getOnlyCommentIdWithParents The tweet/tweet id to get the thread for - this will return the whole tweet thread until the original post
    */
   async searchTweets(
     query: string,
     maxResults: number = 100,
     startTime?: Date,
     endTime?: Date,
+    notFromIndexer?: boolean,
+    getAll?: boolean,
+    getOnlyCommentIdWithParents?: Tweet | string,
   ): Promise<Tweet[]> {
     this.logger.log(`Searching tweets with query: ${query}`);
 
@@ -351,19 +382,7 @@ export class TwitterApiService {
     try {
       const searchOptions: any = {
         max_results: Math.min(maxResults, 100),
-        'tweet.fields': [
-          'id',
-          'text',
-          'author_id',
-          'created_at',
-          'public_metrics',
-          'lang',
-          'context_annotations',
-          'entities',
-          'referenced_tweets',
-        ],
-        'user.fields': ['id', 'name', 'username', 'verified'],
-        expansions: ['author_id', 'referenced_tweets.id'],
+        ...DEFAULT_TWEET_FIELDS,
       };
 
       if (startTime) {
@@ -373,11 +392,81 @@ export class TwitterApiService {
         searchOptions.end_time = endTime.toISOString();
       }
 
-      this.apiStats.apiCalls++;
-      const searchResults = await this.twitterClient.v2.search(
+      if (!notFromIndexer) {
+        this.apiStats.apiCalls++;
+      }
+
+      let searchResults = await this.twitterClient.v2.search(
         query,
         searchOptions,
       );
+
+
+      if (notFromIndexer) {
+        let allTweets: Tweet[] = [];
+
+        // here should get more if there is
+        let allUsersById = this.tranformIncludeUsersToObject(searchResults.includes.users || []);
+
+        // First page
+        if (searchResults.data?.data) {
+          allTweets = allTweets.concat(TwitterTransformer.transformApiTweet(searchResults.data.data, allUsersById));
+        }
+
+        // Handle pagination if getAll === true
+
+        if (getAll) {
+          while (!searchResults.done) {
+            searchResults = await searchResults.next();
+
+            if (searchResults.data?.data) {
+              allUsersById = { ...allUsersById, ...this.tranformIncludeUsersToObject(searchResults.includes.users || []) }
+              allTweets = allTweets.concat(TwitterTransformer.transformApiTweet(searchResults.data.data, allUsersById));
+            }
+          }
+        }
+
+
+        if (getOnlyCommentIdWithParents) {
+          let targetTweet = typeof getOnlyCommentIdWithParents === 'string'
+            ? allTweets.find(tweet => tweet.id === getOnlyCommentIdWithParents)
+            : getOnlyCommentIdWithParents;
+
+          if (!targetTweet) {
+            targetTweet = await this.getTweetById(getOnlyCommentIdWithParents as string);
+          }
+          const tweetWithParents = [targetTweet];
+
+          if (tweetWithParents.length > 0) {
+            while (tweetWithParents[tweetWithParents.length - 1]?.metadata?.raw_tweet?.referenced_tweets?.length) {
+              const referencedTweets = tweetWithParents[tweetWithParents.length - 1]?.metadata?.raw_tweet?.referenced_tweets || [];
+
+              const referencedTweetIds = referencedTweets.map(rt => rt.id);
+              const relatedTweets = allTweets.filter(tweet => referencedTweetIds.includes(tweet.id));
+
+              tweetWithParents.push(...relatedTweets);
+
+              const missingTweets = referencedTweetIds.filter(id => !allTweets.some(tweet => tweet.id === id));
+
+              for (const missingTweetId of missingTweets) {
+                try {
+                  const additionalPost = await this.getTweetById(missingTweetId);
+
+                  tweetWithParents.push(additionalPost);
+
+                } catch (error) {
+                  this.logger.error(`Failed to get tweet ${missingTweetId}: ${error.message} for thread history. continuing without data...`);
+                }
+              }
+            }
+          };
+
+          return tweetWithParents.reverse();
+        }
+
+        return allTweets;
+      }
+
       // Process search results
       return this.processTweets(tweets, query, searchResults);
     } catch (error) {
@@ -405,12 +494,10 @@ export class TwitterApiService {
       ? searchResults.data
       : [];
     for (const tweet of searchData) {
-      const author = searchResults.includes?.users?.find(
-        (u) => u.id === tweet.author_id,
-      );
+
       const transformedTweet = TwitterTransformer.transformApiTweet(
         tweet,
-        author,
+        this.tranformIncludeUsersToObject(searchResults.includes?.users),
       );
       tweets.push(transformedTweet);
     }
@@ -433,42 +520,135 @@ export class TwitterApiService {
    * Post a new tweet
    */
   async postTweet(status: string): Promise<any> {
-    try {
-      const writeClient = this.getWriteTwitterClient();
-      if (!writeClient) {
-        throw new Error('Twitter write client not initialized');
-      }
-      const result = await writeClient.v2.tweet(status);
-      this.logger.log(`Tweet posted successfully: ${result.data?.id}`);
-      return result.data;
-    } catch (error) {
-      this.logger.error(`Failed to post tweet: ${error.message}`);
-      this.apiStats.errors.push(`Post tweet failed: ${error.message}`);
-      throw error;
-    }
+    return await this.notifyTelegramAboutTwitterIntent(status);
+    // try {
+    //   const writeClient = this.getWriteTwitterClient();
+    //   if (!writeClient) {
+    //     throw new Error('Twitter write client not initialized');
+    //   }
+    //   const result = await writeClient.v2.tweet(status);
+    //   this.logger.log(`Tweet posted successfully: ${result.data?.id}`);
+    //   return result.data;
+    // } catch (error) {
+    //   this.logger.error(`Failed to post tweet: ${error.message}`);
+    //   this.apiStats.errors.push(`Post tweet failed: ${error.message}`);
+    //   throw error;
+    // }
   }
 
   /**
    * Post a comment (reply) to a tweet
    */
   async postComment(status: string, inReplyToTweetId: string): Promise<any> {
-    try {
-      const writeClient = this.getWriteTwitterClient();
+    return await this.notifyTelegramAboutTwitterIntent(status, inReplyToTweetId);
+    // try {
+    //   const writeClient = this.getWriteTwitterClient();
 
-      if (!writeClient) {
-        throw new Error('Twitter write client not initialized');
-      }
-      const result = await writeClient.v2.tweet({
-        text: status,
-        reply: { in_reply_to_tweet_id: inReplyToTweetId },
+    //   if (!writeClient) {
+    //     throw new Error('Twitter write client not initialized');
+    //   }
+    //   const result = await writeClient.v2.tweet({
+    //     text: status,
+    //     reply: { in_reply_to_tweet_id: inReplyToTweetId },
+    //   });
+    //   this.logger.log(`Comment posted successfully: ${result.data?.id}`);
+    //   return result.data;
+    // } catch (error) {
+    //   this.logger.error(`Failed to post comment: ${error.message}`);
+    //   this.apiStats.errors.push(`Post comment failed: ${error.message}`);
+    //   throw error;
+    // }
+  }
+
+  /**
+   * Dummy function to notify telegram that the bot wants to post/comment on Twitter
+   * (because this is a bad idea)
+   */
+  async notifyTelegramAboutTwitterIntent(status: string, postId?: string): Promise<void> {
+    this.telegramPublisherService.sendChannelMessage(`Bot wants to ${postId ? 'comment' : 'post'} on Twitter: "${status}"${postId ? ` (replying to ${postId} - https://twitter.com/user/status/${postId})` : ''}`);
+  }
+
+
+  /**
+   * Get tweet by ID
+   */
+  async getTweetById(tweetId: string): Promise<Tweet | null> {
+    try {
+      const tweet = await this.twitterClient.v2.singleTweet(tweetId, {
+        ...DEFAULT_TWEET_FIELDS,
       });
-      this.logger.log(`Comment posted successfully: ${result.data?.id}`);
-      return result.data;
+
+      return TwitterTransformer.transformApiTweet(tweet.data, this.tranformIncludeUsersToObject(tweet.includes.users));
     } catch (error) {
-      this.logger.error(`Failed to post comment: ${error.message}`);
-      this.apiStats.errors.push(`Post comment failed: ${error.message}`);
+      this.logger.error(`Failed to get tweet ${tweetId}: ${error.message}`);
+      this.apiStats.errors.push(`Get tweet by ID failed: ${error.message}`);
+      return null;
+    }
+  }
+
+  async getThreadByConversationId(conversationId: string, getOnlyCommentWithParents?: Tweet | string): Promise<Tweet[]> {
+    return await this.searchTweets(`conversation_id:${conversationId}`, 100, undefined, undefined, true, true, getOnlyCommentWithParents);
+  }
+
+
+
+
+  /**
+   * Fetch tweets mentioning the specified user
+   */
+  async getMentions(options: {
+    username?: string;
+    maxResults?: number;
+    userId?: string;
+  }): Promise<Tweet[]> {
+    try {
+
+      if (!options.userId) {
+
+        if (!options.username) {
+          throw new Error('Username or user ID is required');
+        }
+
+        const user = await this.getUserByUsername(options.username);
+        options.userId = user.id;
+      }
+
+      // Step 2: Fetch mentions timeline
+      const mentions = await this.twitterClient.v2.userMentionTimeline(options.userId, {
+        max_results: Math.min(options.maxResults || 10, 100),
+        ...DEFAULT_TWEET_FIELDS,
+      });
+
+      // Step 3: Transform and return
+      const tweets: Tweet[] = [];
+      const mentionsData = Array.isArray(mentions.data?.data) ? mentions.data.data : [];
+      for (const tweet of mentionsData) {
+        const author = mentions.data?.includes?.users?.find(
+          (u) => u.id === tweet.author_id,
+        );
+        const transformedTweet = TwitterTransformer.transformApiTweet(tweet, this.tranformIncludeUsersToObject(mentions.data?.includes?.users));
+        tweets.push(transformedTweet);
+      }
+      this.logger.log(`Fetched ${tweets.length} mentions for ${options.username ? options.username : options.userId}`);
+      return tweets;
+    } catch (error) {
+      this.logger.error(`Failed to fetch mentions for ${options.username ? options.username : options.userId}: ${error.message}`);
+      this.apiStats.errors.push(`Fetch mentions failed: ${error.message}`);
       throw error;
     }
+  }
+
+
+  protected tranformIncludeUsersToObject(users: UserV2[]) {
+    if (!users || users.length === 0) {
+      return {};
+    }
+
+    const usersObject: { [userId: string]: UserV2 } = {};
+    for (const user of users) {
+      usersObject[user.id] = user;
+    }
+    return usersObject;
   }
 
   /**

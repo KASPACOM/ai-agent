@@ -19,19 +19,18 @@ import { AppConfigModule } from '../../core/modules/config/app-config.module';
  * Telegram Module
  *
  * Independent module for Telegram indexing operations.
- * Following simplified architecture: controller + shared CronManager.
+ * Following simplified architecture: controller.
  *
  * Features:
  * - Complete Telegram indexing pipeline
  * - Simple controller with manual trigger endpoints
- * - Shared CronManager for scheduling (no complex @nestjs/schedule dependencies)
  * - History tracking for channels and topics
  * - Unified storage integration via SharedModule
  * - Local copies of services (independent from ETL module)
  */
 @Module({
   imports: [
-    SharedModule, // ✅ Gets UnifiedStorageService, IndexerConfigService, CronManager
+    SharedModule, // ✅ Gets UnifiedStorageService, IndexerConfigService
     AppConfigModule, // ✅ Gets AppConfigService for Telegram API credentials
   ],
   controllers: [
