@@ -15,10 +15,10 @@ export class IndexersCron {
     private readonly appConfig: AppConfigService,
   ) {}
 
-//   @Cron('*/15 * * * *')
-//   async runTelegramIndexer() {
-//     await this.runIndexer(this.telegramIndexer);
-//   }
+  @Cron('*/15 * * * *')
+  async runTelegramIndexer() {
+    await this.runIndexer(this.telegramIndexer);
+  }
 
   @Cron('*/15 * * * *')
   async runTwitterIndexer() {
