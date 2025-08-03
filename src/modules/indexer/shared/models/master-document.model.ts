@@ -109,6 +109,12 @@ export interface MasterDocument {
   twitterInReplyToUserId?: string;
   twitterInReplyToTweetId?: string;
 
+  // ==========================================
+  // CONVERSATION TRACKING FIELDS
+  // ==========================================
+  conversationId?: string; // Tweet ID of original tweet in conversation
+  isReply?: boolean; // Whether this is a reply to another tweet
+
   // Twitter User Information
   twitterUserFollowersCount?: number;
   twitterUserVerified?: boolean;

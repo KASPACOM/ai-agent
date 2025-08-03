@@ -62,6 +62,9 @@ export class TwitterMasterDocumentTransformer {
         tweet.user?.public_metrics?.followers_count ||
         0,
 
+      // Conversation tracking fields
+      ...this.extractConversationData(tweet),
+
       // Fields that will be populated during storage
       vector: undefined,
       vectorDimensions: undefined,
@@ -114,6 +117,12 @@ export class TwitterMasterDocumentTransformer {
       twitterLikeCount: baseMessage.likes || 0,
       twitterReplyCount: baseMessage.replies || 0,
       twitterIsRetweet: baseMessage.isRetweet || false,
+
+      // Conversation tracking fields (from baseMessage if available)
+      conversationId: baseMessage.conversationId,
+      isReply: baseMessage.isReply || false,
+      twitterInReplyToTweetId: baseMessage.twitterInReplyToTweetId,
+      twitterInReplyToUserId: baseMessage.twitterInReplyToUserId,
 
       // Fields that will be populated during storage
       vector: undefined,
@@ -176,5 +185,36 @@ export class TwitterMasterDocumentTransformer {
   static extractLinks(text: string): string[] {
     const urlRegex = /https?:\/\/[^\s]+/g;
     return text.match(urlRegex) || [];
+  }
+
+  /**
+   * Extract conversation data from Twitter API response
+   */
+  static extractConversationData(tweet: any): {
+    conversationId?: string;
+    isReply?: boolean;
+    twitterInReplyToTweetId?: string;
+    twitterInReplyToUserId?: string;
+  } {
+    // Extract conversation ID (Tweet ID of original tweet in conversation)
+    const conversationId = tweet.conversation_id;
+
+    // Extract referenced tweets to find replies
+    const referencedTweets = tweet.referenced_tweets || [];
+    const replyToTweet = referencedTweets.find(
+      (ref: any) => ref.type === 'replied_to',
+    );
+    const isReply = !!replyToTweet;
+
+    // Extract reply-to information
+    const twitterInReplyToTweetId = replyToTweet?.id;
+    const twitterInReplyToUserId = tweet.in_reply_to_user_id;
+
+    return {
+      conversationId,
+      isReply,
+      twitterInReplyToTweetId,
+      twitterInReplyToUserId,
+    };
   }
 }

@@ -8,6 +8,21 @@ import { EmbeddingService } from '../../../embedding/embedding.service';
 // import { TelegramMessage } from '../../../etl/models/telegram.model'; // Removed ETL dependency
 
 /**
+ * Interfaces for conversation enrichment
+ */
+export interface EnrichedConversationResult {
+  originalResult: QdrantSearchResult;
+  conversation: ConversationData;
+}
+
+export interface ConversationData {
+  conversationId: string;
+  originalTweet: QdrantSearchResult | null;
+  replies: QdrantSearchResult[];
+  totalTweets: number;
+}
+
+/**
  * Qdrant Repository Service
  *
  * High-level domain operations for vector storage and retrieval
@@ -1146,5 +1161,80 @@ export class QdrantRepository {
       );
       throw error;
     }
+  }
+
+  /**
+   * Enrich search results with complete conversation context
+   */
+  async enrichWithConversations(searchResults: QdrantSearchResult[]): Promise<EnrichedConversationResult[]> {
+    const enrichedResults: EnrichedConversationResult[] = [];
+
+    for (const result of searchResults) {
+      const conversationData = await this.getCompleteConversation(result);
+      enrichedResults.push({
+        originalResult: result,
+        conversation: conversationData,
+      });
+    }
+
+    return enrichedResults;
+  }
+
+  /**
+   * Get complete conversation for a tweet
+   */
+  private async getCompleteConversation(tweet: QdrantSearchResult): Promise<ConversationData> {
+    const payload = tweet.payload;
+    const conversationId = payload.conversationId || payload.id;
+
+    // Get all tweets in this conversation
+    const conversationTweets = await this.getConversationTweets(conversationId);
+
+    // Organize into original + replies structure
+    return this.organizeConversationData(conversationTweets, conversationId);
+  }
+
+  /**
+   * Get all tweets in a conversation
+   */
+  private async getConversationTweets(conversationId: string): Promise<QdrantSearchResult[]> {
+    const filter = {
+      must: [
+        {
+          key: 'conversationId',
+          match: { value: conversationId },
+        },
+      ],
+    };
+
+    return await this.scrollTweets(filter, 100);
+  }
+
+  /**
+   * Organize conversation tweets into structured format
+   */
+  private organizeConversationData(
+    tweets: QdrantSearchResult[],
+    conversationId: string,
+  ): ConversationData {
+    // Find the original tweet (the one that started the conversation)
+    const originalTweet = tweets.find(
+      (tweet) => tweet.payload.id === conversationId && !tweet.payload.isReply,
+    );
+
+    // Get all replies, sorted by creation time
+    const replies = tweets
+      .filter((tweet) => tweet.payload.isReply)
+      .sort(
+        (a, b) =>
+          new Date(a.payload.createdAt).getTime() - new Date(b.payload.createdAt).getTime(),
+      );
+
+    return {
+      conversationId,
+      originalTweet: originalTweet || null,
+      replies,
+      totalTweets: tweets.length,
+    };
   }
 }

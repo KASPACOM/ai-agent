@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { QdrantClientService } from '../../../database/qdrant/services/qdrant-client.service';
 import { QdrantCollectionService } from '../../../database/qdrant/services/qdrant-collection.service';
+import { QdrantRepository } from '../../../database/qdrant/services/qdrant.repository';
 import { EmbeddingService } from '../../../embedding/embedding.service';
 import { MasterDocument } from '../models/master-document.model';
 import { MessageSource } from '../models/message-source.enum';
@@ -23,6 +24,7 @@ export class UnifiedStorageService {
   constructor(
     private readonly qdrantClient: QdrantClientService,
     private readonly qdrantCollection: QdrantCollectionService,
+    private readonly qdrantRepository: QdrantRepository,
     private readonly embeddingService: EmbeddingService,
     private readonly config: IndexerConfigService, // ✅ Use configuration service
   ) {}
@@ -393,5 +395,51 @@ export class UnifiedStorageService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Get all authors for whom we have complete tweet history
+   * For now, returns a hardcoded list - in future could be stored in database
+   */
+  async getCompleteHistoryAuthors(source: MessageSource): Promise<string[]> {
+    // TODO: Implement proper tracking of complete history authors
+    // For now, return a hardcoded list of authors we monitor completely
+    // This could be enhanced to track completion status in the database
+    return [];
+  }
+
+  /**
+   * Get all reply tweets for a specific author
+   */
+  async getReplyTweets(source: MessageSource, authorHandle: string): Promise<MasterDocument[]> {
+    const filter = {
+      must: [
+        { key: 'source', match: { value: source } },
+        { key: 'authorHandle', match: { value: authorHandle } },
+        { key: 'isReply', match: { value: true } },
+      ],
+    };
+
+    const results = await this.qdrantRepository.scrollTweets(filter, 1000);
+    return results.map((result) => result.payload as MasterDocument);
+  }
+
+  /**
+   * Check if a tweet exists in storage
+   */
+  async tweetExists(tweetId: string): Promise<boolean> {
+    const result = await this.qdrantRepository.getTweetByOriginalId(tweetId);
+    return result !== null;
+  }
+
+  /**
+   * Get the latest message date for a specific source and author
+   */
+  async getLatestMessageDate(source: MessageSource, authorHandle: string): Promise<Date | undefined> {
+    const result = await this.qdrantRepository.getLatestTweetByTimestamp(authorHandle);
+    if (result && result.payload.createdAt) {
+      return new Date(result.payload.createdAt);
+    }
+    return undefined;
   }
 }
