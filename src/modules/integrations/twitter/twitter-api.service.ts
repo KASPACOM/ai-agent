@@ -14,6 +14,7 @@ import {
 } from './models/twitter.model';
 import { TwitterTransformer } from './transformers/twitter-api.transformer';
 import { AppConfigService } from 'src/modules/core/modules/config/app-config.service';
+import { SingleTweetResponse } from './models/twitter-api-response.model';
 import { TelegramPublisherService } from '../telegram/publisher.service';
 
 const DEFAULT_TWEET_FIELDS: Partial<TweetV2PaginableTimelineParams> = {
@@ -744,9 +745,9 @@ export class TwitterApiService {
   }
 
   /**
-   * Fetch a single tweet by ID
+   * Fetch a single tweet by ID with author data
    */
-  async getSingleTweet(tweetId: string): Promise<any | null> {
+  async getSingleTweet(tweetId: string): Promise<SingleTweetResponse | null> {
     try {
       this.logger.debug(`Fetching single tweet: ${tweetId}`);
 
@@ -759,7 +760,16 @@ export class TwitterApiService {
         return null;
       }
 
-      return response.data;
+      // Find the author from expanded users
+      const users = response.includes?.users || [];
+      const author =
+        users.find((user: UserV2) => user.id === response.data.author_id) ||
+        null;
+
+      return {
+        tweet: response.data,
+        author,
+      };
     } catch (error) {
       this.logger.error(`Failed to fetch tweet ${tweetId}:`, error);
       throw error;
