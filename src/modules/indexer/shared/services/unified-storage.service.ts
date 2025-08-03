@@ -431,17 +431,22 @@ export class UnifiedStorageService {
       const authors: string[] = [];
       if (results?.points) {
         for (const point of results.points) {
-          const authorHandle = point.payload?.author_handle || point.payload?.account;
+          const authorHandle =
+            point.payload?.author_handle || point.payload?.account;
           if (authorHandle) {
             authors.push(authorHandle);
           }
         }
       }
 
-      this.logger.debug(`Found ${authors.length} authors with complete history and recent sync`);
+      this.logger.debug(
+        `Found ${authors.length} authors with complete history and recent sync`,
+      );
       return authors;
     } catch (error) {
-      this.logger.error(`Failed to get complete history authors: ${error.message}`);
+      this.logger.error(
+        `Failed to get complete history authors: ${error.message}`,
+      );
       return [];
     }
   }
@@ -449,7 +454,10 @@ export class UnifiedStorageService {
   /**
    * Get all reply tweets for a specific author
    */
-  async getReplyTweets(source: MessageSource, authorHandle: string): Promise<MasterDocument[]> {
+  async getReplyTweets(
+    source: MessageSource,
+    authorHandle: string,
+  ): Promise<MasterDocument[]> {
     const filter = {
       must: [
         { key: 'source', match: { value: source } },
@@ -469,5 +477,4 @@ export class UnifiedStorageService {
     const result = await this.qdrantRepository.getTweetByOriginalId(tweetId);
     return result !== null;
   }
-
 }
