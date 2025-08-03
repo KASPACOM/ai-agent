@@ -197,10 +197,11 @@ export class TwitterMasterDocumentTransformer {
     twitterInReplyToUserId?: string;
   } {
     // Extract conversation ID (Tweet ID of original tweet in conversation)
-    const conversationId = tweet.conversation_id;
+    const conversationId = tweet.conversation_id || tweet.conversationId;
 
     // Extract referenced tweets to find replies
-    const referencedTweets = tweet.referenced_tweets || [];
+    const referencedTweets =
+      tweet.referenced_tweets || tweet.metadata?.referenced_tweets || [];
     const replyToTweet = referencedTweets.find(
       (ref: any) => ref.type === 'replied_to',
     );
@@ -208,7 +209,8 @@ export class TwitterMasterDocumentTransformer {
 
     // Extract reply-to information
     const twitterInReplyToTweetId = replyToTweet?.id;
-    const twitterInReplyToUserId = tweet.in_reply_to_user_id;
+    const twitterInReplyToUserId =
+      tweet.in_reply_to_user_id || tweet.metadata?.in_reply_to_user_id;
 
     return {
       conversationId,

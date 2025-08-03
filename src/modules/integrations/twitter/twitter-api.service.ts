@@ -255,12 +255,7 @@ export class TwitterApiService {
           // Query with max batch size of 100 (Twitter API limit)
           const timeline = await this.twitterClient.v2.userTimeline(user.id, {
             max_results: 100,
-            'tweet.fields': [
-              'created_at',
-              'public_metrics',
-              'context_annotations',
-              'entities',
-            ],
+            ...DEFAULT_TWEET_FIELDS, // ✅ Use our complete field set including conversation fields
             pagination_token: paginationToken,
           });
 
