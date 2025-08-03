@@ -58,10 +58,10 @@ interface TopicBoundary {
 
 /**
  * Semantic Chunking Service
- * 
+ *
  * Implements advanced semantic chunking using embeddings to detect topic boundaries.
  * Handles hierarchical chunking when semantic chunks are too large.
- * 
+ *
  * Algorithm:
  * 1. Split text into sentences
  * 2. Create rolling windows of sentences
@@ -134,8 +134,8 @@ export class SemanticChunkingService {
     // Enhanced sentence splitting that handles academic text better
     const sentences = text
       .split(/(?<=[.!?])\s+(?=[A-Z])/) // Basic sentence boundaries
-      .filter(sentence => sentence.trim().length > 10) // Filter out very short sentences
-      .map(sentence => sentence.trim());
+      .filter((sentence) => sentence.trim().length > 10) // Filter out very short sentences
+      .map((sentence) => sentence.trim());
 
     return sentences;
   }
@@ -158,18 +158,21 @@ export class SemanticChunkingService {
 
       try {
         // Generate embedding for this window
-        const response = await this.embeddingService.generateSingleEmbedding(windowText);
-        
-        if (response.success && response.embedding) {
+        const embedding =
+          await this.embeddingService.generateSingleEmbedding(windowText);
+
+        if (embedding && embedding.length > 0) {
           sentenceEmbeddings.push({
             sentence: sentences[i],
-            embedding: response.embedding.vector,
+            embedding: embedding,
             index: i,
             tokenCount: this.estimateTokenCount(sentences[i]),
           });
         }
       } catch (error) {
-        this.logger.warn(`Failed to generate embedding for sentence ${i}: ${error.message}`);
+        this.logger.warn(
+          `Failed to generate embedding for sentence ${i}: ${error.message}`,
+        );
       }
     }
 
@@ -191,11 +194,15 @@ export class SemanticChunkingService {
 
       // Calculate cosine similarity between adjacent embeddings
       const similarity = this.cosineSimilarity(prev.embedding, curr.embedding);
-      
+
       // Calculate the drop in similarity (larger drops indicate topic changes)
-      const similarityDrop = i > 1 
-        ? this.cosineSimilarity(sentenceEmbeddings[i - 2].embedding, prev.embedding) - similarity
-        : 0;
+      const similarityDrop =
+        i > 1
+          ? this.cosineSimilarity(
+              sentenceEmbeddings[i - 2].embedding,
+              prev.embedding,
+            ) - similarity
+          : 0;
 
       // If similarity drops significantly, mark as topic boundary
       if (similarityDrop > threshold && similarity < 0.8) {
@@ -203,7 +210,10 @@ export class SemanticChunkingService {
           sentenceIndex: i,
           similarityDrop,
           confidence: Math.min(1.0, similarityDrop / threshold),
-          context: this.generateContextDescription(prev.sentence, curr.sentence),
+          context: this.generateContextDescription(
+            prev.sentence,
+            curr.sentence,
+          ),
         });
       }
     }
@@ -224,12 +234,20 @@ export class SemanticChunkingService {
     let chunkStart = 0;
 
     // Add boundary at the end to process final chunk
-    const allBoundaries = [...boundaries, { sentenceIndex: sentences.length, similarityDrop: 0, confidence: 1, context: 'document_end' }];
+    const allBoundaries = [
+      ...boundaries,
+      {
+        sentenceIndex: sentences.length,
+        similarityDrop: 0,
+        confidence: 1,
+        context: 'document_end',
+      },
+    ];
 
     for (const boundary of allBoundaries) {
       const chunkEnd = boundary.sentenceIndex;
       const chunkSentences = sentences.slice(chunkStart, chunkEnd);
-      
+
       if (chunkSentences.length > 0) {
         const chunkText = chunkSentences.join(' ');
         const tokenCount = this.estimateTokenCount(chunkText);
@@ -241,7 +259,8 @@ export class SemanticChunkingService {
           endIndex: chunkEnd,
           sentences: chunkSentences,
           semanticGroupId: uuidv4(),
-          semanticContext: boundary.context || this.generateSemanticContext(chunkSentences),
+          semanticContext:
+            boundary.context || this.generateSemanticContext(chunkSentences),
           semanticLevel: 1, // Top level
           tokenCount,
           confidence: boundary.confidence || 0.8,
@@ -269,15 +288,20 @@ export class SemanticChunkingService {
         processedChunks.push(chunk);
       } else {
         // Chunk too large - need to sub-chunk while preserving semantic meaning
-        this.logger.debug(`Sub-chunking oversized chunk: ${chunk.tokenCount} tokens`);
-        
-        const subChunks = await this.createHierarchicalSubChunks(chunk, options);
-        
+        this.logger.debug(
+          `Sub-chunking oversized chunk: ${chunk.tokenCount} tokens`,
+        );
+
+        const subChunks = await this.createHierarchicalSubChunks(
+          chunk,
+          options,
+        );
+
         // Update parent chunk to reference children
-        chunk.childChunkIds = subChunks.map(sub => sub.id);
+        chunk.childChunkIds = subChunks.map((sub) => sub.id);
         chunk.text = this.createSummaryFromSubChunks(subChunks); // Shortened summary
         chunk.tokenCount = this.estimateTokenCount(chunk.text);
-        
+
         processedChunks.push(chunk, ...subChunks);
       }
     }
@@ -299,8 +323,11 @@ export class SemanticChunkingService {
       semanticThreshold: options.semanticThreshold * 0.8, // More sensitive
     };
 
-    const subChunks = await this.performSemanticChunking(parentChunk.text, subChunkOptions);
-    
+    const subChunks = await this.performSemanticChunking(
+      parentChunk.text,
+      subChunkOptions,
+    );
+
     return subChunks.map((subChunk, index) => ({
       ...subChunk,
       semanticGroupId: parentChunk.semanticGroupId, // Keep same semantic group
@@ -315,8 +342,8 @@ export class SemanticChunkingService {
   private establishChunkRelationships(chunks: SemanticChunk[]): void {
     // Group chunks by semantic group and level
     const groupedChunks = new Map<string, SemanticChunk[]>();
-    
-    chunks.forEach(chunk => {
+
+    chunks.forEach((chunk) => {
       const key = `${chunk.semanticGroupId}_${chunk.semanticLevel}`;
       if (!groupedChunks.has(key)) {
         groupedChunks.set(key, []);
@@ -325,12 +352,12 @@ export class SemanticChunkingService {
     });
 
     // Set sibling relationships
-    groupedChunks.forEach(siblings => {
+    groupedChunks.forEach((siblings) => {
       if (siblings.length > 1) {
-        siblings.forEach(chunk => {
+        siblings.forEach((chunk) => {
           chunk.siblingChunkIds = siblings
-            .filter(sibling => sibling.id !== chunk.id)
-            .map(sibling => sibling.id);
+            .filter((sibling) => sibling.id !== chunk.id)
+            .map((sibling) => sibling.id);
         });
       }
     });
@@ -343,7 +370,7 @@ export class SemanticChunkingService {
     const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
     const magnitudeA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
     const magnitudeB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
-    
+
     return dotProduct / (magnitudeA * magnitudeB);
   }
 
@@ -361,24 +388,39 @@ export class SemanticChunkingService {
     // Extract key terms and create brief context description
     const allText = sentences.join(' ');
     const words = allText.toLowerCase().split(/\s+/);
-    
+
     // Simple keyword extraction (could be enhanced with NLP)
     const keyWords = words
-      .filter(word => word.length > 4)
-      .filter(word => !['that', 'this', 'with', 'from', 'they', 'were', 'been', 'have'].includes(word))
+      .filter((word) => word.length > 4)
+      .filter(
+        (word) =>
+          ![
+            'that',
+            'this',
+            'with',
+            'from',
+            'they',
+            'were',
+            'been',
+            'have',
+          ].includes(word),
+      )
       .slice(0, 5);
-    
+
     return keyWords.join(', ');
   }
 
   /**
    * Utility: Generate context description from sentence transition
    */
-  private generateContextDescription(prevSentence: string, currSentence: string): string {
+  private generateContextDescription(
+    prevSentence: string,
+    currSentence: string,
+  ): string {
     // Extract key concepts from the transition point
     const prevWords = prevSentence.toLowerCase().split(/\s+/).slice(-5);
     const currWords = currSentence.toLowerCase().split(/\s+/).slice(0, 5);
-    
+
     return [...prevWords, '→', ...currWords].join(' ');
   }
 
@@ -386,9 +428,11 @@ export class SemanticChunkingService {
    * Utility: Create summary from sub-chunks
    */
   private createSummaryFromSubChunks(subChunks: SemanticChunk[]): string {
-    return subChunks
-      .map(chunk => chunk.sentences[0]) // First sentence of each sub-chunk
-      .join(' ')
-      .substring(0, 500) + '...'; // Truncate to reasonable length
+    return (
+      subChunks
+        .map((chunk) => chunk.sentences[0]) // First sentence of each sub-chunk
+        .join(' ')
+        .substring(0, 500) + '...'
+    ); // Truncate to reasonable length
   }
-} 
+}

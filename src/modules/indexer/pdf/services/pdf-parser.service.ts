@@ -10,7 +10,10 @@ import {
   PDFParagraph,
   PDFProcessingStatus,
 } from '../models/pdf-document.model';
-import { PDFDocumentType, ChunkingStrategy } from '../../shared/models/master-document.model';
+import {
+  PDFDocumentType,
+  ChunkingStrategy,
+} from '../../shared/models/master-document.model';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -21,10 +24,10 @@ let pdfLib: any;
 
 /**
  * PDF Parser Service
- * 
+ *
  * Handles PDF text extraction, metadata parsing, and structure analysis.
  * Uses pdf-parse for text extraction and pdf-lib for advanced metadata.
- * 
+ *
  * Features:
  * - Text extraction with page-level granularity
  * - Metadata extraction (title, author, creation date, etc.)
@@ -46,12 +49,19 @@ export class PDFParserService {
   private async initializePDFLibraries(): Promise<void> {
     try {
       // Dynamic import to handle optional dependencies
-      pdfParse = await import('pdf-parse');
-      pdfLib = await import('pdf-lib');
+      const pdfParseModule = await import('pdf-parse');
+      const pdfLibModule = await import('pdf-lib');
+
+      // Handle both CommonJS and ES module exports
+      pdfParse = pdfParseModule.default || pdfParseModule;
+      pdfLib = pdfLibModule.default || pdfLibModule;
+
       this.logger.log('PDF parsing libraries initialized successfully');
     } catch (error) {
       this.logger.error('Failed to initialize PDF libraries:', error.message);
-      throw new Error('PDF parsing libraries not available. Please install pdf-parse and pdf-lib.');
+      throw new Error(
+        'PDF parsing libraries not available. Please install pdf-parse and pdf-lib.',
+      );
     }
   }
 
@@ -76,8 +86,11 @@ export class PDFParserService {
       const fileStats = fs.statSync(filePath);
 
       // Extract text and basic info
-      const extractionResult = await this.extractTextFromPDF(fileBuffer, fileName);
-      
+      const extractionResult = await this.extractTextFromPDF(
+        fileBuffer,
+        fileName,
+      );
+
       // Create PDF document model
       const pdfDocument: PDFDocument = {
         id: this.generateDocumentId(fileName),
@@ -90,10 +103,12 @@ export class PDFParserService {
         creator: extractionResult.metadata.creator,
         producer: extractionResult.metadata.producer,
         creationDate: extractionResult.metadata.creationDate?.toISOString(),
-        modificationDate: extractionResult.metadata.modificationDate?.toISOString(),
+        modificationDate:
+          extractionResult.metadata.modificationDate?.toISOString(),
         pageCount: extractionResult.metadata.pageCount,
         fileSize: fileStats.size,
-        documentType: options.documentType || this.detectDocumentType(extractionResult),
+        documentType:
+          options.documentType || this.detectDocumentType(extractionResult),
         category: options.category || this.detectCategory(extractionResult),
         uploadedAt: new Date().toISOString(),
         processingStatus: PDFProcessingStatus.PARSING,
@@ -102,7 +117,9 @@ export class PDFParserService {
       };
 
       const processingTime = Date.now() - startTime;
-      this.logger.log(`PDF parsing completed in ${processingTime}ms: ${fileName}`);
+      this.logger.log(
+        `PDF parsing completed in ${processingTime}ms: ${fileName}`,
+      );
 
       return pdfDocument;
     } catch (error) {
@@ -120,7 +137,7 @@ export class PDFParserService {
   ): Promise<PDFTextExtractionResult> {
     try {
       // Use pdf-parse for text extraction
-      const pdfData = await pdfParse.default(fileBuffer);
+      const pdfData = await pdfParse(fileBuffer);
 
       // Extract page-level text
       const pageTexts = await this.extractPageTexts(fileBuffer);
@@ -129,7 +146,10 @@ export class PDFParserService {
       const metadata = await this.extractDetailedMetadata(fileBuffer);
 
       // Analyze document structure (optional enhancement)
-      const structure = await this.analyzeDocumentStructure(pdfData.text, pageTexts);
+      const structure = await this.analyzeDocumentStructure(
+        pdfData.text,
+        pageTexts,
+      );
 
       return {
         text: pdfData.text,
@@ -143,7 +163,10 @@ export class PDFParserService {
         extractionErrors: [],
       };
     } catch (error) {
-      this.logger.error(`Text extraction failed for ${fileName}:`, error.message);
+      this.logger.error(
+        `Text extraction failed for ${fileName}:`,
+        error.message,
+      );
       return {
         text: '',
         pageTexts: [],
@@ -167,11 +190,13 @@ export class PDFParserService {
       // This is a simplified implementation
       // In a production environment, you might want to use a more sophisticated
       // page-by-page extraction library like pdf2pic + OCR
-      const pdfData = await pdfParse.default(fileBuffer);
-      
+      const pdfData = await pdfParse(fileBuffer);
+
       // Split text by page breaks (rough approximation)
-      const pageTexts = pdfData.text.split(/\f|\n{3,}/).filter(text => text.trim().length > 0);
-      
+      const pageTexts = pdfData.text
+        .split(/\f|\n{3,}/)
+        .filter((text) => text.trim().length > 0);
+
       return pageTexts;
     } catch (error) {
       this.logger.warn('Failed to extract page-level text:', error.message);
@@ -182,10 +207,12 @@ export class PDFParserService {
   /**
    * Extract detailed metadata using pdf-lib
    */
-  private async extractDetailedMetadata(fileBuffer: Buffer): Promise<PDFMetadata> {
+  private async extractDetailedMetadata(
+    fileBuffer: Buffer,
+  ): Promise<PDFMetadata> {
     try {
       const pdfDoc = await pdfLib.PDFDocument.load(fileBuffer);
-      
+
       const title = pdfDoc.getTitle();
       const author = pdfDoc.getAuthor();
       const subject = pdfDoc.getSubject();
@@ -264,7 +291,7 @@ export class PDFParserService {
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
-      
+
       // Pattern matching for common heading formats
       const headingPatterns = [
         /^(\d+\.?\s+)([A-Z][A-Za-z\s]+)$/, // "1. Introduction"
@@ -275,7 +302,8 @@ export class PDFParserService {
 
       for (const pattern of headingPatterns) {
         const match = line.match(pattern);
-        if (match && line.length < 100) { // Reasonable heading length
+        if (match && line.length < 100) {
+          // Reasonable heading length
           const level = this.determineHeadingLevel(match[1] || line);
           headings.push({
             text: line,
@@ -319,7 +347,9 @@ export class PDFParserService {
         startPage: heading.pageNumber,
         endPage: nextHeading ? nextHeading.pageNumber : heading.pageNumber,
         startPosition: heading.position,
-        endPosition: nextHeading ? nextHeading.position : heading.position + heading.text.length,
+        endPosition: nextHeading
+          ? nextHeading.position
+          : heading.position + heading.text.length,
         subsections: [],
       };
 
@@ -339,9 +369,14 @@ export class PDFParserService {
   /**
    * Extract paragraphs with position information
    */
-  private extractParagraphs(fullText: string, pageTexts: string[]): PDFParagraph[] {
+  private extractParagraphs(
+    fullText: string,
+    pageTexts: string[],
+  ): PDFParagraph[] {
     const paragraphs: PDFParagraph[] = [];
-    const paragraphTexts = fullText.split(/\n\s*\n/).filter(p => p.trim().length > 50);
+    const paragraphTexts = fullText
+      .split(/\n\s*\n/)
+      .filter((p) => p.trim().length > 50);
 
     for (const paragraphText of paragraphTexts) {
       const startPosition = fullText.indexOf(paragraphText);
@@ -362,12 +397,8 @@ export class PDFParserService {
    * Utility methods for content detection
    */
   private detectTableOfContents(text: string): boolean {
-    const tocPatterns = [
-      /table\s+of\s+contents/i,
-      /contents/i,
-      /index/i,
-    ];
-    return tocPatterns.some(pattern => pattern.test(text.substring(0, 1000)));
+    const tocPatterns = [/table\s+of\s+contents/i, /contents/i, /index/i];
+    return tocPatterns.some((pattern) => pattern.test(text.substring(0, 1000)));
   }
 
   private detectImages(text: string): boolean {
@@ -378,7 +409,11 @@ export class PDFParserService {
     return /table|tbl\.|tab\./i.test(text);
   }
 
-  private estimatePageNumber(lineIndex: number, totalLines: number, textLength: number): number {
+  private estimatePageNumber(
+    lineIndex: number,
+    totalLines: number,
+    textLength: number,
+  ): number {
     // Rough estimation - assume ~50 lines per page
     return Math.max(1, Math.ceil(lineIndex / 50));
   }
@@ -386,25 +421,43 @@ export class PDFParserService {
   /**
    * Detect document type based on content analysis
    */
-  private detectDocumentType(extractionResult: PDFTextExtractionResult): PDFDocumentType {
+  private detectDocumentType(
+    extractionResult: PDFTextExtractionResult,
+  ): PDFDocumentType {
     const text = extractionResult.text.toLowerCase();
-    
+
     if (text.includes('whitepaper') || text.includes('white paper')) {
       return PDFDocumentType.WHITEPAPER;
     }
-    if (text.includes('research') || text.includes('study') || text.includes('analysis')) {
+    if (
+      text.includes('research') ||
+      text.includes('study') ||
+      text.includes('analysis')
+    ) {
       return PDFDocumentType.RESEARCH_PAPER;
     }
-    if (text.includes('technical') || text.includes('specification') || text.includes('documentation')) {
+    if (
+      text.includes('technical') ||
+      text.includes('specification') ||
+      text.includes('documentation')
+    ) {
       return PDFDocumentType.TECHNICAL_DOCUMENTATION;
     }
-    if (text.includes('report') || text.includes('quarterly') || text.includes('annual')) {
+    if (
+      text.includes('report') ||
+      text.includes('quarterly') ||
+      text.includes('annual')
+    ) {
       return PDFDocumentType.REPORT;
     }
-    if (text.includes('academic') || text.includes('university') || text.includes('journal')) {
+    if (
+      text.includes('academic') ||
+      text.includes('university') ||
+      text.includes('journal')
+    ) {
       return PDFDocumentType.ACADEMIC_PAPER;
     }
-    
+
     return PDFDocumentType.ARTICLE; // Default
   }
 
@@ -413,20 +466,36 @@ export class PDFParserService {
    */
   private detectCategory(extractionResult: PDFTextExtractionResult): string {
     const text = extractionResult.text.toLowerCase();
-    
-    if (text.includes('kaspa') || text.includes('blockchain') || text.includes('cryptocurrency')) {
+
+    if (
+      text.includes('kaspa') ||
+      text.includes('blockchain') ||
+      text.includes('cryptocurrency')
+    ) {
       return 'blockchain';
     }
-    if (text.includes('finance') || text.includes('economic') || text.includes('financial')) {
+    if (
+      text.includes('finance') ||
+      text.includes('economic') ||
+      text.includes('financial')
+    ) {
       return 'finance';
     }
-    if (text.includes('technology') || text.includes('technical') || text.includes('software')) {
+    if (
+      text.includes('technology') ||
+      text.includes('technical') ||
+      text.includes('software')
+    ) {
       return 'technology';
     }
-    if (text.includes('research') || text.includes('scientific') || text.includes('academic')) {
+    if (
+      text.includes('research') ||
+      text.includes('scientific') ||
+      text.includes('academic')
+    ) {
       return 'research';
     }
-    
+
     return 'general';
   }
 
@@ -453,7 +522,9 @@ export class PDFParserService {
   /**
    * Validate PDF file
    */
-  async validatePDF(filePath: string): Promise<{ valid: boolean; errors: string[] }> {
+  async validatePDF(
+    filePath: string,
+  ): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
 
     try {
@@ -477,7 +548,7 @@ export class PDFParserService {
 
       // Try to parse the PDF
       const fileBuffer = fs.readFileSync(filePath);
-      await pdfParse.default(fileBuffer);
+      await pdfParse(fileBuffer);
 
       return { valid: errors.length === 0, errors };
     } catch (error) {
@@ -485,4 +556,4 @@ export class PDFParserService {
       return { valid: false, errors };
     }
   }
-} 
+}

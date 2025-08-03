@@ -21,15 +21,15 @@ import { PDFModule } from './pdf/pdf.module'; // ✅ PDF module imported
 @Module({
   imports: [
     SharedModule,
-    TelegramModule, // ✅ Independent telegram indexing
-    TwitterModule, // ✅ Independent twitter indexing
+    // TelegramModule, // ✅ Independent telegram indexing
+    // TwitterModule, // ✅ Independent twitter indexing
     PDFModule, // ✅ Independent PDF processing
   ],
   providers: [],
   exports: [
     SharedModule,
-    TelegramModule, // ✅ Export telegram services
-    TwitterModule, // ✅ Export twitter services
+    // TelegramModule, // ✅ Export telegram services
+    // TwitterModule, // ✅ Export twitter services
     PDFModule, // ✅ Export PDF services
   ],
 })
