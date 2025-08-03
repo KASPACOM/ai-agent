@@ -676,9 +676,6 @@ export class TwitterApiService {
         ? mentions.data.data
         : [];
       for (const tweet of mentionsData) {
-        const author = mentions.data?.includes?.users?.find(
-          (u) => u.id === tweet.author_id,
-        );
         const transformedTweet = TwitterTransformer.transformApiTweet(
           tweet,
           this.tranformIncludeUsersToObject(mentions.data?.includes?.users),

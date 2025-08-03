@@ -399,13 +399,51 @@ export class UnifiedStorageService {
 
   /**
    * Get all authors for whom we have complete tweet history
-   * For now, returns a hardcoded list - in future could be stored in database
+   * Queries twitter_history collection for authors with is_complete=true and recent last_full_sync
    */
   async getCompleteHistoryAuthors(source: MessageSource): Promise<string[]> {
-    // TODO: Implement proper tracking of complete history authors
-    // For now, return a hardcoded list of authors we monitor completely
-    // This could be enhanced to track completion status in the database
-    return [];
+    if (source !== MessageSource.TWITTER) {
+      return [];
+    }
+
+    try {
+      // Query twitter_history collection for complete authors with recent sync
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
+      const filter = {
+        must: [
+          { key: 'is_complete', match: { value: true } },
+          { key: 'last_full_sync', range: { gte: oneDayAgo.toISOString() } },
+        ],
+      };
+
+      const results = await this.qdrantClient.searchPoints(
+        'twitter_history', // Collection name for author tracking
+        {
+          vector: new Array(this.config.getVectorDimensions()).fill(0), // Dummy vector for filter-only search
+          limit: 1000, // Get all matching authors
+          filter,
+        },
+      );
+
+      // Extract author handles from results
+      const authors: string[] = [];
+      if (results?.points) {
+        for (const point of results.points) {
+          const authorHandle = point.payload?.author_handle || point.payload?.account;
+          if (authorHandle) {
+            authors.push(authorHandle);
+          }
+        }
+      }
+
+      this.logger.debug(`Found ${authors.length} authors with complete history and recent sync`);
+      return authors;
+    } catch (error) {
+      this.logger.error(`Failed to get complete history authors: ${error.message}`);
+      return [];
+    }
   }
 
   /**
@@ -432,14 +470,4 @@ export class UnifiedStorageService {
     return result !== null;
   }
 
-  /**
-   * Get the latest message date for a specific source and author
-   */
-  async getLatestMessageDate(source: MessageSource, authorHandle: string): Promise<Date | undefined> {
-    const result = await this.qdrantRepository.getLatestTweetByTimestamp(authorHandle);
-    if (result && result.payload.createdAt) {
-      return new Date(result.payload.createdAt);
-    }
-    return undefined;
-  }
 }
