@@ -17,6 +17,7 @@ export class TwitterTransformer {
       text: tweet?.note_tweet?.text || tweet.text || tweet.full_text || '',
       author: user?.username || 'Unknown',
       authorName: user?.name || 'Unknown',
+      authorId: user?.id || 'Unknown',
       createdAt: new Date(tweet.created_at || Date.now()),
       url: tweet.url || `https://twitter.com/user/status/${tweet.id}`,
       source: TweetSource.API,

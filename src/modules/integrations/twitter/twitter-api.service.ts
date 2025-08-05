@@ -540,8 +540,16 @@ export class TwitterApiService {
   /**
    * Post a comment (reply) to a tweet
    */
-  async postComment(status: string, inReplyToTweetId: string): Promise<any> {
-    return await this.notifyTelegramAboutTwitterIntent(status, inReplyToTweetId);
+  async postComment(status: string, inReplyToTweetId: string): Promise<{
+    id: string;
+    text: string;
+  }> {
+    await this.notifyTelegramAboutTwitterIntent(status, inReplyToTweetId);
+
+    return {
+      id: 'telegram-test-' + Math.floor(Math.random() * 1000000000000),
+      text: status,
+    };
     // try {
     //   const writeClient = this.getWriteTwitterClient();
 
@@ -553,6 +561,9 @@ export class TwitterApiService {
     //     reply: { in_reply_to_tweet_id: inReplyToTweetId },
     //   });
     //   this.logger.log(`Comment posted successfully: ${result.data?.id}`);
+
+    //   console.log('RESULT DATA', result.data);
+
     //   return result.data;
     // } catch (error) {
     //   this.logger.error(`Failed to post comment: ${error.message}`);
@@ -601,8 +612,8 @@ export class TwitterApiService {
     username?: string;
     maxResults?: number;
     userId?: string;
-    startTime?: string; // ← new
-    endTime?: string;   // ← new  
+    startTime?: Date; // ← new
+    endTime?: Date;   // ← new  
   }): Promise<Tweet[]> {
     try {
 
@@ -618,8 +629,8 @@ export class TwitterApiService {
 
       const apiOptions: any = {
         max_results: Math.min(options.maxResults || 10, 100),
-        start_time: options.startTime,
-        end_time: options.endTime,
+        start_time: options.startTime?.toISOString(),
+        end_time: options.endTime?.toISOString(),
         ...DEFAULT_TWEET_FIELDS,
       };
   
