@@ -14,7 +14,7 @@ export class TwitterTransformer {
     const user = users?.[tweet.author_id];
     return {
       id: tweet.id_str || tweet.id || `tweet_${Date.now()}`,
-      text: tweet.text || tweet.full_text || '',
+      text: tweet?.note_tweet?.text || tweet.text || tweet.full_text || '',
       author: user?.username || 'Unknown',
       authorName: user?.name || 'Unknown',
       createdAt: new Date(tweet.created_at || Date.now()),

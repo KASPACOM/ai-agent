@@ -30,6 +30,7 @@ const DEFAULT_TWEET_FIELDS: Partial<TweetV2PaginableTimelineParams> = {
     'context_annotations',
     'entities',
     'referenced_tweets',
+    'note_tweet',
   ],
   'user.fields': ['id', 'name', 'username', 'verified'],
   expansions: ['author_id'],
@@ -600,6 +601,8 @@ export class TwitterApiService {
     username?: string;
     maxResults?: number;
     userId?: string;
+    startTime?: string; // ← new
+    endTime?: string;   // ← new  
   }): Promise<Tweet[]> {
     try {
 
@@ -613,11 +616,16 @@ export class TwitterApiService {
         options.userId = user.id;
       }
 
-      // Step 2: Fetch mentions timeline
-      const mentions = await this.twitterClient.v2.userMentionTimeline(options.userId, {
+      const apiOptions: any = {
         max_results: Math.min(options.maxResults || 10, 100),
+        start_time: options.startTime,
+        end_time: options.endTime,
         ...DEFAULT_TWEET_FIELDS,
-      });
+      };
+  
+
+      // Step 2: Fetch mentions timeline
+      const mentions = await this.twitterClient.v2.userMentionTimeline(options.userId, apiOptions);
 
       // Step 3: Transform and return
       const tweets: Tweet[] = [];
