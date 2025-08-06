@@ -395,26 +395,19 @@ export class TwitterIndexerService extends BaseIndexerService {
     tweetId: string,
   ): Promise<MasterDocument | null> {
     try {
-      const response = await this.twitterApi.getSingleTweet(tweetId);
+      const response = await this.twitterApi.getTweetById(tweetId);
       if (!response) {
         return null;
       }
-
-      const { tweet, author } = response;
-      const authorHandle = author?.username || 'unknown';
+      const authorHandle = response?.author || 'unknown';
 
       this.logger.debug(
         `Fetched original tweet ${tweetId} from @${authorHandle}`,
       );
 
-      // Transform using TwitterTransformer first (like regular indexing flow)
-      const transformedTweet = TwitterTransformer.transformApiTweet(tweet, {
-        [tweet.author_id]: author,
-      });
-
       // Then transform to MasterDocument
       return TwitterMasterDocumentTransformer.transformTweetToMasterDocument(
-        transformedTweet,
+        response,
         authorHandle,
       );
     } catch (error) {

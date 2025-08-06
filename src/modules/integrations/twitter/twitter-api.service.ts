@@ -745,38 +745,6 @@ export class TwitterApiService {
   }
 
   /**
-   * Fetch a single tweet by ID with author data
-   */
-  async getSingleTweet(tweetId: string): Promise<SingleTweetResponse | null> {
-    try {
-      this.logger.debug(`Fetching single tweet: ${tweetId}`);
-
-      const response = await this.twitterClient.v2.singleTweet(tweetId, {
-        ...DEFAULT_TWEET_FIELDS,
-      });
-
-      if (!response.data) {
-        this.logger.warn(`Tweet ${tweetId} not found or not accessible`);
-        return null;
-      }
-
-      // Find the author from expanded users
-      const users = response.includes?.users || [];
-      const author =
-        users.find((user: UserV2) => user.id === response.data.author_id) ||
-        null;
-
-      return {
-        tweet: response.data,
-        author,
-      };
-    } catch (error) {
-      this.logger.error(`Failed to fetch tweet ${tweetId}:`, error);
-      throw error;
-    }
-  }
-
-  /**
    * Test API connectivity
    */
   async testConnection(): Promise<boolean> {
