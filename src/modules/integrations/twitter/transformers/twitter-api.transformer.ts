@@ -22,9 +22,10 @@ export class TwitterTransformer {
 
     return {
       id: tweet.id_str || tweet.id || `tweet_${Date.now()}`,
-      text: tweet.text || tweet.full_text || '',
+      text: tweet?.note_tweet?.text || tweet.text || tweet.full_text || '',
       author: user?.username || 'Unknown',
       authorName: user?.name || 'Unknown',
+      authorId: user?.id || 'Unknown',
       createdAt: new Date(tweet.created_at || Date.now()),
       url: tweet.url || `https://twitter.com/user/status/${tweet.id}`,
       source: TweetSource.API,

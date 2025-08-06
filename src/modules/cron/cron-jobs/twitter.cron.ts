@@ -7,9 +7,10 @@ export class TwitterCron {
 
   constructor(private readonly twitterService: TwitterService) {}
 
-  // @Cron(CronExpression.EVERY_5_MINUTES)
-  // async handleCron() {
-  //     this.logger.debug('Checking for bot mentions and respondingIfNeeded');
-  //     await this.twitterService.checkForBotMentionsAndRespondIfNeeded();
-  // }
+    @Cron(CronExpression.EVERY_5_MINUTES)
+    async handleCron() {
+        this.logger.debug('Checking for bot mentions and respondingIfNeeded');
+        await this.twitterService.checkForBotMentionsAndRespondIfNeeded();
+    }
+
 }

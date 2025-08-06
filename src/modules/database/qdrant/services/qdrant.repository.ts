@@ -7,6 +7,13 @@ import { v5 as uuidv5 } from 'uuid';
 import { EmbeddingService } from '../../../embedding/embedding.service';
 // import { TelegramMessage } from '../../../etl/models/telegram.model'; // Removed ETL dependency
 
+
+export const UUID_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'; // Standard UUID namespace for tweets
+export function generateUuidFromTwitterId(twitterId: string): string {
+  return uuidv5(twitterId, UUID_NAMESPACE);
+}
+
+
 /**
  * Interfaces for conversation enrichment
  */
@@ -27,26 +34,19 @@ export interface ConversationData {
  *
  * High-level domain operations for vector storage and retrieval
  * Provides tweet-specific operations for the ETL pipeline
+ * 
  */
 @Injectable()
 export class QdrantRepository {
   private readonly logger = new Logger(QdrantRepository.name);
-  private readonly UUID_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'; // Standard UUID namespace for tweets
 
   constructor(
     private readonly qdrantClient: QdrantClientService,
     private readonly qdrantCollection: QdrantCollectionService,
     private readonly qdrantConfig: QdrantConfigService,
     private readonly embeddingService: EmbeddingService, // <-- Injected
-  ) {}
+  ) { }
 
-  /**
-   * Generate a UUID from a Twitter ID
-   * This ensures Qdrant compatibility while maintaining deterministic IDs
-   */
-  private generateUuidFromTwitterId(twitterId: string): string {
-    return uuidv5(twitterId, this.UUID_NAMESPACE);
-  }
 
   /**
    * Store tweet vector with metadata
@@ -72,7 +72,7 @@ export class QdrantRepository {
 
       // Prepare point for insertion
       const point = {
-        id: this.generateUuidFromTwitterId(tweetId), // Use UUID for Qdrant compatibility
+        id: generateUuidFromTwitterId(tweetId), // Use UUID for Qdrant compatibility
         vector: vector,
         payload: {
           ...metadata,
@@ -184,7 +184,7 @@ export class QdrantRepository {
         };
 
         return {
-          id: this.generateUuidFromTwitterId(tweet.tweetId),
+          id: generateUuidFromTwitterId(tweet.tweetId),
           vector: tweet.vector,
           payload: cleanPayload,
         };
@@ -289,7 +289,7 @@ export class QdrantRepository {
   //       };
 
   //       return {
-  //         id: this.generateUuidFromTwitterId(message.tweetId),
+  //         id: generateUuidFromTwitterId(message.tweetId),
   //         vector: message.vector,
   //         payload,
   //       };
@@ -760,7 +760,7 @@ export class QdrantRepository {
       this.logger.debug(`Getting tweet by UUID: ${tweetId}`);
 
       const collectionName = this.qdrantConfig.getCollectionName();
-      const uuid = this.generateUuidFromTwitterId(tweetId);
+      const uuid = generateUuidFromTwitterId(tweetId);
       const result = await this.qdrantClient.getPoint(collectionName, uuid);
 
       if (!result) {
@@ -790,7 +790,7 @@ export class QdrantRepository {
       );
 
       const collectionName = this.qdrantConfig.getCollectionName();
-      const uuid = this.generateUuidFromTwitterId(originalTweetId);
+      const uuid = generateUuidFromTwitterId(originalTweetId);
       const result = await this.qdrantClient.getPoint(collectionName, uuid);
 
       if (!result) {
@@ -852,7 +852,7 @@ export class QdrantRepository {
       this.logger.debug(`Deleting tweet vector: ${tweetId}`);
 
       const collectionName = this.qdrantConfig.getCollectionName();
-      const uuid = this.generateUuidFromTwitterId(tweetId);
+      const uuid = generateUuidFromTwitterId(tweetId);
       const result = await this.qdrantClient.deletePoints(collectionName, [
         uuid,
       ]);
@@ -958,13 +958,13 @@ export class QdrantRepository {
       // Build filter for account if specified
       const filter = account
         ? {
-            must: [
-              {
-                key: 'authorHandle',
-                match: { value: account },
-              },
-            ],
-          }
+          must: [
+            {
+              key: 'authorHandle',
+              match: { value: account },
+            },
+          ],
+        }
         : undefined;
 
       // Use zero vector for filtering-only query

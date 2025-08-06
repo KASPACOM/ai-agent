@@ -13,6 +13,7 @@ import { EmbeddingModule } from '../../embedding/embedding.module';
 
 // === Qdrant Configuration ===
 import { QdrantConfigService } from './config/qdrant.config';
+import { QdrantBotRepliesRepository } from './services/qdrant-bot-replies.repository';
 
 /**
  * Qdrant Integration Module
@@ -44,6 +45,7 @@ import { QdrantConfigService } from './config/qdrant.config';
     QdrantClientService,
     QdrantCollectionService,
     QdrantRepository,
+    QdrantBotRepliesRepository,
   ],
   exports: [
     // === Configuration ===
@@ -53,6 +55,7 @@ import { QdrantConfigService } from './config/qdrant.config';
     QdrantClientService,
     QdrantCollectionService,
     QdrantRepository,
+    QdrantBotRepliesRepository,
   ],
 })
 export class QdrantModule {}

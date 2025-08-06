@@ -30,6 +30,7 @@ const DEFAULT_TWEET_FIELDS: Partial<TweetV2PaginableTimelineParams> = {
     'entities',
     'referenced_tweets',
     'in_reply_to_user_id',
+    'note_tweet',
   ],
   'user.fields': ['id', 'name', 'username', 'verified'],
   expansions: ['author_id'],
@@ -583,6 +584,9 @@ export class TwitterApiService {
     //     reply: { in_reply_to_tweet_id: inReplyToTweetId },
     //   });
     //   this.logger.log(`Comment posted successfully: ${result.data?.id}`);
+
+    //   console.log('RESULT DATA', result.data);
+
     //   return result.data;
     // } catch (error) {
     //   this.logger.error(`Failed to post comment: ${error.message}`);
@@ -646,6 +650,8 @@ export class TwitterApiService {
     username?: string;
     maxResults?: number;
     userId?: string;
+    startTime?: Date; // ← new
+    endTime?: Date;   // ← new  
   }): Promise<Tweet[]> {
     try {
       if (!options.userId) {
