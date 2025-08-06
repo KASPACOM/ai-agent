@@ -521,20 +521,20 @@ export class TwitterApiService {
    * Post a new tweet
    */
   async postTweet(status: string): Promise<any> {
-    return await this.notifyTelegramAboutTwitterIntent(status);
-    // try {
-    //   const writeClient = this.getWriteTwitterClient();
-    //   if (!writeClient) {
-    //     throw new Error('Twitter write client not initialized');
-    //   }
-    //   const result = await writeClient.v2.tweet(status);
-    //   this.logger.log(`Tweet posted successfully: ${result.data?.id}`);
-    //   return result.data;
-    // } catch (error) {
-    //   this.logger.error(`Failed to post tweet: ${error.message}`);
-    //   this.apiStats.errors.push(`Post tweet failed: ${error.message}`);
-    //   throw error;
-    // }
+    // return await this.notifyTelegramAboutTwitterIntent(status);
+    try {
+      const writeClient = this.getWriteTwitterClient();
+      if (!writeClient) {
+        throw new Error('Twitter write client not initialized');
+      }
+      const result = await writeClient.v2.tweet(status);
+      this.logger.log(`Tweet posted successfully: ${result.data?.id}`);
+      return result.data;
+    } catch (error) {
+      this.logger.error(`Failed to post tweet: ${error.message}`);
+      this.apiStats.errors.push(`Post tweet failed: ${error.message}`);
+      throw error;
+    }
   }
 
   /**
@@ -544,32 +544,30 @@ export class TwitterApiService {
     id: string;
     text: string;
   }> {
-    await this.notifyTelegramAboutTwitterIntent(status, inReplyToTweetId);
+    // await this.notifyTelegramAboutTwitterIntent(status, inReplyToTweetId);
 
-    return {
-      id: 'telegram-test-' + Math.floor(Math.random() * 1000000000000),
-      text: status,
-    };
-    // try {
-    //   const writeClient = this.getWriteTwitterClient();
+    // return {
+    //   id: 'telegram-test-' + Math.floor(Math.random() * 1000000000000),
+    //   text: status,
+    // };
+    try {
+      const writeClient = this.getWriteTwitterClient();
 
-    //   if (!writeClient) {
-    //     throw new Error('Twitter write client not initialized');
-    //   }
-    //   const result = await writeClient.v2.tweet({
-    //     text: status,
-    //     reply: { in_reply_to_tweet_id: inReplyToTweetId },
-    //   });
-    //   this.logger.log(`Comment posted successfully: ${result.data?.id}`);
+      if (!writeClient) {
+        throw new Error('Twitter write client not initialized');
+      }
+      const result = await writeClient.v2.tweet({
+        text: status,
+        reply: { in_reply_to_tweet_id: inReplyToTweetId },
+      });
+      this.logger.log(`Comment posted successfully: ${result.data?.id}`);
 
-    //   console.log('RESULT DATA', result.data);
-
-    //   return result.data;
-    // } catch (error) {
-    //   this.logger.error(`Failed to post comment: ${error.message}`);
-    //   this.apiStats.errors.push(`Post comment failed: ${error.message}`);
-    //   throw error;
-    // }
+      return result.data;
+    } catch (error) {
+      this.logger.error(`Failed to post comment: ${error.message}`);
+      this.apiStats.errors.push(`Post comment failed: ${error.message}`);
+      throw error;
+    }
   }
 
   /**
@@ -726,4 +724,60 @@ export class TwitterApiService {
       return false;
     }
   }
+
+  splitLargeTextIntoTweets(text: string): string[] {
+    const maxLength = 280;
+    const sentences = text.match(/[^.!?]+[.!?]+[\])'"`’”]*|.+$/g) || [];
+    const tweets: string[] = [];
+  
+    let currentTweet = '';
+  
+    for (const sentence of sentences) {
+      const trimmedSentence = sentence.trim();
+  
+      if ((currentTweet + ' ' + trimmedSentence).trim().length <= maxLength) {
+        currentTweet = (currentTweet + ' ' + trimmedSentence).trim();
+      } else {
+        if (currentTweet) tweets.push(currentTweet);
+        if (trimmedSentence.length <= maxLength) {
+          currentTweet = trimmedSentence;
+        } else {
+          // Handle very long sentence by cutting it
+          let part = '';
+          for (const word of trimmedSentence.split(' ')) {
+            if ((part + ' ' + word).trim().length > maxLength) {
+              tweets.push(part.trim());
+              part = word;
+            } else {
+              part = (part + ' ' + word).trim();
+            }
+          }
+          currentTweet = part;
+        }
+      }
+    }
+  
+    if (currentTweet) tweets.push(currentTweet);
+  
+    return tweets;
+  }
+  
+
+  async postThread(text: string) {
+    const tweets = this.splitLargeTextIntoTweets(text);
+
+
+    if (tweets.length === 0) {
+      throw new Error('No tweets to post');
+    }
+
+
+    const firstTweet = await this.postTweet(tweets[0]);
+    for (const tweetText of tweets.slice(1)) {
+      await this.postComment(tweetText, firstTweet.id);
+    }
+
+    return firstTweet;
+  }
+    
 }
