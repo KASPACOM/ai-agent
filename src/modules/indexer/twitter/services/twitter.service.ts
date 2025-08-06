@@ -6,7 +6,7 @@ import { OrchestratorService } from "src/modules/orchestrator/orchestrator.servi
 import { SHOULD_ANSWER_QUESTIONS_ROLE } from "src/modules/prompt-builder/roles/should-answer-questions.role";
 
 const KASPA_BOT_USER_ID = '1946644555027070976';
-const MINUTES_TO_CHECK_MENTIONS = 60;
+const MINUTES_TO_CHECK_MENTIONS = 5;
 @Injectable()
 export class TwitterService {
 
