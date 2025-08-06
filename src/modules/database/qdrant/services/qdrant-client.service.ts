@@ -229,6 +229,24 @@ export class QdrantClientService implements OnModuleInit {
   }
 
   /**
+   * Scroll points in collection
+   */
+  async scrollPoints(collectionName: string, scrollParams: any): Promise<any> {
+    try {
+      this.logger.debug(`Scrolling points in collection: ${collectionName}`);
+
+      const response = await this.qdrantClient.scroll(collectionName, scrollParams);
+
+      return response;
+    } catch (error) {
+      this.logger.error(
+        `Failed to scroll points in ${collectionName}: ${error.message}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Get point by ID
    */
   async getPoint(collectionName: string, pointId: string): Promise<any> {

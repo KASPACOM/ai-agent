@@ -30,6 +30,7 @@ const DEFAULT_TWEET_FIELDS: Partial<TweetV2PaginableTimelineParams> = {
     'context_annotations',
     'entities',
     'referenced_tweets',
+    'note_tweet',
   ],
   'user.fields': ['id', 'name', 'username', 'verified'],
   expansions: ['author_id'],
@@ -539,8 +540,16 @@ export class TwitterApiService {
   /**
    * Post a comment (reply) to a tweet
    */
-  async postComment(status: string, inReplyToTweetId: string): Promise<any> {
-    return await this.notifyTelegramAboutTwitterIntent(status, inReplyToTweetId);
+  async postComment(status: string, inReplyToTweetId: string): Promise<{
+    id: string;
+    text: string;
+  }> {
+    await this.notifyTelegramAboutTwitterIntent(status, inReplyToTweetId);
+
+    return {
+      id: 'telegram-test-' + Math.floor(Math.random() * 1000000000000),
+      text: status,
+    };
     // try {
     //   const writeClient = this.getWriteTwitterClient();
 
@@ -552,6 +561,9 @@ export class TwitterApiService {
     //     reply: { in_reply_to_tweet_id: inReplyToTweetId },
     //   });
     //   this.logger.log(`Comment posted successfully: ${result.data?.id}`);
+
+    //   console.log('RESULT DATA', result.data);
+
     //   return result.data;
     // } catch (error) {
     //   this.logger.error(`Failed to post comment: ${error.message}`);
@@ -600,6 +612,8 @@ export class TwitterApiService {
     username?: string;
     maxResults?: number;
     userId?: string;
+    startTime?: Date; // ← new
+    endTime?: Date;   // ← new  
   }): Promise<Tweet[]> {
     try {
 
@@ -613,11 +627,16 @@ export class TwitterApiService {
         options.userId = user.id;
       }
 
-      // Step 2: Fetch mentions timeline
-      const mentions = await this.twitterClient.v2.userMentionTimeline(options.userId, {
+      const apiOptions: any = {
         max_results: Math.min(options.maxResults || 10, 100),
+        start_time: options.startTime?.toISOString(),
+        end_time: options.endTime?.toISOString(),
         ...DEFAULT_TWEET_FIELDS,
-      });
+      };
+  
+
+      // Step 2: Fetch mentions timeline
+      const mentions = await this.twitterClient.v2.userMentionTimeline(options.userId, apiOptions);
 
       // Step 3: Transform and return
       const tweets: Tweet[] = [];
