@@ -521,20 +521,20 @@ export class TwitterApiService {
    * Post a new tweet
    */
   async postTweet(status: string): Promise<any> {
-    // return await this.notifyTelegramAboutTwitterIntent(status);
-    try {
-      const writeClient = this.getWriteTwitterClient();
-      if (!writeClient) {
-        throw new Error('Twitter write client not initialized');
-      }
-      const result = await writeClient.v2.tweet(status);
-      this.logger.log(`Tweet posted successfully: ${result.data?.id}`);
-      return result.data;
-    } catch (error) {
-      this.logger.error(`Failed to post tweet: ${error.message}`);
-      this.apiStats.errors.push(`Post tweet failed: ${error.message}`);
-      throw error;
-    }
+    return await this.notifyTelegramAboutTwitterIntent(status);
+    // try {
+    //   const writeClient = this.getWriteTwitterClient();
+    //   if (!writeClient) {
+    //     throw new Error('Twitter write client not initialized');
+    //   }
+    //   const result = await writeClient.v2.tweet(status);
+    //   this.logger.log(`Tweet posted successfully: ${result.data?.id}`);
+    //   return result.data;
+    // } catch (error) {
+    //   this.logger.error(`Failed to post tweet: ${error.message}`);
+    //   this.apiStats.errors.push(`Post tweet failed: ${error.message}`);
+    //   throw error;
+    // }
   }
 
   /**
@@ -544,30 +544,30 @@ export class TwitterApiService {
     id: string;
     text: string;
   }> {
-    // await this.notifyTelegramAboutTwitterIntent(status, inReplyToTweetId);
+    await this.notifyTelegramAboutTwitterIntent(status, inReplyToTweetId);
 
-    // return {
-    //   id: 'telegram-test-' + Math.floor(Math.random() * 1000000000000),
-    //   text: status,
-    // };
-    try {
-      const writeClient = this.getWriteTwitterClient();
+    return {
+      id: 'telegram-test-' + Math.floor(Math.random() * 1000000000000),
+      text: status,
+    };
+    // try {
+    //   const writeClient = this.getWriteTwitterClient();
 
-      if (!writeClient) {
-        throw new Error('Twitter write client not initialized');
-      }
-      const result = await writeClient.v2.tweet({
-        text: status,
-        reply: { in_reply_to_tweet_id: inReplyToTweetId },
-      });
-      this.logger.log(`Comment posted successfully: ${result.data?.id}`);
+    //   if (!writeClient) {
+    //     throw new Error('Twitter write client not initialized');
+    //   }
+    //   const result = await writeClient.v2.tweet({
+    //     text: status,
+    //     reply: { in_reply_to_tweet_id: inReplyToTweetId },
+    //   });
+    //   this.logger.log(`Comment posted successfully: ${result.data?.id}`);
 
-      return result.data;
-    } catch (error) {
-      this.logger.error(`Failed to post comment: ${error.message}`);
-      this.apiStats.errors.push(`Post comment failed: ${error.message}`);
-      throw error;
-    }
+    //   return result.data;
+    // } catch (error) {
+    //   this.logger.error(`Failed to post comment: ${error.message}`);
+    //   this.apiStats.errors.push(`Post comment failed: ${error.message}`);
+    //   throw error;
+    // }
   }
 
   /**
@@ -771,7 +771,7 @@ export class TwitterApiService {
       throw new Error('No tweets to post');
     }
 
-
+    
     const firstTweet = await this.postTweet(tweets[0]);
     for (const tweetText of tweets.slice(1)) {
       await this.postComment(tweetText, firstTweet.id);

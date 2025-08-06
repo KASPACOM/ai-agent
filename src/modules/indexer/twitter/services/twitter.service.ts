@@ -21,11 +21,6 @@ export class TwitterService {
 
 
     async checkForBotMentionsAndRespondIfNeeded(): Promise<any> {
-        return await this.twitterApiService.postThread(`
-In a world where blockchain technology is pushing the boundaries of speed and decentralization, one project is quickly rising through the noise—Kaspa. With its blazing-fast transactions, innovative architecture, and a commitment to fairness, Kaspa is shaping up to be one of the most exciting developments in the crypto space today.
-
-At the heart of Kaspa is a revolutionary approach to blockchain design: the BlockDAG. Unlike traditional blockchains, where each block is added one after the other in a single chain, Kaspa allows multiple blocks to be added simultaneously. This means no more waiting on a congested network. Transactions are confirmed almost instantly, and the network can handle immense volumes of data without slowing down. It's the kind of innovation that makes you rethink what’s possible with proof-of-work.
-`)
         try {
             this.logger.log('Checking for bot mentions and responding if needed');
 
