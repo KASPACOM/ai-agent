@@ -1,6 +1,5 @@
-import { Controller, Post, Logger, OnModuleInit } from '@nestjs/common';
+import { Controller, Post, Logger, Param } from '@nestjs/common';
 import { TwitterIndexerService } from '../services/twitter-indexer.service';
-import { AccountRotationService } from '../services/account-rotation.service';
 import { IndexingResult } from '../../shared/models/indexer-result.model';
 import { TwitterService } from '../services/twitter.service';
 
@@ -33,5 +32,36 @@ export class TwitterController {
   async triggerManualRunMentions(): Promise<IndexingResult> {
     this.logger.log('Manual twitter mentions indexing triggered via API');
     return await this.twitterService.checkForBotMentionsAndRespondIfNeeded(); 
+  }
+
+  @Post('manual-comment/:tweetId')
+  async triggerManualComment(@Param('tweetId') tweetId: string): Promise<{
+    success: boolean;
+    message: string;
+    tweetId?: string;
+  }> {
+    if (!tweetId) {
+      return {
+        success: false,
+        message: 'Tweet ID is required',
+      }
+    }
+
+    const tweet = await this.twitterService.getTweetById(tweetId);
+
+    if (!tweet) {
+      return {
+        success: false,
+        message: 'Tweet not found',
+      }
+    }
+
+    const result = await this.twitterService.respondToTweet(tweet);
+
+    return {
+      success: result.is_responded,
+      message: result.twit_text,
+      tweetId: result.twit_id,
+    };
   }
 }

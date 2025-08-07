@@ -588,6 +588,10 @@ export class TwitterApiService {
         ...DEFAULT_TWEET_FIELDS,
       });
 
+      if (!tweet?.data) {
+        return null;
+      }
+
       return TwitterTransformer.transformApiTweet(tweet.data, this.tranformIncludeUsersToObject(tweet.includes.users));
     } catch (error) {
       this.logger.error(`Failed to get tweet ${tweetId}: ${error.message}`);
