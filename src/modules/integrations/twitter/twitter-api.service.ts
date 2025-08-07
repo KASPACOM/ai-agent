@@ -668,6 +668,8 @@ export class TwitterApiService {
         options.userId,
         {
           max_results: Math.min(options.maxResults || 10, 100),
+          start_time: options.startTime?.toISOString(),
+          end_time: options.endTime?.toISOString(),
           ...DEFAULT_TWEET_FIELDS,
         },
       );
