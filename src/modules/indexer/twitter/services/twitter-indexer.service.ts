@@ -13,6 +13,7 @@ import { IndexingResult } from '../../shared/models/indexer-result.model';
 import { TwitterApiService } from '../../../integrations/twitter/twitter-api.service';
 import { AccountRotationService } from './account-rotation.service';
 import { TwitterMasterDocumentTransformer } from '../transformers/twitter-master-document.transformer';
+import { TwitterTransformer } from '../../../integrations/twitter/transformers/twitter-api.transformer';
 
 /**
  * Twitter Indexer Service
@@ -292,6 +293,126 @@ export class TwitterIndexerService extends BaseIndexerService {
         rateLimited: false,
         hasMoreData: false,
       };
+    }
+  }
+
+  async completeConversations(): Promise<void> {
+    this.logger.log('Starting conversation completion process');
+
+    try {
+      const completeHistoryAuthors = await this.getCompleteHistoryAuthors();
+
+      for (const author of completeHistoryAuthors) {
+        await this.completeAuthorConversations(author);
+      }
+    } catch (error) {
+      this.logger.error('Conversation completion failed', error);
+    }
+  }
+
+  private async getCompleteHistoryAuthors(): Promise<string[]> {
+    return await this.unifiedStorage.getCompleteHistoryAuthors(
+      MessageSource.TWITTER,
+    );
+  }
+
+  private async completeAuthorConversations(
+    authorHandle: string,
+  ): Promise<void> {
+    this.logger.debug(`Completing conversations for author: ${authorHandle}`);
+
+    const replyTweets = await this.unifiedStorage.getReplyTweets(
+      MessageSource.TWITTER,
+      authorHandle,
+    );
+
+    if (replyTweets.length === 0) {
+      this.logger.debug(`No reply tweets found for ${authorHandle}`);
+      return;
+    }
+
+    // Extract unique original tweet IDs that we need to check
+    const originalTweetIds = new Set<string>();
+    replyTweets.forEach((tweet) => {
+      if (tweet.twitterInReplyToTweetId) {
+        originalTweetIds.add(tweet.twitterInReplyToTweetId);
+      }
+    });
+
+    this.logger.debug(
+      `Found ${originalTweetIds.size} potential original tweets to check for ${authorHandle}`,
+    );
+
+    // Check which original tweets we don't have yet
+    const missingOriginalIds: string[] = [];
+    for (const originalId of originalTweetIds) {
+      const exists = await this.unifiedStorage.tweetExists(originalId);
+      if (!exists) {
+        missingOriginalIds.push(originalId);
+      }
+    }
+
+    if (missingOriginalIds.length === 0) {
+      this.logger.debug(
+        `All original tweets already exist for ${authorHandle}`,
+      );
+      return;
+    }
+
+    this.logger.log(
+      `Fetching ${missingOriginalIds.length} missing original tweets for ${authorHandle}`,
+    );
+
+    // Fetch missing original tweets from Twitter API
+    const fetchedOriginals: MasterDocument[] = [];
+    for (const originalId of missingOriginalIds) {
+      try {
+        const originalTweet = await this.fetchOriginalTweetFromApi(originalId);
+        if (originalTweet) {
+          fetchedOriginals.push(originalTweet);
+        }
+
+        // Rate limiting: Basic tier allows 75 requests per 15 minutes
+        await this.sleep(12000); // 12 second delay = ~5 requests per minute
+      } catch (error) {
+        this.logger.warn(
+          `Failed to fetch original tweet ${originalId}:`,
+          error,
+        );
+      }
+    }
+
+    if (fetchedOriginals.length > 0) {
+      const storageResult =
+        await this.unifiedStorage.storeBatch(fetchedOriginals);
+      this.logger.log(
+        `Stored ${storageResult.stored} original tweets for ${authorHandle}`,
+      );
+    }
+  }
+
+  private async fetchOriginalTweetFromApi(
+    tweetId: string,
+  ): Promise<MasterDocument | null> {
+    try {
+      const response = await this.twitterApi.getTweetById(tweetId);
+      if (!response) {
+        return null;
+      }
+      const authorHandle = response?.author || 'unknown';
+
+      this.logger.debug(
+        `Fetched original tweet ${tweetId} from @${authorHandle}`,
+      );
+
+      // Then transform to MasterDocument
+      return TwitterMasterDocumentTransformer.transformTweetToMasterDocument(
+        response,
+        authorHandle,
+      );
+    } catch (error) {
+      this.logger.warn(`Failed to fetch tweet ${tweetId} from API:`, error);
+      return null;
     }
   }
 

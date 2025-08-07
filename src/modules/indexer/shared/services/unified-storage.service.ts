@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { QdrantClientService } from '../../../database/qdrant/services/qdrant-client.service';
 import { QdrantCollectionService } from '../../../database/qdrant/services/qdrant-collection.service';
+import { QdrantRepository } from '../../../database/qdrant/services/qdrant.repository';
 import { EmbeddingService } from '../../../embedding/embedding.service';
 import { MasterDocument } from '../models/master-document.model';
 import { MessageSource } from '../models/message-source.enum';
@@ -23,6 +24,7 @@ export class UnifiedStorageService {
   constructor(
     private readonly qdrantClient: QdrantClientService,
     private readonly qdrantCollection: QdrantCollectionService,
+    private readonly qdrantRepository: QdrantRepository,
     private readonly embeddingService: EmbeddingService,
     private readonly config: IndexerConfigService, // ✅ Use configuration service
   ) {}
@@ -393,5 +395,86 @@ export class UnifiedStorageService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Get all authors for whom we have complete tweet history
+   * Queries twitter_history collection for authors with is_complete=true and recent last_full_sync
+   */
+  async getCompleteHistoryAuthors(source: MessageSource): Promise<string[]> {
+    if (source !== MessageSource.TWITTER) {
+      return [];
+    }
+
+    try {
+      // Query twitter_history collection for complete authors with recent sync
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
+      const filter = {
+        must: [
+          { key: 'is_complete', match: { value: true } },
+          { key: 'last_full_sync', range: { gte: oneDayAgo.toISOString() } },
+        ],
+      };
+
+      const results = await this.qdrantClient.searchPoints(
+        'twitter_history', // Collection name for author tracking
+        {
+          vector: new Array(this.config.getVectorDimensions()).fill(0), // Dummy vector for filter-only search
+          limit: 1000, // Get all matching authors
+          filter,
+        },
+      );
+
+      // Extract author handles from results
+      const authors: string[] = [];
+      if (results?.points) {
+        for (const point of results.points) {
+          const authorHandle =
+            point.payload?.author_handle || point.payload?.account;
+          if (authorHandle) {
+            authors.push(authorHandle);
+          }
+        }
+      }
+
+      this.logger.debug(
+        `Found ${authors.length} authors with complete history and recent sync`,
+      );
+      return authors;
+    } catch (error) {
+      this.logger.error(
+        `Failed to get complete history authors: ${error.message}`,
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Get all reply tweets for a specific author
+   */
+  async getReplyTweets(
+    source: MessageSource,
+    authorHandle: string,
+  ): Promise<MasterDocument[]> {
+    const filter = {
+      must: [
+        { key: 'source', match: { value: source } },
+        { key: 'authorHandle', match: { value: authorHandle } },
+        { key: 'isReply', match: { value: true } },
+      ],
+    };
+
+    const results = await this.qdrantRepository.scrollTweets(filter, 1000);
+    return results.map((result) => result.payload as MasterDocument);
+  }
+
+  /**
+   * Check if a tweet exists in storage
+   */
+  async tweetExists(tweetId: string): Promise<boolean> {
+    const result = await this.qdrantRepository.getTweetByOriginalId(tweetId);
+    return result !== null;
   }
 }

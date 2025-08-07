@@ -1,8 +1,12 @@
-import { Controller, Post, Logger, OnModuleInit } from '@nestjs/common';
+import { Controller, Post, Get, Query, Logger } from '@nestjs/common';
 import { TwitterIndexerService } from '../services/twitter-indexer.service';
-import { AccountRotationService } from '../services/account-rotation.service';
 import { IndexingResult } from '../../shared/models/indexer-result.model';
 import { TwitterService } from '../services/twitter.service';
+import {
+  QdrantRepository,
+  EnrichedConversationResult,
+} from '../../../database/qdrant/services/qdrant.repository';
+import { EmbeddingService } from '../../../embedding/embedding.service';
 
 /**
  * Twitter Controller
@@ -17,6 +21,8 @@ export class TwitterController {
   constructor(
     private readonly twitterIndexer: TwitterIndexerService,
     private readonly twitterService: TwitterService,
+    private readonly qdrantRepository: QdrantRepository,
+    private readonly embeddingService: EmbeddingService,
   ) {}
 
   /**
@@ -32,6 +38,30 @@ export class TwitterController {
   @Post('mentions')
   async triggerManualRunMentions(): Promise<IndexingResult> {
     this.logger.log('Manual twitter mentions indexing triggered via API');
-    return await this.twitterService.checkForBotMentionsAndRespondIfNeeded(); 
+    return await this.twitterService.checkForBotMentionsAndRespondIfNeeded();
+  }
+
+  /**
+   * Manual trigger for conversation completion
+   * POST /twitter/complete-conversations
+   */
+  @Post('complete-conversations')
+  async completeConversations(): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    try {
+      this.logger.log('Manual conversation completion triggered via API');
+      await this.twitterIndexer.completeConversations();
+      return {
+        success: true,
+        message: 'Conversation completion process started',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to start conversation completion: ${error.message}`,
+      };
+    }
   }
 }

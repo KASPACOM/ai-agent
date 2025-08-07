@@ -1,17 +1,25 @@
 import { UserV2 } from 'twitter-api-v2';
-import { Tweet, TweetSource, TweetProcessingStatus } from '../models/twitter.model';
+import {
+  Tweet,
+  TweetSource,
+  TweetProcessingStatus,
+} from '../models/twitter.model';
 
 /**
  * Twitter API Transformer
- * 
+ *
  * Local transformer to eliminate ETL dependency.
  */
 export class TwitterTransformer {
   /**
    * Transform API tweet to Tweet interface
    */
-  static transformApiTweet(tweet: any, users?: {[userId: string]: UserV2}): Tweet {
+  static transformApiTweet(
+    tweet: any,
+    users?: { [userId: string]: UserV2 },
+  ): Tweet {
     const user = users?.[tweet.author_id];
+
     return {
       id: tweet.id_str || tweet.id || `tweet_${Date.now()}`,
       text: tweet?.note_tweet?.text || tweet.text || tweet.full_text || '',
@@ -29,7 +37,9 @@ export class TwitterTransformer {
         reply_count: tweet.reply_count || 0,
         user: users?.[tweet.author_id]?.username || tweet.user,
         raw_tweet: tweet,
+        referenced_tweets: tweet.referenced_tweets,
+        in_reply_to_user_id: tweet.in_reply_to_user_id,
       },
     };
   }
-} 
+}
