@@ -195,6 +195,7 @@ export interface OpenServResponse {
   response: string;
   actions: ActionHistory[];
   suggestions?: string[];
+  messageNotRequireAnswer?: boolean;
 }
 
 // Task and Chat response types for OpenServ integration

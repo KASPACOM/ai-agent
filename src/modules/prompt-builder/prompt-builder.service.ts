@@ -10,6 +10,7 @@ import {
 // Import prompt templates
 import { DECISION_AGENT_PROMPT } from './prompts/orchestrator/decision-agent.prompt';
 import { SYNTHESIS_AGENT_PROMPT } from './prompts/orchestrator/synthesis-agent.prompt';
+import { TWITTER_SYNTHESIS_AGENT_PROMPT } from './prompts/orchestrator/twitter-synthesis-agent.prompt';
 
 @Injectable()
 export class PromptBuilderService {
@@ -22,7 +23,7 @@ export class PromptBuilderService {
 
   private loadTemplates(): void {
     // Register all prompt templates
-    const templates = [DECISION_AGENT_PROMPT, SYNTHESIS_AGENT_PROMPT];
+    const templates = [DECISION_AGENT_PROMPT, SYNTHESIS_AGENT_PROMPT, TWITTER_SYNTHESIS_AGENT_PROMPT];
 
     templates.forEach((template) => {
       this.templates.set(template.name, template);
@@ -108,7 +109,7 @@ export class PromptBuilderService {
       )
       .join('\n\n');
 
-    return this.buildPrompt('synthesis-agent', {
+    return this.buildPrompt(context.synthesisAgentPrompt || 'synthesis-agent', {
       originalInput: context.originalInput,
       responsesText,
     });

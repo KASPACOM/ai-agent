@@ -13,26 +13,28 @@ import { TwitterController } from './controllers/twitter.controller';
 import { TwitterApiModule } from '../../integrations/twitter/twitter-api.module';
 import { AppConfigModule } from '../../core/modules/config/app-config.module';
 import { AccountRotationService } from './services/account-rotation.service';
+import { TwitterService } from './services/twitter.service';
+import { OrchestratorModule } from 'src/modules/orchestrator/orchestrator.module';
 
 /**
  * Twitter Module
  *
  * Independent module for Twitter indexing operations.
- * Following simplified architecture: controller + shared CronManager.
+ * Following simplified architecture: controller.
  *
  * Features:
  * - Complete Twitter indexing pipeline
  * - Simple controller with manual trigger endpoints
- * - Shared CronManager for scheduling (no complex @nestjs/schedule dependencies)
  * - Account rotation and rate limiting via AccountRotationService (local copy)
  * - Unified storage integration via SharedModule
  * - Minimal ETL dependencies (only static transformers)
  */
 @Module({
   imports: [
-    SharedModule, // ✅ Gets UnifiedStorageService, IndexerConfigService, CronManager
+    SharedModule, // ✅ Gets UnifiedStorageService, IndexerConfigService
     TwitterApiModule, // ✅ Gets TwitterApiService with proper dependencies
     AppConfigModule, // ✅ Gets AppConfigService for Twitter accounts configuration
+    OrchestratorModule,
   ],
   controllers: [
     TwitterController, // ✅ Simple controller with cron management
@@ -43,11 +45,13 @@ import { AccountRotationService } from './services/account-rotation.service';
 
     // ✅ Local copies and dependencies
     AccountRotationService, // Account management and rotation (local copy)
+    TwitterService,
   ],
   exports: [
     // ✅ Export services for potential external use
     TwitterIndexerService,
     AccountRotationService, // Export for potential shared use
+    TwitterService,
   ],
 })
 export class TwitterModule {}
