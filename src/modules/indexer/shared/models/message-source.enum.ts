@@ -7,6 +7,7 @@
 export enum MessageSource {
   TELEGRAM = 'telegram',
   TWITTER = 'twitter',
+  PDF = 'pdf',
   // Future sources can be added here
   DISCORD = 'discord',
 }

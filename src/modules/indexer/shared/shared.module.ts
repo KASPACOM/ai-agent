@@ -7,6 +7,8 @@ import { IndexerConfigService } from './config/indexer.config';
 import { QdrantModule } from '../../database/qdrant/qdrant.module';
 import { EmbeddingModule } from '../../embedding/embedding.module';
 import { AppConfigModule } from '../../core/modules/config/app-config.module';
+import { SemanticChunkingService } from './services/semantic-chunking.service';
+
 
 /**
  * Shared Module
@@ -24,12 +26,16 @@ import { AppConfigModule } from '../../core/modules/config/app-config.module';
   providers: [
     IndexerConfigService, // ✅ Centralized configuration
     UnifiedStorageService,
+    SemanticChunkingService, // ✅ Semantic text chunking for PDFs and other content
+
     // Note: BaseIndexerService is abstract, so not provided directly
     // Sub-modules will extend it in their concrete implementations
   ],
   exports: [
     IndexerConfigService, // ✅ Export configuration for sub-modules
     UnifiedStorageService,
+    SemanticChunkingService, // ✅ Export semantic chunking for sub-modules
+
     // Export database and embedding modules for sub-modules
     QdrantModule,
     EmbeddingModule,
