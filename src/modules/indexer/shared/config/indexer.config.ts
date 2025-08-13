@@ -110,6 +110,48 @@ export class IndexerConfigService {
   }
 
   /**
+   * PDF Configuration
+   */
+  getPDFMaxFileSize(): number {
+    return this.configService.get<number>(
+      'INDEXER_PDF_MAX_FILE_SIZE',
+      50 * 1024 * 1024, // 50MB default
+    );
+  }
+
+  getPDFUploadPath(): string {
+    return this.configService.get<string>(
+      'INDEXER_PDF_UPLOAD_PATH',
+      '/tmp/pdf-uploads',
+    );
+  }
+
+  getPDFMaxTokensPerChunk(): number {
+    return this.configService.get<number>(
+      'INDEXER_PDF_MAX_TOKENS_PER_CHUNK',
+      1000,
+    );
+  }
+
+  getPDFMinTokensPerChunk(): number {
+    return this.configService.get<number>(
+      'INDEXER_PDF_MIN_TOKENS_PER_CHUNK',
+      200,
+    );
+  }
+
+  getPDFOverlapTokens(): number {
+    return this.configService.get<number>('INDEXER_PDF_OVERLAP_TOKENS', 150);
+  }
+
+  getPDFSemanticThreshold(): number {
+    return this.configService.get<number>(
+      'INDEXER_PDF_SEMANTIC_THRESHOLD',
+      0.15,
+    );
+  }
+
+  /**
    * Qdrant Configuration
    */
   getQdrantUpsertBatchSize(): number {
