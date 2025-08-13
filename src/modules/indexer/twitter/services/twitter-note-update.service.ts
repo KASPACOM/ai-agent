@@ -69,8 +69,24 @@ export class TwitterNoteUpdateService {
       // Step 2: Process candidates in batches
       const candidates = await this.getCandidateTweets();
       this.logger.log(
-        `🔄 Processing ${candidates.length} tweets in current batch`,
+        `🔄 Processing ${candidates.length} tweets in current batch (batchSize=${batchSize})`,
       );
+
+      // Progress snapshot among candidates: how many already marked true/false vs unprocessed
+      try {
+        const alreadyTrue = candidates.filter(
+          (c) => c.hasTweetNote === true,
+        ).length;
+        const alreadyFalse = candidates.filter(
+          (c) => c.hasTweetNote === false,
+        ).length;
+        const unprocessed = candidates.length - alreadyTrue - alreadyFalse;
+        this.logger.log(
+          `📈 Candidate progress — hasTweetNote: true=${alreadyTrue}, false=${alreadyFalse}, unprocessed=${unprocessed}`,
+        );
+      } catch (e) {
+        this.logger.debug(`Progress snapshot failed: ${e?.message || e}`);
+      }
 
       const results = {
         processed: 0,
