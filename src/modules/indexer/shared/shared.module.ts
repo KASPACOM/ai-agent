@@ -9,34 +9,17 @@ import { EmbeddingModule } from '../../embedding/embedding.module';
 import { AppConfigModule } from '../../core/modules/config/app-config.module';
 import { SemanticChunkingService } from './services/semantic-chunking.service';
 
-
-/**
- * Shared Module
- *
- * Contains shared services and components used by all indexer sub-modules.
- * Following DEVELOPMENT_RULES.md: Clear module separation with focused exports.
- */
 @Module({
-  imports: [
-    ConfigModule, // Configuration management
-    AppConfigModule, // ✅ External service credentials (OpenAI, Qdrant, etc.)
-    QdrantModule, // Database layer
-    EmbeddingModule, // Embedding generation
-  ],
+  imports: [ConfigModule, AppConfigModule, QdrantModule, EmbeddingModule],
   providers: [
-    IndexerConfigService, // ✅ Centralized configuration
+    IndexerConfigService,
     UnifiedStorageService,
-    SemanticChunkingService, // ✅ Semantic text chunking for PDFs and other content
-
-    // Note: BaseIndexerService is abstract, so not provided directly
-    // Sub-modules will extend it in their concrete implementations
+    SemanticChunkingService,
   ],
   exports: [
-    IndexerConfigService, // ✅ Export configuration for sub-modules
+    IndexerConfigService,
     UnifiedStorageService,
-    SemanticChunkingService, // ✅ Export semantic chunking for sub-modules
-
-    // Export database and embedding modules for sub-modules
+    SemanticChunkingService,
     QdrantModule,
     EmbeddingModule,
   ],

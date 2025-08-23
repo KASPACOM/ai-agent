@@ -1,4 +1,5 @@
 import { MessageSource } from './message-source.enum';
+import { WebsiteClusteringMethod } from './website-clustering-method.enum';
 
 /**
  * Processing Status Enum
@@ -197,6 +198,23 @@ export interface MasterDocument {
   vectorDimensions?: number;
   embeddedAt?: string; // ISO string
   storedAt?: string; // ISO string
+
+  // ==========================================
+  // WEBSITE-SPECIFIC FIELDS (Optional)
+  // ==========================================
+  websiteRootUrl?: string;
+  websitePageUrls?: string[];
+  websiteClusterId?: string;
+  websiteClusterSize?: number;
+  websiteClusterMethod?: WebsiteClusteringMethod;
+  websiteSilhouetteScore?: number;
+  websiteIntraClusterDistance?: number;
+  websiteSectionTitle?: string;
+  // Distillation metadata
+  websiteDistilledTrackingId?: string; // stable id for grouped/parted items
+  websiteDistilledOrder?: string; // e.g. "1/3"
+  websiteTopics?: string[]; // topics extracted by LLM for website docs
+  websiteKeywords?: string[]; // keywords extracted by LLM for website docs
 }
 
 /**

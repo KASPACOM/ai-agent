@@ -7,7 +7,7 @@ import { MultiAgentService } from './multi-agent.service';
 import { OrchestratorService } from './orchestrator.service';
 
 // === LLM Services ===
-import { OpenAiAdapter } from './llms/openai.service';
+import { LlmModule } from '../llm/llm.module';
 
 // === Configuration ===
 import { OrchestratorConfigurationService } from './orchestrator.config';
@@ -29,15 +29,13 @@ import { SessionStorageService } from './session-storage.service';
     ConfigModule,
     HttpModule,
     AppConfigModule, // Import AppConfig for OpenAI configuration
+    LlmModule,
     PromptBuilderModule, // Import PromptBuilder for centralized prompt management
     MultiAgentModule, // Import MultiAgent for AgentFactory and all agent services
   ],
   providers: [
     // === Configuration ===
     OrchestratorConfigurationService,
-
-    // === LLM Services ===
-    OpenAiAdapter,
 
     // === Core Orchestration ===
     MultiAgentService,
@@ -49,9 +47,6 @@ import { SessionStorageService } from './session-storage.service';
   exports: [
     // === Configuration ===
     OrchestratorConfigurationService,
-
-    // === LLM Services ===
-    OpenAiAdapter,
 
     // === Primary Orchestration Service ===
     OrchestratorService,

@@ -29,8 +29,8 @@ import { MultiAgentService } from './multi-agent.service';
 import { PromptBuilderService } from '../prompt-builder/prompt-builder.service';
 
 // Import LLM service
-import { OpenAiAdapter } from './llms/openai.service';
-import { LlmConversation } from './llms/llm-adapter.interface';
+import { OpenAiAdapter } from '../llm/openai.service';
+import { LlmConversation } from '../llm/llm-adapter.interface';
 import { SHOULD_ANSWER_QUESTIONS_ROLE } from '../prompt-builder/roles/should-answer-questions.role';
 
 /**
@@ -428,12 +428,17 @@ export class OrchestratorService implements OnModuleInit {
 
     try {
       // Build synthesis prompt using PromptBuilder
-      this.logger.log(`[SYNTHESIS] ${stageId} - Building synthesis prompt using ${session.metadata.platform === 'twitter' ? 'twitter-synthesis-agent' : 'synthesis-agent'}`);
+      this.logger.log(
+        `[SYNTHESIS] ${stageId} - Building synthesis prompt using ${session.metadata.platform === 'twitter' ? 'twitter-synthesis-agent' : 'synthesis-agent'}`,
+      );
       const builtPrompt = this.promptBuilder.buildSynthesisPrompt({
         originalInput: flow.originalInput,
         agentResponses: flow.executionStage.agentResponses,
         session,
-        synthesisAgentPrompt: session.metadata.platform === 'twitter' ? 'twitter-synthesis-agent' : 'synthesis-agent',
+        synthesisAgentPrompt:
+          session.metadata.platform === 'twitter'
+            ? 'twitter-synthesis-agent'
+            : 'synthesis-agent',
       });
       this.logger.debug(
         `[SYNTHESIS] ${stageId} - Built prompt length: ${builtPrompt.prompt.length} characters`,
@@ -510,11 +515,13 @@ export class OrchestratorService implements OnModuleInit {
     }
   }
 
-
   /**
- * Call Decision LLM using OpenAI
- */
-  private async callShouldRespondDecisionLLM(userInput: string, role: string = SHOULD_ANSWER_QUESTIONS_ROLE.template): Promise<{
+   * Call Decision LLM using OpenAI
+   */
+  private async callShouldRespondDecisionLLM(
+    userInput: string,
+    role: string = SHOULD_ANSWER_QUESTIONS_ROLE.template,
+  ): Promise<{
     shouldRespond: boolean;
     reasoning: string;
   }> {
@@ -529,8 +536,7 @@ export class OrchestratorService implements OnModuleInit {
         messages: [
           {
             role: 'system',
-            content:
-              role,
+            content: role,
           },
           {
             role: 'user',
@@ -594,9 +600,6 @@ export class OrchestratorService implements OnModuleInit {
       };
     }
   }
-
-
-
 
   /**
    * Call Decision LLM using OpenAI

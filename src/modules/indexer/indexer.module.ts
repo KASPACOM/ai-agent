@@ -3,6 +3,7 @@ import { SharedModule } from './shared/shared.module';
 import { TelegramModule } from './telegram/telegram.module'; // ✅ Telegram module imported
 import { TwitterModule } from './twitter/twitter.module'; // ✅ Twitter module imported
 import { PDFModule } from './pdf/pdf.module'; // ✅ PDF module imported
+import { WebsiteModule } from './website/website.module';
 
 /**
  * Main Indexer Module
@@ -21,16 +22,18 @@ import { PDFModule } from './pdf/pdf.module'; // ✅ PDF module imported
 @Module({
   imports: [
     SharedModule,
-    // TelegramModule, // ✅ Independent telegram indexing
-    // TwitterModule, // ✅ Independent twitter indexing
+    TelegramModule, // ✅ Independent telegram indexing
+    TwitterModule, // ✅ Independent twitter indexing
     PDFModule, // ✅ Independent PDF processing
+    WebsiteModule, // ✅ Independent Website processing
   ],
   providers: [],
   exports: [
     SharedModule,
-    // TelegramModule, // ✅ Export telegram services
-    // TwitterModule, // ✅ Export twitter services
+    TelegramModule, // ✅ Export telegram services
+    TwitterModule, // ✅ Export twitter services
     PDFModule, // ✅ Export PDF services
+    WebsiteModule, // ✅ Export Website services
   ],
 })
 export class IndexerModule {}

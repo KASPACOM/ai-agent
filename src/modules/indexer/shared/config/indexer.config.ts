@@ -85,7 +85,10 @@ export class IndexerConfigService {
   }
 
   getTelegramBatchSize(): number {
-    return this.configService.get<number>('INDEXER_TELEGRAM_BATCH_SIZE', 1000);
+    return this.configService.get<number>(
+      'INDEXER_TELEGRAM_BATCH_SIZE',
+      100000,
+    );
   }
 
   /**

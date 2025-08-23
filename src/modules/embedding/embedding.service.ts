@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { OpenAI } from 'openai';
+import OpenAI from 'openai';
 import {
   EmbeddingRequest,
   EmbeddingResponse,
