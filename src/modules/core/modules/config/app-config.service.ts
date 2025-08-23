@@ -53,7 +53,7 @@ export class AppConfigService {
   }
 
   get getQdrantCollectionName(): string {
-    return this.configService.get('QDRANT_COLLECTION_NAME') || 'kaspa_tweets';
+    return this.configService.get('QDRANT_COLLECTION_NAME') || 'kasparebro';
   }
 
   // Twitter/X Data Collection config

@@ -21,7 +21,10 @@ export class TwitterMasterDocumentTransformer {
     accountHandle: string,
   ): MasterDocument {
     const now = new Date().toISOString();
-    const text = this.normalizeText(tweet.text || tweet.full_text || '');
+    const originalText = tweet.text || tweet.full_text || '';
+    const noteText = tweet.note_tweet?.text;
+    const finalText = noteText || originalText; // Use note_tweet if available, fallback to original
+    const text = this.normalizeText(finalText);
     const tweetId = tweet.id_str || tweet.id || `twitter_${Date.now()}`;
 
     return {
@@ -61,6 +64,11 @@ export class TwitterMasterDocumentTransformer {
         tweet.author?.public_metrics?.followers_count ||
         tweet.user?.public_metrics?.followers_count ||
         0,
+
+      // Tweet Content Processing
+      hasTweetNote: !!noteText, // true if note_tweet exists, false otherwise
+      twitterOriginalText: originalText, // Store original text with t.co links
+      twitterNoteText: noteText || undefined, // Store expanded text if available
 
       // Fields that will be populated during storage
       vector: undefined,

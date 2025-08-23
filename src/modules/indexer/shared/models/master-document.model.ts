@@ -135,6 +135,11 @@ export interface MasterDocument {
   twitterUserVerified?: boolean;
   twitterUserCreatedAt?: string; // ISO string
 
+  // Tweet Content Processing
+  hasTweetNote?: boolean; // true = has note_tweet, false = no note_tweet, null/undefined = unprocessed
+  twitterOriginalText?: string; // Original tweet.text (with t.co links, exact formatting)
+  twitterNoteText?: string; // Full note_tweet.text (expanded content)
+
   // ==========================================
   // PDF-SPECIFIC FIELDS (Optional)
   // ==========================================

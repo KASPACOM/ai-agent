@@ -4,7 +4,6 @@ import {
   UserV2,
   TweetSearchRecentV2Paginator,
   TwitterApiReadOnly,
-  TweetV2,
   TweetV2PaginableTimelineParams,
 } from 'twitter-api-v2';
 import {
@@ -16,7 +15,6 @@ import {
 import { TwitterTransformer } from './transformers/twitter-api.transformer';
 import { AppConfigService } from 'src/modules/core/modules/config/app-config.service';
 import { TelegramPublisherService } from '../telegram/publisher.service';
-
 
 const DEFAULT_TWEET_FIELDS: Partial<TweetV2PaginableTimelineParams> = {
   'tweet.fields': [
@@ -34,7 +32,7 @@ const DEFAULT_TWEET_FIELDS: Partial<TweetV2PaginableTimelineParams> = {
   ],
   'user.fields': ['id', 'name', 'username', 'verified'],
   expansions: ['author_id'],
-}
+};
 
 /**
  * Twitter API Service
@@ -56,7 +54,10 @@ export class TwitterApiService {
     lastRun: null as Date | null,
   };
 
-  constructor(private readonly appConfig: AppConfigService, private readonly telegramPublisherService: TelegramPublisherService) {
+  constructor(
+    private readonly appConfig: AppConfigService,
+    private readonly telegramPublisherService: TelegramPublisherService,
+  ) {
     // Initialize Twitter API client
     this.twitterClient = this.initializeTwitterClient();
     this.logger.log('TwitterApiService initialized');
@@ -402,16 +403,22 @@ export class TwitterApiService {
         searchOptions,
       );
 
-
       if (notFromIndexer) {
         let allTweets: Tweet[] = [];
 
         // here should get more if there is
-        let allUsersById = this.tranformIncludeUsersToObject(searchResults.includes.users || []);
+        let allUsersById = this.tranformIncludeUsersToObject(
+          searchResults.includes.users || [],
+        );
 
         // First page
         if (searchResults.data?.data) {
-          allTweets = allTweets.concat(TwitterTransformer.transformApiTweet(searchResults.data.data, allUsersById));
+          allTweets = allTweets.concat(
+            TwitterTransformer.transformApiTweet(
+              searchResults.data.data,
+              allUsersById,
+            ),
+          );
         }
 
         // Handle pagination if getAll === true
@@ -421,46 +428,71 @@ export class TwitterApiService {
             searchResults = await searchResults.next();
 
             if (searchResults.data?.data) {
-              allUsersById = { ...allUsersById, ...this.tranformIncludeUsersToObject(searchResults.includes.users || []) }
-              allTweets = allTweets.concat(TwitterTransformer.transformApiTweet(searchResults.data.data, allUsersById));
+              allUsersById = {
+                ...allUsersById,
+                ...this.tranformIncludeUsersToObject(
+                  searchResults.includes.users || [],
+                ),
+              };
+              allTweets = allTweets.concat(
+                TwitterTransformer.transformApiTweet(
+                  searchResults.data.data,
+                  allUsersById,
+                ),
+              );
             }
           }
         }
 
-
         if (getOnlyCommentIdWithParents) {
-          let targetTweet = typeof getOnlyCommentIdWithParents === 'string'
-            ? allTweets.find(tweet => tweet.id === getOnlyCommentIdWithParents)
-            : getOnlyCommentIdWithParents;
+          let targetTweet =
+            typeof getOnlyCommentIdWithParents === 'string'
+              ? allTweets.find(
+                  (tweet) => tweet.id === getOnlyCommentIdWithParents,
+                )
+              : getOnlyCommentIdWithParents;
 
           if (!targetTweet) {
-            targetTweet = await this.getTweetById(getOnlyCommentIdWithParents as string);
+            targetTweet = await this.getTweetById(
+              getOnlyCommentIdWithParents as string,
+            );
           }
           const tweetWithParents = [targetTweet];
 
           if (tweetWithParents.length > 0) {
-            while (tweetWithParents[tweetWithParents.length - 1]?.metadata?.raw_tweet?.referenced_tweets?.length) {
-              const referencedTweets = tweetWithParents[tweetWithParents.length - 1]?.metadata?.raw_tweet?.referenced_tweets || [];
+            while (
+              tweetWithParents[tweetWithParents.length - 1]?.metadata?.raw_tweet
+                ?.referenced_tweets?.length
+            ) {
+              const referencedTweets =
+                tweetWithParents[tweetWithParents.length - 1]?.metadata
+                  ?.raw_tweet?.referenced_tweets || [];
 
-              const referencedTweetIds = referencedTweets.map(rt => rt.id);
-              const relatedTweets = allTweets.filter(tweet => referencedTweetIds.includes(tweet.id));
+              const referencedTweetIds = referencedTweets.map((rt) => rt.id);
+              const relatedTweets = allTweets.filter((tweet) =>
+                referencedTweetIds.includes(tweet.id),
+              );
 
               tweetWithParents.push(...relatedTweets);
 
-              const missingTweets = referencedTweetIds.filter(id => !allTweets.some(tweet => tweet.id === id));
+              const missingTweets = referencedTweetIds.filter(
+                (id) => !allTweets.some((tweet) => tweet.id === id),
+              );
 
               for (const missingTweetId of missingTweets) {
                 try {
-                  const additionalPost = await this.getTweetById(missingTweetId);
+                  const additionalPost =
+                    await this.getTweetById(missingTweetId);
 
                   tweetWithParents.push(additionalPost);
-
                 } catch (error) {
-                  this.logger.error(`Failed to get tweet ${missingTweetId}: ${error.message} for thread history. continuing without data...`);
+                  this.logger.error(
+                    `Failed to get tweet ${missingTweetId}: ${error.message} for thread history. continuing without data...`,
+                  );
                 }
               }
             }
-          };
+          }
 
           return tweetWithParents.reverse();
         }
@@ -495,7 +527,6 @@ export class TwitterApiService {
       ? searchResults.data
       : [];
     for (const tweet of searchData) {
-
       const transformedTweet = TwitterTransformer.transformApiTweet(
         tweet,
         this.tranformIncludeUsersToObject(searchResults.includes?.users),
@@ -540,7 +571,10 @@ export class TwitterApiService {
   /**
    * Post a comment (reply) to a tweet
    */
-  async postComment(status: string, inReplyToTweetId: string): Promise<{
+  async postComment(
+    status: string,
+    inReplyToTweetId: string,
+  ): Promise<{
     id: string;
     text: string;
   }> {
@@ -576,10 +610,14 @@ export class TwitterApiService {
    * Dummy function to notify telegram that the bot wants to post/comment on Twitter
    * (because this is a bad idea)
    */
-  async notifyTelegramAboutTwitterIntent(status: string, postId?: string): Promise<void> {
-    this.telegramPublisherService.sendChannelMessage(`Bot wants to ${postId ? 'comment' : 'post'} on Twitter: "${status}"${postId ? ` (replying to ${postId} - https://twitter.com/user/status/${postId})` : ''}`);
+  async notifyTelegramAboutTwitterIntent(
+    status: string,
+    postId?: string,
+  ): Promise<void> {
+    this.telegramPublisherService.sendChannelMessage(
+      `Bot wants to ${postId ? 'comment' : 'post'} on Twitter: "${status}"${postId ? ` (replying to ${postId} - https://twitter.com/user/status/${postId})` : ''}`,
+    );
   }
-
 
   /**
    * Get tweet by ID
@@ -590,7 +628,10 @@ export class TwitterApiService {
         ...DEFAULT_TWEET_FIELDS,
       });
 
-      return TwitterTransformer.transformApiTweet(tweet.data, this.tranformIncludeUsersToObject(tweet.includes.users));
+      return TwitterTransformer.transformApiTweet(
+        tweet.data,
+        this.tranformIncludeUsersToObject(tweet.includes.users),
+      );
     } catch (error) {
       this.logger.error(`Failed to get tweet ${tweetId}: ${error.message}`);
       this.apiStats.errors.push(`Get tweet by ID failed: ${error.message}`);
@@ -598,12 +639,49 @@ export class TwitterApiService {
     }
   }
 
-  async getThreadByConversationId(conversationId: string, getOnlyCommentWithParents?: Tweet | string): Promise<Tweet[]> {
-    return await this.searchTweets(`conversation_id:${conversationId}`, 100, undefined, undefined, true, true, getOnlyCommentWithParents);
+  /**
+   * Get tweet by ID and include rate limit metadata from headers
+   */
+  async getTweetByIdWithMeta(tweetId: string): Promise<{
+    tweet: Tweet | null;
+    rateLimit?: { limit: number; remaining: number; reset: number };
+  }> {
+    try {
+      const res: any = await this.twitterClient.v2.singleTweet(tweetId, {
+        ...DEFAULT_TWEET_FIELDS,
+      });
+
+      const rateLimit = res?.rateLimit || res?._rateLimit || undefined;
+
+      const tweet = TwitterTransformer.transformApiTweet(
+        res.data,
+        this.tranformIncludeUsersToObject(res.includes?.users),
+      );
+
+      return { tweet, rateLimit };
+    } catch (error) {
+      this.logger.error(`Failed to get tweet ${tweetId}: ${error.message}`);
+      this.apiStats.errors.push(`Get tweet by ID failed: ${error.message}`);
+      // Try to surface ratelimit info even on errors
+      const rateLimit = (error as any)?.rateLimit || (error as any)?._rateLimit;
+      return { tweet: null, rateLimit };
+    }
   }
 
-
-
+  async getThreadByConversationId(
+    conversationId: string,
+    getOnlyCommentWithParents?: Tweet | string,
+  ): Promise<Tweet[]> {
+    return await this.searchTweets(
+      `conversation_id:${conversationId}`,
+      100,
+      undefined,
+      undefined,
+      true,
+      true,
+      getOnlyCommentWithParents,
+    );
+  }
 
   /**
    * Fetch tweets mentioning the specified user
@@ -613,12 +691,10 @@ export class TwitterApiService {
     maxResults?: number;
     userId?: string;
     startTime?: Date; // ← new
-    endTime?: Date;   // ← new  
+    endTime?: Date; // ← new
   }): Promise<Tweet[]> {
     try {
-
       if (!options.userId) {
-
         if (!options.username) {
           throw new Error('Username or user ID is required');
         }
@@ -633,30 +709,37 @@ export class TwitterApiService {
         end_time: options.endTime?.toISOString(),
         ...DEFAULT_TWEET_FIELDS,
       };
-  
 
       // Step 2: Fetch mentions timeline
-      const mentions = await this.twitterClient.v2.userMentionTimeline(options.userId, apiOptions);
+      const mentions = await this.twitterClient.v2.userMentionTimeline(
+        options.userId,
+        apiOptions,
+      );
 
       // Step 3: Transform and return
       const tweets: Tweet[] = [];
-      const mentionsData = Array.isArray(mentions.data?.data) ? mentions.data.data : [];
+      const mentionsData = Array.isArray(mentions.data?.data)
+        ? mentions.data.data
+        : [];
       for (const tweet of mentionsData) {
-        const author = mentions.data?.includes?.users?.find(
-          (u) => u.id === tweet.author_id,
+        const transformedTweet = TwitterTransformer.transformApiTweet(
+          tweet,
+          this.tranformIncludeUsersToObject(mentions.data?.includes?.users),
         );
-        const transformedTweet = TwitterTransformer.transformApiTweet(tweet, this.tranformIncludeUsersToObject(mentions.data?.includes?.users));
         tweets.push(transformedTweet);
       }
-      this.logger.log(`Fetched ${tweets.length} mentions for ${options.username ? options.username : options.userId}`);
+      this.logger.log(
+        `Fetched ${tweets.length} mentions for ${options.username ? options.username : options.userId}`,
+      );
       return tweets;
     } catch (error) {
-      this.logger.error(`Failed to fetch mentions for ${options.username ? options.username : options.userId}: ${error.message}`);
+      this.logger.error(
+        `Failed to fetch mentions for ${options.username ? options.username : options.userId}: ${error.message}`,
+      );
       this.apiStats.errors.push(`Fetch mentions failed: ${error.message}`);
       throw error;
     }
   }
-
 
   protected tranformIncludeUsersToObject(users: UserV2[]) {
     if (!users || users.length === 0) {
