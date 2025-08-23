@@ -250,6 +250,12 @@ export class TelegramIndexerService extends BaseIndexerService {
         this.logger.debug(
           `No more messages available for ${channel.username}:${topicId || 'main'}`,
         );
+        // Mark complete and update lastIndexedAt when no new messages
+        await this.telegramHistory.updateHistory(channel.username, topicId, {
+          isComplete: true,
+          errors: errors.length > 0 ? errors : undefined,
+          clearErrors: errors.length === 0,
+        });
         return {
           success: true,
           processed: 0,
@@ -275,7 +281,7 @@ export class TelegramIndexerService extends BaseIndexerService {
             TelegramMasterDocumentTransformer.transformTelegramApiResponseToMasterDocument(
               telegramMsg,
               channel,
-              history.topicTitle, // ✅ Pass topic title from history
+              { topicId, topicTitle: history.topicTitle },
             );
           masterDocuments.push(masterDoc);
           processed++;

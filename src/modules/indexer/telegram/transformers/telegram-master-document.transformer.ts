@@ -21,10 +21,13 @@ export class TelegramMasterDocumentTransformer {
   static transformTelegramApiResponseToMasterDocument(
     telegramMsg: any,
     channel: TelegramChannelConfig,
-    topicTitle?: string,
+    options?: { topicId?: number; topicTitle?: string },
   ): MasterDocument {
     const now = new Date().toISOString();
     const text = telegramMsg.text || telegramMsg.message || '';
+
+    // Derive topic id: prefer explicit option, fallback to replyToTopId if available
+    const derivedTopicId = options?.topicId ?? telegramMsg?.replyTo?.replyToTopId;
 
     return {
       id: `telegram_${telegramMsg.id}_${channel.username}`,
@@ -49,8 +52,10 @@ export class TelegramMasterDocumentTransformer {
 
       // Telegram-specific fields
       telegramChannelTitle: channel.title,
-      telegramTopicId: telegramMsg.topic_id,
-      telegramTopicTitle: topicTitle, // ✅ Now capturing topic title
+      telegramChannelUsername: channel.username,
+      telegramChannelId: channel.id,
+      telegramTopicId: derivedTopicId,
+      telegramTopicTitle: options?.topicTitle, // ✅ Now capturing topic title
       telegramMessageType: this.determineTelegramMessageType(telegramMsg),
 
       // Fields that will be populated during storage
