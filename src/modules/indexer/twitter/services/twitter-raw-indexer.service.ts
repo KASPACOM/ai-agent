@@ -75,12 +75,18 @@ export class TwitterRawIndexerService extends BaseIndexerService {
           const isBackfill = !status?.lastFullSync || !status?.isComplete;
           const pageBudget = Math.max(1, Math.min(sel.requestBudget, 5));
 
-          const { stored, latest, earliest, hasMore, requestsUsed, rateLimited } =
-            await this.processAccount(client, sel.account, {
-              mode: isBackfill ? 'backfill' : 'head',
-              pageLimit: pageBudget,
-              sinceIso: status?.latestTweetDate,
-            });
+          const {
+            stored,
+            latest,
+            earliest,
+            hasMore,
+            requestsUsed,
+            rateLimited,
+          } = await this.processAccount(client, sel.account, {
+            mode: isBackfill ? 'backfill' : 'head',
+            pageLimit: pageBudget,
+            sinceIso: status?.latestTweetDate,
+          });
 
           totalStored += stored;
           totalRequestsUsed += requestsUsed;
@@ -150,11 +156,15 @@ export class TwitterRawIndexerService extends BaseIndexerService {
   ): Promise<{
     stored: number;
     hasMore: boolean;
+    requestsUsed: number;
+    rateLimited: boolean;
     latest?: { id: string; date: string };
     earliest?: { id: string; date: string };
   }> {
     const nowIso = new Date().toISOString();
     const collected: RawTweetRecord[] = [];
+    let requestsUsed = 0;
+    let rateLimited = false;
 
     if (opts.mode === 'head') {
       // Use the generic API service behavior via client pagination but stop at sinceIso
@@ -198,50 +208,61 @@ export class TwitterRawIndexerService extends BaseIndexerService {
         }
         if (stop || !page.data?.meta?.next_token) break;
         token = page.data.meta.next_token;
+        requestsUsed++;
       }
     } else {
       const user = await client.v2.userByUsername(username);
       let token: string | undefined = undefined;
       let pages = 0;
       while (pages < opts.pageLimit) {
-        const page = await client.v2.userTimeline(user.data.id, {
-          max_results: 100,
-          'tweet.fields': [
-            'id',
-            'text',
-            'author_id',
-            'conversation_id',
-            'created_at',
-            'public_metrics',
-            'lang',
-            'context_annotations',
-            'entities',
-            'referenced_tweets',
-            'note_tweet',
-          ],
-          expansions: ['author_id'],
-          'user.fields': ['id', 'name', 'username', 'verified'],
-          pagination_token: token,
-        });
-        const data = page.data?.data || [];
-        for (const t of data) {
-          const createdAt = new Date(t.created_at);
-          collected.push({
-            id: String(t.id),
-            username: username.toLowerCase(),
-            createdAt: createdAt.toISOString(),
-            payload: t as unknown as Record<string, unknown>,
-            fetchedAt: nowIso,
+        try {
+          const page = await client.v2.userTimeline(user.data.id, {
+            max_results: 100,
+            'tweet.fields': [
+              'id',
+              'text',
+              'author_id',
+              'conversation_id',
+              'created_at',
+              'public_metrics',
+              'lang',
+              'context_annotations',
+              'entities',
+              'referenced_tweets',
+              'note_tweet',
+            ],
+            expansions: ['author_id'],
+            'user.fields': ['id', 'name', 'username', 'verified'],
+            pagination_token: token,
           });
+          const data = page.data?.data || [];
+          for (const t of data) {
+            const createdAt = new Date(t.created_at);
+            collected.push({
+              id: String(t.id),
+              username: username.toLowerCase(),
+              createdAt: createdAt.toISOString(),
+              payload: t as unknown as Record<string, unknown>,
+              fetchedAt: nowIso,
+            });
+          }
+          pages++;
+          const next = page.data?.meta?.next_token;
+          if (!next) break;
+          token = next;
+        } catch (err: any) {
+          if (err?.code === 429 || err?.status === 429) {
+            rateLimited = true;
+            break;
+          }
+          throw err;
         }
-        pages++;
-        if (!page.data?.meta?.next_token) break;
-        token = page.data.meta.next_token;
+        requestsUsed++;
       }
     }
 
     if (collected.length === 0) {
-      return { stored: 0, hasMore: false };
+      return { stored: 0, hasMore: false, requestsUsed, rateLimited };
     }
 
     // Determine latest/earliest
@@ -255,7 +276,13 @@ export class TwitterRawIndexerService extends BaseIndexerService {
 
     return {
       stored: res.stored,
-      hasMore: opts.mode === 'backfill' ? collected.length > 0 : false,
+      hasMore:
+        opts.mode === 'backfill'
+          ? // Only if we stopped due to budget while another page existed (requestsUsed hit budget)
+            requestsUsed >= opts.pageLimit
+          : false,
+      requestsUsed,
+      rateLimited,
       latest:
         opts.mode === 'head'
           ? { id: latest.id, date: latest.createdAt }
