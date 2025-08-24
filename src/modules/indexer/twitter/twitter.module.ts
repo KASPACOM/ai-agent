@@ -18,7 +18,6 @@ import { AccountRotationService } from './services/account-rotation.service';
 import { TwitterService } from './services/twitter.service';
 import { OrchestratorModule } from 'src/modules/orchestrator/orchestrator.module';
 import { TwitterRawStorageService } from './services/twitter-raw-storage.service';
-import { TwitterRawCollectorService } from './services/twitter-raw-collector.service';
 import { TwitterDocGenerationService } from './services/twitter-doc-generation.service';
 import { TwitterRawIndexerService } from './services/twitter-raw-indexer.service';
 
@@ -55,7 +54,6 @@ import { TwitterRawIndexerService } from './services/twitter-raw-indexer.service
     AccountRotationService, // Account management and rotation (local copy)
     TwitterService,
     TwitterRawStorageService,
-    TwitterRawCollectorService,
     TwitterDocGenerationService,
     TwitterRawIndexerService,
   ],
@@ -65,7 +63,6 @@ import { TwitterRawIndexerService } from './services/twitter-raw-indexer.service
     TwitterNoteUpdateService,
     AccountRotationService, // Export for potential shared use
     TwitterService,
-    TwitterRawCollectorService,
     TwitterDocGenerationService,
     TwitterRawIndexerService,
   ],
