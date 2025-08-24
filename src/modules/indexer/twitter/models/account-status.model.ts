@@ -17,6 +17,12 @@ export interface AccountStatus {
   syncedTweets: number; // How many tweets we've indexed
   createdAt: Date;
   updatedAt: Date;
+
+  // Optional RAW-only offsets (used when rotating RAW collection)
+  latestTweetDate?: string; // ISO
+  latestTweetId?: string;
+  earliestTweetDate?: string;
+  earliestTweetId?: string;
 }
 
 export interface AccountRotationConfig {

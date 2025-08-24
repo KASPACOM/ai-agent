@@ -180,4 +180,35 @@ export class IndexerConfigService {
       '550e8400-e29b-41d4-a716-446655440001',
     );
   }
+
+  /**
+   * Twitter RAW Collections (new pipeline)
+   */
+  getTwitterRawCollectionName(): string {
+    return this.configService.get<string>(
+      'INDEXER_TWITTER_RAW_COLLECTION_NAME',
+      'twitter_raw',
+    );
+  }
+
+  getTwitterRawUuidNamespace(): string {
+    return this.configService.get<string>(
+      'INDEXER_TWITTER_RAW_UUID_NAMESPACE',
+      '550e8400-e29b-41d4-a716-446655440010',
+    );
+  }
+
+  getTwitterRawHistoryCollectionName(): string {
+    return this.configService.get<string>(
+      'INDEXER_TWITTER_RAW_HISTORY_COLLECTION_NAME',
+      'twitter_raw_history',
+    );
+  }
+
+  getTwitterRawHistoryUuidNamespace(): string {
+    return this.configService.get<string>(
+      'INDEXER_TWITTER_RAW_HISTORY_UUID_NAMESPACE',
+      '550e8400-e29b-41d4-a716-446655440011',
+    );
+  }
 }

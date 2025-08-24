@@ -10,6 +10,11 @@ import {
   AccountSyncStatus,
 } from '../models/account-status.model';
 
+export enum RotationMode {
+  CLASSIC = 'CLASSIC',
+  RAW = 'RAW',
+}
+
 /**
  * Account Rotation Service (Indexer Module)
  *
@@ -28,8 +33,9 @@ import {
 export class AccountRotationService {
   private readonly logger = new Logger(AccountRotationService.name);
 
-  // Collection name for Twitter account status tracking
+  // Collection names for status tracking
   private readonly TWITTER_HISTORY_COLLECTION: string;
+  private readonly TWITTER_RAW_HISTORY_COLLECTION: string;
 
   // Default configuration - can be overridden via environment
   private readonly config: AccountRotationConfig = {
@@ -51,24 +57,26 @@ export class AccountRotationService {
     // Initialize collection name from configuration
     this.TWITTER_HISTORY_COLLECTION =
       this.indexerConfig.getTwitterHistoryCollectionName();
+    this.TWITTER_RAW_HISTORY_COLLECTION =
+      this.indexerConfig.getTwitterRawHistoryCollectionName();
   }
 
   /**
    * Initialize the Twitter history collection on module startup
    */
   async onModuleInit() {
-    await this.ensureTwitterHistoryCollection();
+    await this.ensureCollection(RotationMode.CLASSIC);
+    await this.ensureCollection(RotationMode.RAW);
   }
 
   /**
    * Ensure Twitter history collection exists (lazy creation)
    * Handles race conditions where multiple processes try to create the same collection
    */
-  private async ensureTwitterHistoryCollection(): Promise<void> {
+  private async ensureCollection(mode: RotationMode): Promise<void> {
     try {
-      const exists = await this.qdrantClient.collectionExists(
-        this.TWITTER_HISTORY_COLLECTION,
-      );
+      const collection = this.getCollectionName(mode);
+      const exists = await this.qdrantClient.collectionExists(collection);
 
       if (exists) {
         return; // Collection already exists
@@ -86,13 +94,8 @@ export class AccountRotationService {
         replication_factor: 1,
       };
 
-      await this.qdrantClient.createCollection(
-        this.TWITTER_HISTORY_COLLECTION,
-        config,
-      );
-      this.logger.log(
-        `✅ Created Twitter history collection: ${this.TWITTER_HISTORY_COLLECTION}`,
-      );
+      await this.qdrantClient.createCollection(collection, config);
+      this.logger.log(`✅ Created Twitter history collection: ${collection}`);
     } catch (error) {
       // Handle race condition: if another process created the collection, that's actually success
       if (
@@ -100,7 +103,7 @@ export class AccountRotationService {
         error.message?.includes('already exists')
       ) {
         this.logger.debug(
-          `Collection ${this.TWITTER_HISTORY_COLLECTION} already exists (created by another process)`,
+          `Collection ${this.getCollectionName(mode)} already exists (created by another process)`,
         );
         return; // This is actually success - another process created it
       }
@@ -113,12 +116,21 @@ export class AccountRotationService {
     }
   }
 
+  private getCollectionName(mode: RotationMode): string {
+    return mode === RotationMode.RAW
+      ? this.TWITTER_RAW_HISTORY_COLLECTION
+      : this.TWITTER_HISTORY_COLLECTION;
+  }
+
   /**
    * Select accounts to process in current run based on intelligent rotation
    * @param availableRequests - Total API requests available for this run
    * @returns Array of accounts to process with allocated request budgets
    */
-  async selectAccountsForProcessing(availableRequests: number): Promise<
+  async selectAccountsForProcessing(
+    availableRequests: number,
+    mode: RotationMode = RotationMode.CLASSIC,
+  ): Promise<
     Array<{
       account: string;
       requestBudget: number;
@@ -131,7 +143,7 @@ export class AccountRotationService {
     );
 
     // Get current status of all configured accounts
-    const accountStatuses = await this.getAllAccountStatuses();
+    const accountStatuses = await this.getAllAccountStatuses(mode);
 
     // Calculate selection scores and priorities
     const scoredAccounts = accountStatuses
@@ -161,8 +173,9 @@ export class AccountRotationService {
       hasMoreData?: boolean;
       errors?: string[];
     },
+    mode: RotationMode = RotationMode.CLASSIC,
   ): Promise<void> {
-    const existing = await this.getAccountStatus(account);
+    const existing = await this.getAccountStatus(account, mode);
     const now = new Date();
 
     const updated: Partial<AccountStatus> = {
@@ -191,7 +204,7 @@ export class AccountRotationService {
       this.processingSession.set(account, updated.consecutiveRuns!);
     }
 
-    await this.upsertAccountStatus(account, updated);
+    await this.upsertAccountStatus(account, updated, mode);
   }
 
   /**
@@ -203,7 +216,7 @@ export class AccountRotationService {
     completedAccounts: number;
     accountsWithErrors: number;
   }> {
-    const allStatuses = await this.getAllAccountStatuses();
+    const allStatuses = await this.getAllAccountStatuses(RotationMode.CLASSIC);
 
     return {
       totalAccounts: allStatuses.length,
@@ -218,12 +231,14 @@ export class AccountRotationService {
   /**
    * Get comprehensive status for all configured accounts
    */
-  private async getAllAccountStatuses(): Promise<AccountWithStatus[]> {
+  private async getAllAccountStatuses(
+    mode: RotationMode,
+  ): Promise<AccountWithStatus[]> {
     // ✅ Get Twitter accounts from environment variables (config fallback)
     const configuredAccounts = this.getTwitterAccounts();
     const statuses = await Promise.all(
       configuredAccounts.map((account) =>
-        this.getEnrichedAccountStatus(account),
+        this.getEnrichedAccountStatus(account, mode),
       ),
     );
 
@@ -249,8 +264,9 @@ export class AccountRotationService {
    */
   private async getEnrichedAccountStatus(
     account: string,
+    mode: RotationMode,
   ): Promise<AccountWithStatus> {
-    const status = await this.getAccountStatus(account);
+    const status = await this.getAccountStatus(account, mode);
     const now = new Date();
 
     // Default values for new accounts
@@ -472,13 +488,14 @@ export class AccountRotationService {
    */
   private async getAccountStatus(
     account: string,
+    mode: RotationMode = RotationMode.CLASSIC,
   ): Promise<AccountStatus | null> {
     try {
       // Ensure collection exists before querying
-      await this.ensureTwitterHistoryCollection();
+      await this.ensureCollection(mode);
 
       const results = await this.qdrantRepository.searchVectors(
-        this.TWITTER_HISTORY_COLLECTION,
+        this.getCollectionName(mode),
         [0], // dummy vector since we only care about payload
         1,
         {
@@ -521,15 +538,19 @@ export class AccountRotationService {
   private async upsertAccountStatus(
     account: string,
     updates: Partial<AccountStatus>,
+    mode: RotationMode = RotationMode.CLASSIC,
   ): Promise<void> {
     try {
       const normalizedAccount = account.toLowerCase();
 
       // Ensure collection exists before upserting
-      await this.ensureTwitterHistoryCollection();
+      await this.ensureCollection(mode);
 
       // Get existing status or create new one
-      const existingStatus = await this.getAccountStatus(normalizedAccount);
+      const existingStatus = await this.getAccountStatus(
+        normalizedAccount,
+        mode,
+      );
       const now = new Date();
 
       // Merge updates with existing status using correct field names
@@ -594,7 +615,7 @@ export class AccountRotationService {
       );
 
       // Upsert the point
-      await this.qdrantClient.upsertPoints(this.TWITTER_HISTORY_COLLECTION, [
+      await this.qdrantClient.upsertPoints(this.getCollectionName(mode), [
         point,
       ]);
 
