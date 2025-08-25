@@ -20,15 +20,31 @@ export class TwitterRawStorageService {
     private readonly config: IndexerConfigService,
   ) {}
 
-  async storeBatch(tweets: RawTweetRecord[]): Promise<{ stored: number }> {
+  async storeBatch(
+    tweets: RawTweetRecord[],
+  ): Promise<{ stored: number; duplicates: number }> {
     await this.ensureCollectionExists();
-    const points = tweets.map((t) => ({
+    if (tweets.length === 0) return { stored: 0, duplicates: 0 };
+
+    const collection = this.getCollectionName();
+    const ids = tweets.map((t) => this.hashId(t.id));
+
+    // Retrieve existing points to filter duplicates
+    const existing = await this.qdrant.getPoints(collection, ids);
+    const existingIds = new Set<string>(existing.map((p: any) => String(p.id)));
+
+    const newTweets = tweets.filter((t) => !existingIds.has(this.hashId(t.id)));
+    if (newTweets.length === 0) {
+      return { stored: 0, duplicates: tweets.length };
+    }
+
+    const points = newTweets.map((t) => ({
       id: this.hashId(t.id),
       vector: [1],
       payload: t,
     }));
-    await this.qdrant.upsertPoints(this.getCollectionName(), points);
-    return { stored: points.length };
+    await this.qdrant.upsertPoints(collection, points);
+    return { stored: points.length, duplicates: tweets.length - points.length };
   }
 
   async querySince(
@@ -66,6 +82,60 @@ export class TwitterRawStorageService {
       a.createdAt > b.createdAt ? a : b,
     );
     return { id: latest.id, createdAt: latest.createdAt };
+  }
+
+  async getLatestForAccountWithoutVector(
+    username: string,
+  ): Promise<{ id: string; createdAt: string } | undefined> {
+    await this.ensureCollectionExists();
+    const collection = this.getCollectionName();
+    const uname = username.toLowerCase();
+    let offset: any = undefined;
+    let latest: RawTweetRecord | undefined;
+    do {
+      const page = await this.qdrant.scrollPoints(collection, {
+        with_payload: true,
+        with_vector: false,
+        limit: 1000,
+        offset,
+        filter: { must: [{ key: 'username', match: { value: uname } }] },
+      });
+      const points = page?.points || [];
+      for (const p of points) {
+        const rec = p.payload as RawTweetRecord;
+        if (!latest || rec.createdAt > latest.createdAt) latest = rec;
+      }
+      offset = page?.next_page_offset;
+    } while (offset);
+    if (!latest) return undefined;
+    return { id: latest.id, createdAt: latest.createdAt };
+  }
+
+  async getEarliestForAccountWithoutVector(
+    username: string,
+  ): Promise<{ id: string; createdAt: string } | undefined> {
+    await this.ensureCollectionExists();
+    const collection = this.getCollectionName();
+    const uname = username.toLowerCase();
+    let offset: any = undefined;
+    let earliest: RawTweetRecord | undefined;
+    do {
+      const page = await this.qdrant.scrollPoints(collection, {
+        with_payload: true,
+        with_vector: false,
+        limit: 1000,
+        offset,
+        filter: { must: [{ key: 'username', match: { value: uname } }] },
+      });
+      const points = page?.points || [];
+      for (const p of points) {
+        const rec = p.payload as RawTweetRecord;
+        if (!earliest || rec.createdAt < earliest.createdAt) earliest = rec;
+      }
+      offset = page?.next_page_offset;
+    } while (offset);
+    if (!earliest) return undefined;
+    return { id: earliest.id, createdAt: earliest.createdAt };
   }
 
   private getCollectionName(): string {

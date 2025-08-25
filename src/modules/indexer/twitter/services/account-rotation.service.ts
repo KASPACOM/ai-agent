@@ -130,6 +130,7 @@ export class AccountRotationService {
   async selectAccountsForProcessing(
     availableRequests: number,
     mode: RotationMode = RotationMode.CLASSIC,
+    maxAccounts?: number,
   ): Promise<
     Array<{
       account: string;
@@ -150,11 +151,14 @@ export class AccountRotationService {
       .map((account) => this.calculateAccountScore(account))
       .sort((a, b) => b.totalScore - a.totalScore);
 
+    // Optionally cap number of accounts before allocation
+    const capped =
+      typeof maxAccounts === 'number' && maxAccounts > 0
+        ? scoredAccounts.slice(0, maxAccounts)
+        : scoredAccounts;
+
     // Allocate requests using weighted fair queuing
-    const selectedAccounts = this.allocateRequests(
-      scoredAccounts,
-      availableRequests,
-    );
+    const selectedAccounts = this.allocateRequests(capped, availableRequests);
 
     // Log selection rationale
     this.logSelectionRationale(selectedAccounts);
@@ -172,6 +176,12 @@ export class AccountRotationService {
       messagesIndexed?: number;
       hasMoreData?: boolean;
       errors?: string[];
+      // optional offsets for RAW flow
+      latestTweetDate?: string;
+      latestTweetId?: string;
+      earliestTweetDate?: string;
+      earliestTweetId?: string;
+      requestsUsed?: number;
     },
     mode: RotationMode = RotationMode.CLASSIC,
   ): Promise<void> {
@@ -186,6 +196,11 @@ export class AccountRotationService {
         result.messagesIndexed > 0 && { lastPartialSync: now }),
       updatedAt: now,
       consecutiveRuns: (this.processingSession.get(account) || 0) + 1,
+      latestTweetDate: result.latestTweetDate,
+      latestTweetId: result.latestTweetId,
+      earliestTweetDate: result.earliestTweetDate,
+      earliestTweetId: result.earliestTweetId,
+      requestsUsed: result.requestsUsed ?? existing?.requestsUsed ?? 0,
     };
 
     // Update completion status
@@ -535,6 +550,14 @@ export class AccountRotationService {
     }
   }
 
+  // Public facade for audit/consumers
+  async getStatus(
+    account: string,
+    mode: RotationMode = RotationMode.CLASSIC,
+  ): Promise<AccountStatus | null> {
+    return this.getAccountStatus(account, mode);
+  }
+
   private async upsertAccountStatus(
     account: string,
     updates: Partial<AccountStatus>,
@@ -648,5 +671,14 @@ export class AccountRotationService {
     }
     // Ensure we always return a positive number within Qdrant's acceptable range
     return Math.abs(hash) || 1; // Use 1 if hash is 0
+  }
+
+  // Public reconcile helpers
+  async setSyncedTweets(
+    account: string,
+    count: number,
+    mode: RotationMode = RotationMode.CLASSIC,
+  ): Promise<void> {
+    await this.upsertAccountStatus(account, { syncedTweets: count }, mode);
   }
 }

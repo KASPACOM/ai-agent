@@ -1,8 +1,9 @@
-import { Controller, Post, Logger, OnModuleInit } from '@nestjs/common';
+import { Controller, Post, Logger, Get, Query } from '@nestjs/common';
 import { TwitterIndexerService } from '../services/twitter-indexer.service';
-import { AccountRotationService } from '../services/account-rotation.service';
 import { IndexingResult } from '../../shared/models/indexer-result.model';
 import { TwitterService } from '../services/twitter.service';
+import { TwitterRawAuditService } from '../services/twitter-raw-audit.service';
+import { AppConfigService } from 'src/modules/core/modules/config/app-config.service';
 
 /**
  * Twitter Controller
@@ -17,6 +18,8 @@ export class TwitterController {
   constructor(
     private readonly twitterIndexer: TwitterIndexerService,
     private readonly twitterService: TwitterService,
+    private readonly rawAudit: TwitterRawAuditService,
+    private readonly appConfig: AppConfigService,
   ) {}
 
   /**
@@ -32,6 +35,21 @@ export class TwitterController {
   @Post('mentions')
   async triggerManualRunMentions(): Promise<IndexingResult> {
     this.logger.log('Manual twitter mentions indexing triggered via API');
-    return await this.twitterService.checkForBotMentionsAndRespondIfNeeded(); 
+    return await this.twitterService.checkForBotMentionsAndRespondIfNeeded();
+  }
+
+  @Get('raw/audit')
+  async auditRaw(@Query('account') account?: string): Promise<any> {
+    if (account) return this.rawAudit.auditAccount(account);
+    const accounts = this.appConfig.getTwitterAccountsConfig || [];
+    return this.rawAudit.auditAll(accounts);
+  }
+
+  @Post('raw/reconcile-counts')
+  async reconcileCounts(@Query('account') account?: string): Promise<any> {
+    const accounts = account
+      ? [account]
+      : this.appConfig.getTwitterAccountsConfig || [];
+    return this.rawAudit.reconcileCounts(accounts);
   }
 }

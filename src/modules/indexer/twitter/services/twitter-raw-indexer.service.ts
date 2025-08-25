@@ -17,6 +17,7 @@ import {
   TwitterRawStorageService,
   RawTweetRecord,
 } from './twitter-raw-storage.service';
+import { twitterTimelineFields } from '../consts/twitter-query';
 
 @Injectable()
 export class TwitterRawIndexerService extends BaseIndexerService {
@@ -68,47 +69,61 @@ export class TwitterRawIndexerService extends BaseIndexerService {
 
       for (const sel of selected) {
         try {
-          const status = await (this.rotation as any).getAccountStatus?.(
+          const status = await this.rotation.getStatus(
             sel.account,
             RotationMode.RAW,
           );
-          const isBackfill = !status?.lastFullSync || !status?.isComplete;
           const pageBudget = Math.max(1, Math.min(sel.requestBudget, 5));
 
-          const {
-            stored,
-            latest,
-            earliest,
-            hasMore,
-            requestsUsed,
-            rateLimited,
-          } = await this.processAccount(client, sel.account, {
-            mode: isBackfill ? 'backfill' : 'head',
+          // Head pass
+          const head = await this.processAccount(client, sel.account, {
+            mode: 'head',
             pageLimit: pageBudget,
             sinceIso: status?.latestTweetDate,
+            latestId: status?.latestTweetId,
           });
 
-          totalStored += stored;
-          totalRequestsUsed += requestsUsed;
-          if (rateLimited) anyRateLimited = true;
-          if (hasMore) anyHasMore = true;
+          // Backfill pass if budget remains and account not complete
+          const remaining = Math.max(0, pageBudget - (head.requestsUsed || 0));
+          let backfill: typeof head | undefined = undefined;
+          const shouldBackfill = remaining > 0 && !status?.isComplete;
+          if (shouldBackfill) {
+            backfill = await this.processAccount(client, sel.account, {
+              mode: 'backfill',
+              pageLimit: remaining,
+            });
+          }
+
+          const combinedStored = (head.stored || 0) + (backfill?.stored || 0);
+          const combinedRequests =
+            (head.requestsUsed || 0) + (backfill?.requestsUsed || 0);
+          const combinedRateLimited =
+            head.rateLimited || !!backfill?.rateLimited;
+          const combinedHasMore = !!backfill?.hasMore;
+
+          totalStored += combinedStored;
+          totalRequestsUsed += combinedRequests;
+          if (combinedRateLimited) anyRateLimited = true;
+          if (combinedHasMore) anyHasMore = true;
 
           await this.rotation.updateAccountStatus(
             sel.account,
             {
               lastSync: new Date(),
-              messagesIndexed: stored,
-              hasMoreData: !!hasMore,
-              requestsUsed,
-              ...(latest && {
-                latestTweetDate: latest.date,
-                latestTweetId: latest.id,
+              messagesIndexed: combinedStored,
+              hasMoreData: backfill
+                ? !backfill.backfillCompleted && !!backfill.hasMore
+                : !status?.isComplete,
+              requestsUsed: combinedRequests,
+              ...(head.latest && {
+                latestTweetDate: head.latest.date,
+                latestTweetId: head.latest.id,
               }),
-              ...(earliest && {
-                earliestTweetDate: earliest.date,
-                earliestTweetId: earliest.id,
+              ...(backfill?.earliest && {
+                earliestTweetDate: backfill.earliest.date,
+                earliestTweetId: backfill.earliest.id,
               }),
-            } as any,
+            },
             RotationMode.RAW,
           );
 
@@ -152,7 +167,12 @@ export class TwitterRawIndexerService extends BaseIndexerService {
   private async processAccount(
     client: TwitterApiReadOnly,
     username: string,
-    opts: { mode: 'head' | 'backfill'; pageLimit: number; sinceIso?: string },
+    opts: {
+      mode: 'head' | 'backfill';
+      pageLimit: number;
+      sinceIso?: string;
+      latestId?: string;
+    },
   ): Promise<{
     stored: number;
     hasMore: boolean;
@@ -160,6 +180,7 @@ export class TwitterRawIndexerService extends BaseIndexerService {
     rateLimited: boolean;
     latest?: { id: string; date: string };
     earliest?: { id: string; date: string };
+    backfillCompleted?: boolean;
   }> {
     const nowIso = new Date().toISOString();
     const collected: RawTweetRecord[] = [];
@@ -167,74 +188,72 @@ export class TwitterRawIndexerService extends BaseIndexerService {
     let rateLimited = false;
 
     if (opts.mode === 'head') {
-      // Use the generic API service behavior via client pagination but stop at sinceIso
       const user = await client.v2.userByUsername(username);
       let token: string | undefined = undefined;
       let stop = false;
       while (!stop) {
-        const page = await client.v2.userTimeline(user.data.id, {
-          max_results: 100,
-          'tweet.fields': [
-            'id',
-            'text',
-            'author_id',
-            'conversation_id',
-            'created_at',
-            'public_metrics',
-            'lang',
-            'context_annotations',
-            'entities',
-            'referenced_tweets',
-            'note_tweet',
-          ],
-          expansions: ['author_id'],
-          'user.fields': ['id', 'name', 'username', 'verified'],
-          pagination_token: token,
-        });
-        const data = page.data?.data || [];
-        for (const t of data) {
-          const createdAt = new Date(t.created_at);
-          if (opts.sinceIso && createdAt <= new Date(opts.sinceIso)) {
-            stop = true;
+        try {
+          const params: any = {
+            max_results: 10,
+            'tweet.fields': twitterTimelineFields['tweet.fields'],
+            expansions: twitterTimelineFields.expansions,
+            'user.fields': twitterTimelineFields['user.fields'],
+            'media.fields': twitterTimelineFields['media.fields'],
+            'place.fields': twitterTimelineFields['place.fields'],
+            'poll.fields': twitterTimelineFields['poll.fields'],
+            pagination_token: token,
+          };
+          if (opts.latestId) {
+            params.since_id = opts.latestId;
+          } else if (opts.sinceIso) {
+            params.start_time = opts.sinceIso;
+          }
+          const page = await client.v2.userTimeline(user.data.id, params);
+          const data = page.data?.data || [];
+          for (const t of data) {
+            const createdAt = new Date(t.created_at);
+            if (opts.sinceIso && createdAt <= new Date(opts.sinceIso)) {
+              stop = true;
+              break;
+            }
+            collected.push({
+              id: String(t.id),
+              username: username.toLowerCase(),
+              createdAt: createdAt.toISOString(),
+              payload: t as unknown as Record<string, unknown>,
+              fetchedAt: nowIso,
+            });
+          }
+          if (stop || !page.data?.meta?.next_token) break;
+          token = page.data.meta.next_token;
+        } catch (err: any) {
+          if (err?.code === 429 || err?.status === 429) {
+            rateLimited = true;
             break;
           }
-          collected.push({
-            id: String(t.id),
-            username: username.toLowerCase(),
-            createdAt: createdAt.toISOString(),
-            payload: t as unknown as Record<string, unknown>,
-            fetchedAt: nowIso,
-          });
+          throw err;
+        } finally {
+          requestsUsed++;
         }
-        if (stop || !page.data?.meta?.next_token) break;
-        token = page.data.meta.next_token;
-        requestsUsed++;
       }
     } else {
       const user = await client.v2.userByUsername(username);
       let token: string | undefined = undefined;
       let pages = 0;
+      let reachedEnd = false;
       while (pages < opts.pageLimit) {
         try {
-          const page = await client.v2.userTimeline(user.data.id, {
+          const params = {
             max_results: 100,
-            'tweet.fields': [
-              'id',
-              'text',
-              'author_id',
-              'conversation_id',
-              'created_at',
-              'public_metrics',
-              'lang',
-              'context_annotations',
-              'entities',
-              'referenced_tweets',
-              'note_tweet',
-            ],
-            expansions: ['author_id'],
-            'user.fields': ['id', 'name', 'username', 'verified'],
+            'tweet.fields': twitterTimelineFields['tweet.fields'],
+            expansions: twitterTimelineFields.expansions,
+            'user.fields': twitterTimelineFields['user.fields'],
+            'media.fields': twitterTimelineFields['media.fields'],
+            'place.fields': twitterTimelineFields['place.fields'],
+            'poll.fields': twitterTimelineFields['poll.fields'],
             pagination_token: token,
-          });
+          } as const;
+          const page = await client.v2.userTimeline(user.data.id, params);
           const data = page.data?.data || [];
           for (const t of data) {
             const createdAt = new Date(t.created_at);
@@ -248,7 +267,10 @@ export class TwitterRawIndexerService extends BaseIndexerService {
           }
           pages++;
           const next = page.data?.meta?.next_token;
-          if (!next) break;
+          if (!next) {
+            reachedEnd = true;
+            break;
+          }
           token = next;
         } catch (err: any) {
           if (err?.code === 429 || err?.status === 429) {
@@ -258,6 +280,10 @@ export class TwitterRawIndexerService extends BaseIndexerService {
           throw err;
         }
         requestsUsed++;
+      }
+      // Attach reachedEnd info via special marker on earliest when returning below
+      if (reachedEnd) {
+        // no-op here; returned value will include backfillCompleted
       }
     }
 
@@ -278,8 +304,17 @@ export class TwitterRawIndexerService extends BaseIndexerService {
       stored: res.stored,
       hasMore:
         opts.mode === 'backfill'
-          ? // Only if we stopped due to budget while another page existed (requestsUsed hit budget)
-            requestsUsed >= opts.pageLimit
+          ? (() => {
+              // If we ended because there was no next_token, there is no more
+              // Otherwise, if we hit the page budget, there may be more
+              // Head mode always returns false
+              // We infer reachedEnd by whether we exited loop due to no next_token.
+              // Since we cannot directly access the flag here in head branch, only backfill computes it.
+              // Simplify: if collected length > 0 and last backfill iteration had no next_token, then hasMore=false.
+              // To avoid coupling, rely on requestsUsed < opts.pageLimit meaning we broke early (likely reachedEnd or rate limit).
+              // We'll compute backfillCompleted below and use that for isComplete marking.
+              return requestsUsed >= opts.pageLimit;
+            })()
           : false,
       requestsUsed,
       rateLimited,
@@ -290,6 +325,10 @@ export class TwitterRawIndexerService extends BaseIndexerService {
       earliest:
         opts.mode === 'backfill'
           ? { id: earliest.id, date: earliest.createdAt }
+          : undefined,
+      backfillCompleted:
+        opts.mode === 'backfill'
+          ? collected.length > 0 && requestsUsed < opts.pageLimit
           : undefined,
     };
   }

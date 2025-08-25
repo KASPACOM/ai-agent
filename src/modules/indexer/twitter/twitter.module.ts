@@ -20,6 +20,8 @@ import { OrchestratorModule } from 'src/modules/orchestrator/orchestrator.module
 import { TwitterRawStorageService } from './services/twitter-raw-storage.service';
 import { TwitterDocGenerationService } from './services/twitter-doc-generation.service';
 import { TwitterRawIndexerService } from './services/twitter-raw-indexer.service';
+import { TwitterRawAuditService } from './services/twitter-raw-audit.service';
+import { TwitterSourceIndexerService } from './services/twitter-source-indexer.service';
 
 /**
  * Twitter Module
@@ -56,6 +58,8 @@ import { TwitterRawIndexerService } from './services/twitter-raw-indexer.service
     TwitterRawStorageService,
     TwitterDocGenerationService,
     TwitterRawIndexerService,
+    TwitterRawAuditService,
+    TwitterSourceIndexerService,
   ],
   exports: [
     // ✅ Export services for potential external use
@@ -65,6 +69,8 @@ import { TwitterRawIndexerService } from './services/twitter-raw-indexer.service
     TwitterService,
     TwitterDocGenerationService,
     TwitterRawIndexerService,
+    TwitterRawAuditService,
+    TwitterSourceIndexerService,
   ],
 })
 export class TwitterModule {}
