@@ -4,6 +4,7 @@ import { IndexingResult } from '../../shared/models/indexer-result.model';
 import { TwitterService } from '../services/twitter.service';
 import { TwitterRawAuditService } from '../services/twitter-raw-audit.service';
 import { AppConfigService } from 'src/modules/core/modules/config/app-config.service';
+import { TwitterDocGenerationService } from '../services/twitter-doc-generation.service';
 
 /**
  * Twitter Controller
@@ -20,6 +21,7 @@ export class TwitterController {
     private readonly twitterService: TwitterService,
     private readonly rawAudit: TwitterRawAuditService,
     private readonly appConfig: AppConfigService,
+    private readonly twitterDocGen: TwitterDocGenerationService,
   ) {}
 
   /**
@@ -51,5 +53,14 @@ export class TwitterController {
       ? [account]
       : this.appConfig.getTwitterAccountsConfig || [];
     return this.rawAudit.reconcileCounts(accounts);
+  }
+
+  /**
+   * Trigger full migration: create missing docs and update existing from raw
+   * POST /twitter/migrate/full?account=:username
+   */
+  @Post('migrate/full')
+  async runFullMigration(@Query('account') account?: string): Promise<any> {
+    return this.twitterDocGen.runFullMigration({ username: account });
   }
 }

@@ -138,6 +138,38 @@ export class TwitterRawStorageService {
     return { id: earliest.id, createdAt: earliest.createdAt };
   }
 
+  /**
+   * Scroll and return all raw tweets. Optionally filter by username.
+   * Uses payload-only scrolling for performance.
+   */
+  async getAllRawTweets(username?: string): Promise<RawTweetRecord[]> {
+    await this.ensureCollectionExists();
+    const collection = this.getCollectionName();
+    const all: RawTweetRecord[] = [];
+    let offset: any = undefined;
+    const filter = username
+      ? {
+          must: [{ key: 'username', match: { value: username.toLowerCase() } }],
+        }
+      : undefined;
+
+    while (true) {
+      const page = await this.qdrant.scrollPoints(collection, {
+        with_payload: true,
+        with_vector: false,
+        limit: 10000,
+        offset,
+        ...(filter ? { filter } : {}),
+      });
+      const points = page?.points || [];
+      if (points.length === 0) break;
+      for (const p of points) all.push(p.payload as RawTweetRecord);
+      offset = page?.next_page_offset;
+      if (!offset) break;
+    }
+    return all;
+  }
+
   private getCollectionName(): string {
     return this.config.getTwitterRawCollectionName();
   }

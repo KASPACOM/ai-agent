@@ -6,6 +6,7 @@ import { QdrantClientService } from '../../../database/qdrant/services/qdrant-cl
 import { MessageSource } from '../../shared/models/message-source.enum';
 import { MasterDocument } from '../../shared/models/master-document.model';
 import { v5 as uuidv5 } from 'uuid';
+import { RawTweetRecord } from './twitter-raw-storage.service';
 
 /**
  * Twitter Note Update Service
@@ -361,6 +362,75 @@ export class TwitterNoteUpdateService {
         `Error processing tweet ${document.id}: ${error.message}`,
       );
       throw error;
+    }
+  }
+
+  /**
+   * Update an existing MasterDocument using a provided raw tweet payload (no API call).
+   * Mirrors the logic in processSingleTweet but uses the given RawTweetRecord.
+   */
+  async updateFromRawTweet(
+    raw: RawTweetRecord,
+    options: { dryRun?: boolean } = {},
+  ): Promise<{ updated: boolean }> {
+    const { dryRun = false } = options;
+    const documentId = String(raw.id);
+
+    // Load existing document
+    const existingDoc = await this.getExistingDocument(documentId);
+    if (!existingDoc) {
+      // If the master document doesn't exist yet, caller may create it separately
+      return { updated: false };
+    }
+
+    const rawTweet: any = raw.payload || {};
+    const noteText: string | undefined = rawTweet?.note_tweet?.text;
+    const originalText: string = existingDoc.text || '';
+
+    const origUrls = rawTweet?.entities?.urls ?? [];
+    const noteUrls = rawTweet?.note_tweet?.entities?.urls ?? [];
+    const origMentions = rawTweet?.entities?.mentions ?? [];
+    const noteMentions = rawTweet?.note_tweet?.entities?.mentions ?? [];
+
+    const cleanedOriginalLen = this.removeKnownUrlsAndMentions(
+      originalText,
+      origUrls,
+      origMentions,
+    ).length;
+
+    const cleanedNoteLen = noteText
+      ? this.removeKnownUrlsAndMentions(
+          noteText,
+          noteUrls.length ? noteUrls : origUrls,
+          noteMentions.length ? noteMentions : origMentions,
+        ).length
+      : 0;
+
+    if (noteText && cleanedNoteLen > cleanedOriginalLen) {
+      if (!dryRun) {
+        await this.updateDocumentInQdrant(
+          existingDoc.id,
+          {
+            text: noteText,
+            hasTweetNote: true,
+            twitterOriginalText: originalText,
+            twitterNoteText: noteText,
+          },
+          true,
+        );
+      }
+      return { updated: true };
+    } else {
+      if (!dryRun) {
+        await this.updateDocumentInQdrant(
+          existingDoc.id,
+          {
+            hasTweetNote: false,
+          },
+          false,
+        );
+      }
+      return { updated: false };
     }
   }
 
