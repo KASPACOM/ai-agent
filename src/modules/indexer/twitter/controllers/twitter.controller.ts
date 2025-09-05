@@ -1,4 +1,4 @@
-import { Controller, Post, Logger, Get, Query } from '@nestjs/common';
+import { Controller, Post, Logger, Get, Query, Param } from '@nestjs/common';
 import { TwitterIndexerService } from '../services/twitter-indexer.service';
 import { IndexingResult } from '../../shared/models/indexer-result.model';
 import { TwitterService } from '../services/twitter.service';
@@ -62,5 +62,36 @@ export class TwitterController {
   @Post('migrate/full')
   async runFullMigration(@Query('account') account?: string): Promise<any> {
     return this.twitterDocGen.runFullMigration({ username: account });
+  }
+
+  @Post('manual-comment/:tweetId')
+  async triggerManualComment(@Param('tweetId') tweetId: string): Promise<{
+    success: boolean;
+    message: string;
+    tweetId?: string;
+  }> {
+    if (!tweetId) {
+      return {
+        success: false,
+        message: 'Tweet ID is required',
+      }
+    }
+
+    const tweet = await this.twitterService.getTweetById(tweetId);
+
+    if (!tweet) {
+      return {
+        success: false,
+        message: 'Tweet not found',
+      }
+    }
+
+    const result = await this.twitterService.respondToTweet(tweet);
+
+    return {
+      success: result.is_responded,
+      message: result.twit_text,
+      tweetId: result.twit_id,
+    };
   }
 }
