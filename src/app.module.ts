@@ -19,13 +19,11 @@ export class AppModule {
 
     // Conditional modules based on service type
     let serviceModules: any[] = [];
-    let serviceProviders: any[] = [];
+    const serviceProviders: any[] = [];
 
     if (serviceType === 'ETL') {
       // ETL Service Mode - Data processing and indexing only
-      serviceModules = [
-        CronModule,
-      ];
+      serviceModules = [CronModule, IndexerModule];
       console.log('📊 Loading ETL modules: Data processing and indexing');
     } else if (serviceType === 'AGENT') {
       // Agent Service Mode - AI orchestration and multi-agent system
@@ -39,9 +37,7 @@ export class AppModule {
         '🤖 Loading Agent modules: Orchestrator, tasks, integrations, and multi-agent system',
       );
     } else {
-      console.warn(
-        `⚠️  Unknown SERVICE_TYPE: ${serviceType}.`,
-      );
+      console.warn(`⚠️  Unknown SERVICE_TYPE: ${serviceType}.`);
     }
 
     return {

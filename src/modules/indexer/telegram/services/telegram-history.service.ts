@@ -325,20 +325,13 @@ export class TelegramHistoryService {
       return true; // No history = needs initial indexing
     }
 
-    if (!history.isComplete) {
-      return true; // Not complete = needs more indexing
-    }
-
     if (history.consecutiveErrors > 0) {
       return false; // Has errors = skip for now (circuit breaker)
     }
 
-    // Could add more sophisticated logic here:
-    // - Check if it's been too long since last update
-    // - Check if external API indicates new messages
-    // For now, complete topics don't need re-indexing
-
-    return false;
+    // Always allow indexing runs for completed topics so we can fetch only-new messages.
+    // The indexing flow will use latestMessageDate as an offset to fetch newer messages only.
+    return true;
   }
 
   /**

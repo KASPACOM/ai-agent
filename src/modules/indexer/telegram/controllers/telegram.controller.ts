@@ -1,4 +1,4 @@
-import { Controller, Post, Logger, OnModuleInit } from '@nestjs/common';
+import { Controller, Post, Logger } from '@nestjs/common';
 import { TelegramIndexerService } from '../services/telegram-indexer.service';
 import { IndexingResult } from '../../shared/models/indexer-result.model';
 
@@ -12,10 +12,7 @@ import { IndexingResult } from '../../shared/models/indexer-result.model';
 export class TelegramController {
   private readonly logger = new Logger(TelegramController.name);
 
-  constructor(
-    private readonly telegramIndexer: TelegramIndexerService,
-  ) {}
-
+  constructor(private readonly telegramIndexer: TelegramIndexerService) {}
 
   /**
    * Manual trigger endpoint

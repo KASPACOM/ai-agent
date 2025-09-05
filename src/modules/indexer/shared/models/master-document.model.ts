@@ -1,4 +1,5 @@
 import { MessageSource } from './message-source.enum';
+import { WebsiteClusteringMethod } from './website-clustering-method.enum';
 
 /**
  * Processing Status Enum
@@ -22,6 +23,31 @@ export enum TelegramMessageType {
   FORWARDED = 'forwarded',
   REPLY = 'reply',
   CHANNEL_POST = 'channel_post',
+}
+
+/**
+ * PDF Document Type Enum
+ */
+export enum PDFDocumentType {
+  ARTICLE = 'article',
+  RESEARCH_PAPER = 'research_paper',
+  WHITEPAPER = 'whitepaper',
+  TECHNICAL_DOCUMENTATION = 'technical_documentation',
+  REPORT = 'report',
+  BOOK_CHAPTER = 'book_chapter',
+  ACADEMIC_PAPER = 'academic_paper',
+  BLOG_POST = 'blog_post',
+}
+
+/**
+ * Chunking Strategy Enum
+ */
+export enum ChunkingStrategy {
+  FIXED_SIZE = 'fixed_size',
+  SEMANTIC = 'semantic',
+  RECURSIVE = 'recursive',
+  DOCUMENT_STRUCTURE = 'document_structure',
+  HYBRID = 'hybrid',
 }
 
 /**
@@ -101,18 +127,55 @@ export interface MasterDocument {
   twitterLikeCount?: number;
   twitterReplyCount?: number;
   twitterQuoteCount?: number;
-
-  // Tweet Relationships
   twitterIsRetweet?: boolean;
   twitterOriginalTweetId?: string;
   twitterQuotedTweetId?: string;
   twitterInReplyToUserId?: string;
   twitterInReplyToTweetId?: string;
-
-  // Twitter User Information
   twitterUserFollowersCount?: number;
   twitterUserVerified?: boolean;
   twitterUserCreatedAt?: string; // ISO string
+
+  // Tweet Content Processing
+  hasTweetNote?: boolean; // true = has note_tweet, false = no note_tweet, null/undefined = unprocessed
+  twitterOriginalText?: string; // Original tweet.text (with t.co links, exact formatting)
+  twitterNoteText?: string; // Full note_tweet.text (expanded content)
+
+  // ==========================================
+  // PDF-SPECIFIC FIELDS (Optional)
+  // ==========================================
+
+  // Document Information
+  pdfFileName?: string;
+  pdfDocumentId?: string; // Unique identifier for the entire PDF document
+  pdfTitle?: string;
+  pdfAuthor?: string;
+  pdfSubject?: string;
+  pdfPageCount?: number;
+  pdfFileSize?: number;
+
+  // Document Classification
+  pdfDocumentType?: PDFDocumentType; // article, research_paper, whitepaper, etc.
+  pdfCategory?: string; // finance, technology, research, etc.
+
+  // Chunk Structure & Semantics
+  pdfPageNumber?: number; // Which page this chunk came from
+  pdfChunkIndex?: number; // Sequential chunk number in document
+  pdfTotalChunks?: number; // Total chunks in this document
+  pdfSemanticGroupId?: string; // Groups semantically related chunks
+  pdfSemanticLevel?: number; // Hierarchical level (1=main topic, 2=subtopic, etc.)
+  pdfSemanticContext?: string; // Brief description of semantic topic
+  pdfChunkingStrategy?: ChunkingStrategy; // How this chunk was created
+
+  // Hierarchical Relationships
+  pdfParentChunkId?: string; // If this is a sub-chunk, references parent
+  pdfChildChunkIds?: string[]; // If this chunk was split, references children
+  pdfSiblingChunkIds?: string[]; // Other chunks in same semantic group
+
+  // Document Structure
+  pdfSectionTitle?: string; // Heading/section this chunk belongs to
+  pdfSectionLevel?: number; // H1=1, H2=2, etc.
+  pdfHasStructure?: boolean; // Whether document has clear headings
 
   // ==========================================
   // FUTURE DATA SOURCE FIELDS (Optional)
@@ -129,12 +192,29 @@ export interface MasterDocument {
   discordMessageType?: string;
 
   // ==========================================
-  // VECTOR STORAGE FIELDS (Optional)
+  // VECTOR & EMBEDDING FIELDS (Always Present for Stored Documents)
   // ==========================================
   vector?: number[];
   vectorDimensions?: number;
   embeddedAt?: string; // ISO string
   storedAt?: string; // ISO string
+
+  // ==========================================
+  // WEBSITE-SPECIFIC FIELDS (Optional)
+  // ==========================================
+  websiteRootUrl?: string;
+  websitePageUrls?: string[];
+  websiteClusterId?: string;
+  websiteClusterSize?: number;
+  websiteClusterMethod?: WebsiteClusteringMethod;
+  websiteSilhouetteScore?: number;
+  websiteIntraClusterDistance?: number;
+  websiteSectionTitle?: string;
+  // Distillation metadata
+  websiteDistilledTrackingId?: string; // stable id for grouped/parted items
+  websiteDistilledOrder?: string; // e.g. "1/3"
+  websiteTopics?: string[]; // topics extracted by LLM for website docs
+  websiteKeywords?: string[]; // keywords extracted by LLM for website docs
 }
 
 /**

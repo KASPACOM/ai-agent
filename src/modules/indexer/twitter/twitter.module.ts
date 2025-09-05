@@ -5,9 +5,11 @@ import { SharedModule } from '../shared/shared.module';
 
 // Import twitter services
 import { TwitterIndexerService } from './services/twitter-indexer.service';
+import { TwitterNoteUpdateService } from './services/twitter-note-update.service';
 
-// Import controller
+// Import controllers
 import { TwitterController } from './controllers/twitter.controller';
+import { TwitterNoteUpdateController } from './controllers/twitter-note-update.controller';
 
 // Import existing ETL/integration services (reuse during transition)
 import { TwitterApiModule } from '../../integrations/twitter/twitter-api.module';
@@ -38,10 +40,12 @@ import { OrchestratorModule } from 'src/modules/orchestrator/orchestrator.module
   ],
   controllers: [
     TwitterController, // ✅ Simple controller with cron management
+    TwitterNoteUpdateController, // ✅ Controller for note_tweet updates
   ],
   providers: [
     // ✅ Twitter-specific indexer services
     TwitterIndexerService, // Main indexing logic
+    TwitterNoteUpdateService, // Note tweet update service
 
     // ✅ Local copies and dependencies
     AccountRotationService, // Account management and rotation (local copy)
@@ -50,6 +54,7 @@ import { OrchestratorModule } from 'src/modules/orchestrator/orchestrator.module
   exports: [
     // ✅ Export services for potential external use
     TwitterIndexerService,
+    TwitterNoteUpdateService,
     AccountRotationService, // Export for potential shared use
     TwitterService,
   ],

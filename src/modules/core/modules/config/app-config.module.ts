@@ -58,6 +58,9 @@ import { AppConfigService } from './app-config.service';
         TELEGRAM_API_HASH: Joi.string().optional(),
         TELEGRAM_CHANNELS_CONFIG: Joi.string().optional().default('[]'),
 
+        // Firecrawl
+        FIRECRAWL_API_KEY: Joi.string().optional(),
+
 
         // Service Configuration
         SERVICE_TYPE: Joi.string()
