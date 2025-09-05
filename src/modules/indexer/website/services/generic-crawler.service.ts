@@ -7,6 +7,8 @@ import * as cheerio from 'cheerio';
 import { JSDOM } from 'jsdom';
 import * as Turndown from 'turndown';
 import { Readability } from '@mozilla/readability';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 @Injectable()
 export class GenericCrawlerService {
@@ -300,8 +302,24 @@ export class GenericCrawlerService {
       { url: policy.startUrl, userData: { depth: 0 } as any },
     ]);
     await crawler.run();
+    await this.cleanupCrawleeStorage();
     return results;
   }
 
   // Helper methods inlined in crawl() to keep a single transformation path per DEVELOPMENT_RULES
+  private async cleanupCrawleeStorage(): Promise<void> {
+    try {
+      const storageDir = process.env.CRAWLEE_STORAGE_DIR || 'storage';
+      const abs = path.isAbsolute(storageDir)
+        ? storageDir
+        : path.join(process.cwd(), storageDir);
+      await fs.rm(abs, { recursive: true, force: true });
+      // Best-effort: ignore errors
+      this.logger.log(`Cleaned Crawlee storage directory: ${abs}`);
+    } catch (err: any) {
+      this.logger.warn(
+        `Failed to clean Crawlee storage directory: ${err?.message || err}`,
+      );
+    }
+  }
 }

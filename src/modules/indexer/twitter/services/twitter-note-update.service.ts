@@ -6,6 +6,7 @@ import { QdrantClientService } from '../../../database/qdrant/services/qdrant-cl
 import { MessageSource } from '../../shared/models/message-source.enum';
 import { MasterDocument } from '../../shared/models/master-document.model';
 import { v5 as uuidv5 } from 'uuid';
+import { RawTweetRecord } from './twitter-raw-storage.service';
 
 /**
  * Twitter Note Update Service
@@ -365,6 +366,78 @@ export class TwitterNoteUpdateService {
   }
 
   /**
+   * Update an existing MasterDocument using a provided raw tweet payload (no API call).
+   * Mirrors the logic in processSingleTweet but uses the given RawTweetRecord.
+   */
+  async updateFromRawTweet(
+    raw: RawTweetRecord,
+    options: { dryRun?: boolean; existingDoc?: MasterDocument } = {},
+  ): Promise<{ updated: boolean }> {
+    const { dryRun = false, existingDoc: preloaded } = options;
+    const documentId = String(raw.id);
+
+    // Use provided document if available to avoid extra fetch
+    const existingDoc =
+      preloaded || (await this.getExistingDocument(documentId));
+    if (!existingDoc) {
+      // If the master document doesn't exist yet, caller may create it separately
+      return { updated: false };
+    }
+
+    const rawTweet: any = raw.payload || {};
+    const noteText: string | undefined = rawTweet?.note_tweet?.text;
+    const originalText: string = existingDoc.text || '';
+
+    const origUrls = rawTweet?.entities?.urls ?? [];
+    const noteUrls = rawTweet?.note_tweet?.entities?.urls ?? [];
+    const origMentions = rawTweet?.entities?.mentions ?? [];
+    const noteMentions = rawTweet?.note_tweet?.entities?.mentions ?? [];
+
+    const cleanedOriginalLen = this.removeKnownUrlsAndMentions(
+      originalText,
+      origUrls,
+      origMentions,
+    ).length;
+
+    const cleanedNoteLen = noteText
+      ? this.removeKnownUrlsAndMentions(
+          noteText,
+          noteUrls.length ? noteUrls : origUrls,
+          noteMentions.length ? noteMentions : origMentions,
+        ).length
+      : 0;
+
+    if (noteText && cleanedNoteLen > cleanedOriginalLen) {
+      if (!dryRun) {
+        await this.updateDocumentInQdrant(
+          existingDoc.id,
+          {
+            text: noteText,
+            hasTweetNote: true,
+            twitterOriginalText: originalText,
+            twitterNoteText: noteText,
+          },
+          true,
+          existingDoc,
+        );
+      }
+      return { updated: true };
+    } else {
+      if (!dryRun) {
+        await this.updateDocumentInQdrant(
+          existingDoc.id,
+          {
+            hasTweetNote: false,
+          },
+          false,
+          existingDoc,
+        );
+      }
+      return { updated: false };
+    }
+  }
+
+  /**
    * Extract tweet ID from document ID
    */
   private extractTweetId(documentId: string): string | null {
@@ -414,11 +487,13 @@ export class TwitterNoteUpdateService {
     documentId: string,
     updates: Partial<MasterDocument>,
     reEmbed: boolean = false,
+    existingDocOverride?: MasterDocument,
   ): Promise<void> {
     try {
       // Use UnifiedStorageService to update the document
       // This ensures we follow the same storage patterns
-      const existingDoc = await this.getExistingDocument(documentId);
+      const existingDoc =
+        existingDocOverride || (await this.getExistingDocument(documentId));
       if (!existingDoc) {
         throw new Error(`Document ${documentId} not found`);
       }

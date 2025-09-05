@@ -5,6 +5,7 @@ import {
   TweetSearchRecentV2Paginator,
   TwitterApiReadOnly,
   TweetV2PaginableTimelineParams,
+  TweetV2,
 } from 'twitter-api-v2';
 import {
   Tweet,
@@ -28,10 +29,65 @@ const DEFAULT_TWEET_FIELDS: Partial<TweetV2PaginableTimelineParams> = {
     'context_annotations',
     'entities',
     'referenced_tweets',
+    'in_reply_to_user_id',
+    'reply_settings',
+    'source',
+    'possibly_sensitive',
+    'withheld',
+    'geo',
+    'attachments',
+    'edit_controls',
+    'edit_history_tweet_ids',
     'note_tweet',
   ],
-  'user.fields': ['id', 'name', 'username', 'verified'],
-  expansions: ['author_id'],
+  'user.fields': [
+    'id',
+    'name',
+    'username',
+    'verified',
+    'profile_image_url',
+    'created_at',
+    'description',
+    'location',
+    'public_metrics',
+    'protected',
+    'url',
+  ],
+  'media.fields': [
+    'media_key',
+    'type',
+    'url',
+    'preview_image_url',
+    'duration_ms',
+    'variants',
+    'height',
+    'width',
+    'public_metrics',
+    'alt_text',
+  ],
+  'place.fields': [
+    'full_name',
+    'country',
+    'country_code',
+    'geo',
+    'id',
+    'name',
+    'place_type',
+  ],
+  'poll.fields': [
+    'duration_minutes',
+    'end_datetime',
+    'id',
+    'options',
+    'voting_status',
+  ],
+  expansions: [
+    'author_id',
+    'attachments.media_keys',
+    'referenced_tweets.id',
+    'referenced_tweets.id.author_id',
+    'geo.place_id',
+  ],
 };
 
 /**
@@ -255,12 +311,7 @@ export class TwitterApiService {
           // Query with max batch size of 100 (Twitter API limit)
           const timeline = await this.twitterClient.v2.userTimeline(user.id, {
             max_results: 100,
-            'tweet.fields': [
-              'created_at',
-              'public_metrics',
-              'context_annotations',
-              'entities',
-            ],
+            ...DEFAULT_TWEET_FIELDS,
             pagination_token: paginationToken,
           });
 
@@ -298,6 +349,103 @@ export class TwitterApiService {
               { [user.id]: user },
             );
             allNewTweets.push(transformedTweet);
+          }
+
+          // Check if we should continue paginating
+          if (shouldContinue && timeline.data?.meta?.next_token) {
+            paginationToken = timeline.data.meta.next_token;
+            this.logger.debug(
+              `Continuing pagination for ${username}. Total new tweets so far: ${allNewTweets.length}`,
+            );
+          } else {
+            shouldContinue = false;
+          }
+        } catch (error) {
+          // Handle rate limiting gracefully - return what we've collected so far
+          if (error.code === 429 || error.status === 429) {
+            this.logger.warn(
+              `Rate limit hit for ${username} during pagination. Returning ${allNewTweets.length} tweets collected so far.`,
+            );
+            shouldContinue = false; // Stop pagination
+            break; // Exit the loop and return collected tweets
+          } else {
+            // For non-rate-limit errors, still throw
+            this.logger.error(`Error fetching tweets for ${username}:`, error);
+            throw error;
+          }
+        }
+      }
+
+      // Since Twitter API returns newest first, our array is already in correct order (newest to oldest)
+      this.logger.log(
+        `Successfully fetched ${allNewTweets.length} new tweets from ${username}`,
+      );
+      return allNewTweets;
+    } catch (error) {
+      this.logger.error(`Error fetching tweets from ${username}:`, error);
+      throw new Error(
+        `Failed to fetch tweets for ${username}: ${error.message}`,
+      );
+    }
+  }
+
+  async fetchRawAccountTweets(
+    username: string,
+    latestIndexedDate?: Date, // Latest tweet we already have in DB
+  ): Promise<TweetV2[]> {
+    this.logger.log(
+      `Fetching new tweets from account: ${username}${latestIndexedDate ? ` since ${latestIndexedDate.toISOString()}` : ' (all tweets)'}`,
+    );
+
+    const allNewTweets: TweetV2[] = [];
+    let paginationToken: string | undefined = undefined;
+    let shouldContinue = true;
+
+    try {
+      // Get user by username first
+      const user = await this.getUserByUsername(username);
+
+      while (shouldContinue) {
+        try {
+          // Add delay between requests to respect rate limits (Basic: 10 req/15min = ~90s between requests)
+          await this.delay(2000); // 2 second delay between requests
+
+          // Query with max batch size of 100 (Twitter API limit)
+          const timeline = await this.twitterClient.v2.userTimeline(user.id, {
+            max_results: 10,
+            ...DEFAULT_TWEET_FIELDS,
+            pagination_token: paginationToken,
+          });
+
+          // Handle the response properly - it's timeline.data.data and timeline.data.meta!
+          const resultCount = timeline.data?.meta?.result_count || 0;
+          const tweetsData = timeline.data?.data || [];
+
+          this.logger.debug(
+            `Retrieved ${resultCount} tweets, tweets array length: ${tweetsData.length} for ${username}`,
+          );
+
+          if (resultCount === 0 || tweetsData.length === 0) {
+            this.logger.debug(
+              `No more tweets found for ${username}. Result count: ${resultCount}, array length: ${tweetsData.length}`,
+            );
+            break;
+          }
+
+          // Process tweets from this batch
+          for (const tweet of tweetsData) {
+            const tweetDate = new Date(tweet.created_at);
+
+            // If we hit a tweet older than our latest indexed date, stop processing
+            if (latestIndexedDate && tweetDate <= latestIndexedDate) {
+              this.logger.log(
+                `Reached already indexed tweets for ${username}. Stopping at tweet from ${tweetDate.toISOString()}`,
+              );
+              shouldContinue = false;
+              break;
+            }
+
+            allNewTweets.push(tweet);
           }
 
           // Check if we should continue paginating

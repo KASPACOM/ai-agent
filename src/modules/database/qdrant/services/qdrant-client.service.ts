@@ -235,7 +235,10 @@ export class QdrantClientService implements OnModuleInit {
     try {
       this.logger.debug(`Scrolling points in collection: ${collectionName}`);
 
-      const response = await this.qdrantClient.scroll(collectionName, scrollParams);
+      const response = await this.qdrantClient.scroll(
+        collectionName,
+        scrollParams,
+      );
 
       return response;
     } catch (error) {
@@ -264,6 +267,28 @@ export class QdrantClientService implements OnModuleInit {
     } catch (error) {
       this.logger.error(
         `Failed to get point ${pointId} from ${collectionName}: ${error.message}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Get multiple points by IDs
+   */
+  async getPoints(collectionName: string, pointIds: string[]): Promise<any[]> {
+    try {
+      this.logger.debug(
+        `Retrieving ${pointIds.length} points from collection: ${collectionName}`,
+      );
+
+      const response = await this.qdrantClient.retrieve(collectionName, {
+        ids: pointIds,
+      });
+
+      return response || [];
+    } catch (error) {
+      this.logger.error(
+        `Failed to retrieve points from ${collectionName}: ${error.message}`,
       );
       throw error;
     }

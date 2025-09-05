@@ -17,6 +17,11 @@ import { AppConfigModule } from '../../core/modules/config/app-config.module';
 import { AccountRotationService } from './services/account-rotation.service';
 import { TwitterService } from './services/twitter.service';
 import { OrchestratorModule } from 'src/modules/orchestrator/orchestrator.module';
+import { TwitterRawStorageService } from './services/twitter-raw-storage.service';
+import { TwitterDocGenerationService } from './services/twitter-doc-generation.service';
+import { TwitterRawIndexerService } from './services/twitter-raw-indexer.service';
+import { TwitterRawAuditService } from './services/twitter-raw-audit.service';
+import { TwitterSourceIndexerService } from './services/twitter-source-indexer.service';
 
 /**
  * Twitter Module
@@ -50,6 +55,11 @@ import { OrchestratorModule } from 'src/modules/orchestrator/orchestrator.module
     // ✅ Local copies and dependencies
     AccountRotationService, // Account management and rotation (local copy)
     TwitterService,
+    TwitterRawStorageService,
+    TwitterDocGenerationService,
+    TwitterRawIndexerService,
+    TwitterRawAuditService,
+    TwitterSourceIndexerService,
   ],
   exports: [
     // ✅ Export services for potential external use
@@ -57,6 +67,10 @@ import { OrchestratorModule } from 'src/modules/orchestrator/orchestrator.module
     TwitterNoteUpdateService,
     AccountRotationService, // Export for potential shared use
     TwitterService,
+    TwitterDocGenerationService,
+    TwitterRawIndexerService,
+    TwitterRawAuditService,
+    TwitterSourceIndexerService,
   ],
 })
 export class TwitterModule {}
