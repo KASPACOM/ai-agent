@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { QdrantBotRepliesRepository } from "src/modules/database/qdrant/services/qdrant-bot-replies.repository";
+import { BotReply, QdrantBotRepliesRepository } from "src/modules/database/qdrant/services/qdrant-bot-replies.repository";
 import { Tweet } from "src/modules/integrations/twitter/models/twitter.model";
 import { TwitterApiService } from "src/modules/integrations/twitter/twitter-api.service";
 import { OrchestratorService } from "src/modules/orchestrator/orchestrator.service";
@@ -18,6 +18,10 @@ export class TwitterService {
         private readonly qdrantBotRepliesRepository: QdrantBotRepliesRepository,
     ) { }
 
+
+    async getTweetById(tweetId: string): Promise<Tweet> {
+        return this.twitterApiService.getTweetById(tweetId);
+    }
 
 
     async checkForBotMentionsAndRespondIfNeeded(): Promise<any> {
@@ -44,7 +48,7 @@ export class TwitterService {
 
 
             for (let mention of notRespondedMentions) {
-                await this.respondToTweetIfNeeded(mention);
+                await this.respondToTweet(mention, true);
             }
 
             return;
@@ -55,7 +59,7 @@ export class TwitterService {
         }
     }
 
-    protected async respondToTweetIfNeeded(tweet: Tweet) {
+    async respondToTweet(tweet: Tweet, onlyIfNeeded?: boolean): Promise<BotReply> {
         const authorName = tweet.author;
         this.logger.log(`Found mention from ${authorName}: ${tweet.text}`);
 
@@ -81,7 +85,7 @@ export class TwitterService {
                 channelTitle: tweet.author,
                 chatId: tweet.author,
             },
-            SHOULD_ANSWER_QUESTIONS_ROLE.template,
+            onlyIfNeeded ? SHOULD_ANSWER_QUESTIONS_ROLE.template : undefined,
         );
 
 
@@ -96,14 +100,18 @@ export class TwitterService {
             response_twit_id = responseTwitData.id;
         }
 
-        await this.qdrantBotRepliesRepository.storeReply({
+        const replyToStore: BotReply = {
             twit_id: response_twit_id,
             twit_text: response_twit_id ? orchestratorResponse.response : undefined,
             is_responded: response_twit_id ? true : false,
             is_from_mentions: true,
             date: new Date().toISOString(),
             in_respond_to: tweet.id,
-        });
+        };
+
+        await this.qdrantBotRepliesRepository.storeReply(replyToStore);
+
+        return replyToStore;
     }
 
     transformTweetsToSendToOrchestrator(tweets: Tweet[]) {

@@ -596,8 +596,6 @@ export class TwitterApiService {
     //   });
     //   this.logger.log(`Comment posted successfully: ${result.data?.id}`);
 
-    //   console.log('RESULT DATA', result.data);
-
     //   return result.data;
     // } catch (error) {
     //   this.logger.error(`Failed to post comment: ${error.message}`);
@@ -628,10 +626,15 @@ export class TwitterApiService {
         ...DEFAULT_TWEET_FIELDS,
       });
 
+      if (!tweet?.data) {
+        return null;
+      }
+
       return TwitterTransformer.transformApiTweet(
         tweet.data,
         this.tranformIncludeUsersToObject(tweet.includes.users),
       );
+      
     } catch (error) {
       this.logger.error(`Failed to get tweet ${tweetId}: ${error.message}`);
       this.apiStats.errors.push(`Get tweet by ID failed: ${error.message}`);
@@ -809,4 +812,60 @@ export class TwitterApiService {
       return false;
     }
   }
+
+  splitLargeTextIntoTweets(text: string): string[] {
+    const maxLength = 280;
+    const sentences = text.match(/[^.!?]+[.!?]+[\])'"`’”]*|.+$/g) || [];
+    const tweets: string[] = [];
+  
+    let currentTweet = '';
+  
+    for (const sentence of sentences) {
+      const trimmedSentence = sentence.trim();
+  
+      if ((currentTweet + ' ' + trimmedSentence).trim().length <= maxLength) {
+        currentTweet = (currentTweet + ' ' + trimmedSentence).trim();
+      } else {
+        if (currentTweet) tweets.push(currentTweet);
+        if (trimmedSentence.length <= maxLength) {
+          currentTweet = trimmedSentence;
+        } else {
+          // Handle very long sentence by cutting it
+          let part = '';
+          for (const word of trimmedSentence.split(' ')) {
+            if ((part + ' ' + word).trim().length > maxLength) {
+              tweets.push(part.trim());
+              part = word;
+            } else {
+              part = (part + ' ' + word).trim();
+            }
+          }
+          currentTweet = part;
+        }
+      }
+    }
+  
+    if (currentTweet) tweets.push(currentTweet);
+  
+    return tweets;
+  }
+  
+
+  async postThread(text: string) {
+    const tweets = this.splitLargeTextIntoTweets(text);
+
+
+    if (tweets.length === 0) {
+      throw new Error('No tweets to post');
+    }
+
+    
+    const firstTweet = await this.postTweet(tweets[0]);
+    for (const tweetText of tweets.slice(1)) {
+      await this.postComment(tweetText, firstTweet.id);
+    }
+
+    return firstTweet;
+  }
+    
 }
