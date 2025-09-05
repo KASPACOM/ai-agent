@@ -355,6 +355,40 @@ export class UnifiedStorageService {
   }
 
   /**
+   * Update postedAt on a single MasterDocument without re-embedding
+   */
+  async setPostedAt(documentId: string, postedAtIso: string): Promise<void> {
+    const collectionName = this.config.getUnifiedMessagesCollectionName();
+    const pointId = this.generatePointId(documentId);
+    await this.qdrantClient.setPayload(
+      collectionName,
+      { postedAt: postedAtIso },
+      {
+        points: [pointId],
+      },
+    );
+  }
+
+  /**
+   * Batch update postedAt on MasterDocuments without re-embedding
+   */
+  async setPostedAtBatch(
+    updates: Array<{ id: string; postedAt: string }>,
+  ): Promise<void> {
+    const collectionName = this.config.getUnifiedMessagesCollectionName();
+    for (const u of updates) {
+      const pointId = this.generatePointId(u.id);
+      await this.qdrantClient.setPayload(
+        collectionName,
+        { postedAt: u.postedAt },
+        {
+          points: [pointId],
+        },
+      );
+    }
+  }
+
+  /**
    * Ensure the unified collection exists
    */
   private async ensureCollectionExists(): Promise<void> {

@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { AgentBuilder } from '../agent-builder.service';
 import { BuiltAgent } from '../../models/agent.model';
 import { QdrantRepository } from '../../../database/qdrant/services/qdrant.repository';
+import { AgentTaskService } from '../../services/agent-task.service';
 
 @Injectable()
 export class QdrantAgentFactory {
@@ -11,6 +12,7 @@ export class QdrantAgentFactory {
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
     private readonly qdrantRepository: QdrantRepository,
+    private readonly agentTasks: AgentTaskService,
   ) {}
 
   createAgent(): BuiltAgent {
@@ -135,7 +137,8 @@ export class QdrantAgentFactory {
               name: 'subject',
               type: 'string',
               required: true,
-              description: 'Subject or keyword to search for (will be embedded)',
+              description:
+                'Subject or keyword to search for (will be embedded)',
             },
             {
               name: 'limit',
@@ -148,11 +151,44 @@ export class QdrantAgentFactory {
               name: 'filters',
               type: 'object',
               required: false,
-              description: 'Optional filter object (e.g., { authorHandle: "foo" })',
+              description:
+                'Optional filter object (e.g., { authorHandle: "foo" })',
             },
           ],
-          ['semantic tweet search', 'find tweets about (semantic)', 'tweets related to'],
-          async (args) => await this.qdrantRepository.searchTweetsBySubjectEmbedding(args.subject, args.limit, args.filters),
+          [
+            'semantic tweet search',
+            'find tweets about (semantic)',
+            'tweets related to',
+          ],
+          async (args) =>
+            await this.qdrantRepository.searchTweetsBySubjectEmbedding(
+              args.subject,
+              args.limit,
+              args.filters,
+            ),
+        )
+        // Weekly summary capability
+        .addCapability(
+          'qdrant_create_weekly_summary',
+          'Create a weekly digest of Telegram and Twitter messages from the last N days',
+          [
+            {
+              name: 'days',
+              type: 'number',
+              required: false,
+              description: 'How many days back to include (default 7)',
+              default: 7,
+            },
+          ],
+          [
+            'weekly summary',
+            'weekly digest',
+            'past week recap',
+            'public summary',
+            'create weekly summary',
+          ],
+          async (args) =>
+            await this.agentTasks.createWeeklySummary(args?.days ?? 7),
         )
         .build()
     );

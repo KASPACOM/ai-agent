@@ -5,6 +5,7 @@ import { TwitterService } from '../services/twitter.service';
 import { TwitterRawAuditService } from '../services/twitter-raw-audit.service';
 import { AppConfigService } from 'src/modules/core/modules/config/app-config.service';
 import { TwitterDocGenerationService } from '../services/twitter-doc-generation.service';
+import { AgentFactory } from 'src/modules/multiagent/agents/agent-factory.service';
 
 /**
  * Twitter Controller
@@ -22,6 +23,7 @@ export class TwitterController {
     private readonly rawAudit: TwitterRawAuditService,
     private readonly appConfig: AppConfigService,
     private readonly twitterDocGen: TwitterDocGenerationService,
+    private readonly agentFactory: AgentFactory,
   ) {}
 
   /**
@@ -74,7 +76,7 @@ export class TwitterController {
       return {
         success: false,
         message: 'Tweet ID is required',
-      }
+      };
     }
 
     const tweet = await this.twitterService.getTweetById(tweetId);
@@ -83,7 +85,7 @@ export class TwitterController {
       return {
         success: false,
         message: 'Tweet not found',
-      }
+      };
     }
 
     const result = await this.twitterService.respondToTweet(tweet);
@@ -93,5 +95,28 @@ export class TwitterController {
       message: result.twit_text,
       tweetId: result.twit_id,
     };
+  }
+
+  @Post('summary/weekly')
+  async runWeeklySummary(@Query('days') days?: string): Promise<any> {
+    const agent = this.agentFactory.createQdrantAgent();
+    const result = await agent.executeCapability(
+      'qdrant_create_weekly_summary',
+      {
+        days: days ? parseInt(days, 10) : 7,
+      },
+    );
+    return result;
+  }
+
+  /**
+   * Backfill postedAt in unified collection from raw tweets
+   * POST /twitter/backfill/posted-at
+   */
+  @Post('backfill/posted-at')
+  async backfillPostedAt(
+    @Query('account') account?: string,
+  ): Promise<{ updated: number }> {
+    return this.twitterDocGen.backfillPostedAt({ username: account });
   }
 }

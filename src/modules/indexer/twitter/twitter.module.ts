@@ -17,6 +17,7 @@ import { AppConfigModule } from '../../core/modules/config/app-config.module';
 import { AccountRotationService } from './services/account-rotation.service';
 import { TwitterService } from './services/twitter.service';
 import { OrchestratorModule } from 'src/modules/orchestrator/orchestrator.module';
+import { MultiAgentModule } from 'src/modules/multiagent/multiagent.module';
 import { TwitterRawStorageService } from './services/twitter-raw-storage.service';
 import { TwitterDocGenerationService } from './services/twitter-doc-generation.service';
 import { TwitterRawIndexerService } from './services/twitter-raw-indexer.service';
@@ -42,6 +43,7 @@ import { TwitterSourceIndexerService } from './services/twitter-source-indexer.s
     TwitterApiModule, // ✅ Gets TwitterApiService with proper dependencies
     AppConfigModule, // ✅ Gets AppConfigService for Twitter accounts configuration
     OrchestratorModule,
+    MultiAgentModule, // ✅ For AgentFactory used by controller
   ],
   controllers: [
     TwitterController, // ✅ Simple controller with cron management

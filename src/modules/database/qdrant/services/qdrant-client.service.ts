@@ -229,6 +229,28 @@ export class QdrantClientService implements OnModuleInit {
   }
 
   /**
+   * Set payload fields on points by filter or by point IDs
+   */
+  async setPayload(
+    collectionName: string,
+    payload: Record<string, any>,
+    options: { filter?: any; points?: string[] },
+  ): Promise<any> {
+    try {
+      this.logger.debug(`Setting payload on collection: ${collectionName}`);
+      const args: any = { payload };
+      if (options?.filter) args.filter = options.filter;
+      if (options?.points) args.points = options.points;
+      return await (this.qdrantClient as any).setPayload(collectionName, args);
+    } catch (error) {
+      this.logger.error(
+        `Failed to set payload in ${collectionName}: ${error.message}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Scroll points in collection
    */
   async scrollPoints(collectionName: string, scrollParams: any): Promise<any> {
