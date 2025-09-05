@@ -61,8 +61,9 @@ export class TwitterDocGenerationService {
       return { created: 0, updated: 0, processed: 0 };
     }
 
-    // 2) Pull all existing Twitter master doc IDs (by source)
+    // 2) Pull all existing Twitter master docs (by source)
     const existingIds = new Set<string>();
+    const existingDocs: MasterDocument[] = [];
     let offset = 0;
     const page = batchSize;
     while (true) {
@@ -72,7 +73,10 @@ export class TwitterDocGenerationService {
         offset,
       );
       if (!docs || docs.length === 0) break;
-      for (const d of docs) existingIds.add(String(d.id));
+      for (const d of docs) {
+        existingIds.add(String(d.id));
+        existingDocs.push(d);
+      }
       offset += docs.length;
       if (docs.length < page) break;
     }
@@ -102,10 +106,20 @@ export class TwitterDocGenerationService {
 
     // 5) For existing docs, update from raw payload locally (note-update semantics)
     let updated = 0;
-    for (const raw of existing) {
+    // Build a map to avoid re-fetches and allow filtering by missing hasTweetNote
+    const existingMap = new Map<string, MasterDocument>();
+    for (const d of existingDocs) existingMap.set(String(d.id), d);
+    const existingNeedingNote = existing.filter((raw) => {
+      const doc = existingMap.get(String(raw.id));
+      return doc && typeof (doc as any).payload.hasTweetNote === 'undefined';
+    });
+
+    for (const raw of existingNeedingNote) {
       try {
+        const pre = existingMap.get(String(raw.id));
         const res = await this.noteUpdate.updateFromRawTweet(raw, {
           dryRun: false,
+          existingDoc: pre,
         });
         if (res.updated) updated++;
       } catch (e) {

@@ -149,7 +149,16 @@ export class AccountRotationService {
     // Calculate selection scores and priorities
     const scoredAccounts = accountStatuses
       .map((account) => this.calculateAccountScore(account))
-      .sort((a, b) => b.totalScore - a.totalScore);
+      .sort((a, b) => {
+        // Primary: higher score first
+        if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+        // Secondary: least recently updated first
+        const aUpdated = a.updatedAt ? a.updatedAt.getTime() : 0;
+        const bUpdated = b.updatedAt ? b.updatedAt.getTime() : 0;
+        if (aUpdated !== bUpdated) return aUpdated - bUpdated;
+        // Tertiary: stable alphabetical by account
+        return a.account.localeCompare(b.account);
+      });
 
     // Optionally cap number of accounts before allocation
     const capped =
@@ -387,7 +396,7 @@ export class AccountRotationService {
       [AccountSyncStatus.STALE]: 500, // High priority
       [AccountSyncStatus.PARTIAL_SYNC]: 200, // Medium priority
       [AccountSyncStatus.FULL_SYNC]: 50, // Low priority
-      [AccountSyncStatus.COOLING_DOWN]: 1, // Lowest priority
+      [AccountSyncStatus.COOLING_DOWN]: 1000, // Lowest priority
     };
 
     score += priorityWeights[account.syncStatus];
@@ -407,11 +416,6 @@ export class AccountRotationService {
       ) {
         score += 200; // Bonus for nearly complete accounts
       }
-    }
-
-    // 🚫 Skip if cooling down
-    if (account.syncStatus === AccountSyncStatus.COOLING_DOWN) {
-      score = -999; // Negative priority
     }
 
     return { ...account, totalScore: Math.max(0, score) };

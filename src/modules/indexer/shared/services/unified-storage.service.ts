@@ -193,7 +193,12 @@ export class UnifiedStorageService {
         },
       );
 
-      return searchResult.points.map((point) =>
+      // The Qdrant client returns an array of points for search
+      if (!Array.isArray(searchResult) || searchResult.length === 0) {
+        return [];
+      }
+
+      return searchResult.map((point: any) =>
         this.convertPayloadToMasterDocument(point.payload),
       );
     } catch (error) {
@@ -244,13 +249,12 @@ export class UnifiedStorageService {
           vector: new Array(this.config.getVectorDimensions()).fill(0), // Dummy vector for filter-only search
           limit: 1,
           filter,
-          sort: [{ key: 'createdAt', direction: 'desc' }],
         },
       );
 
-      // Handle cases where searchResult or points might be undefined
-      if (searchResult?.points?.length > 0) {
-        const latestMessage = searchResult.points[0];
+      // Handle cases where searchResult might be undefined or empty
+      if (Array.isArray(searchResult) && searchResult.length > 0) {
+        const latestMessage = searchResult[0];
         if (latestMessage?.payload?.createdAt) {
           return new Date(latestMessage.payload.createdAt);
         }

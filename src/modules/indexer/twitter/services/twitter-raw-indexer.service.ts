@@ -86,7 +86,7 @@ export class TwitterRawIndexerService extends BaseIndexerService {
           // Backfill pass if budget remains and account not complete
           const remaining = Math.max(0, pageBudget - (head.requestsUsed || 0));
           let backfill: typeof head | undefined = undefined;
-          const shouldBackfill = remaining > 0 && !status?.isComplete;
+          const shouldBackfill = remaining > 0;
           if (shouldBackfill) {
             backfill = await this.processAccount(client, sel.account, {
               mode: 'backfill',

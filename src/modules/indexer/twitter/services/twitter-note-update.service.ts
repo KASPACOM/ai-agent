@@ -371,13 +371,14 @@ export class TwitterNoteUpdateService {
    */
   async updateFromRawTweet(
     raw: RawTweetRecord,
-    options: { dryRun?: boolean } = {},
+    options: { dryRun?: boolean; existingDoc?: MasterDocument } = {},
   ): Promise<{ updated: boolean }> {
-    const { dryRun = false } = options;
+    const { dryRun = false, existingDoc: preloaded } = options;
     const documentId = String(raw.id);
 
-    // Load existing document
-    const existingDoc = await this.getExistingDocument(documentId);
+    // Use provided document if available to avoid extra fetch
+    const existingDoc =
+      preloaded || (await this.getExistingDocument(documentId));
     if (!existingDoc) {
       // If the master document doesn't exist yet, caller may create it separately
       return { updated: false };
@@ -417,6 +418,7 @@ export class TwitterNoteUpdateService {
             twitterNoteText: noteText,
           },
           true,
+          existingDoc,
         );
       }
       return { updated: true };
@@ -428,6 +430,7 @@ export class TwitterNoteUpdateService {
             hasTweetNote: false,
           },
           false,
+          existingDoc,
         );
       }
       return { updated: false };
@@ -484,11 +487,13 @@ export class TwitterNoteUpdateService {
     documentId: string,
     updates: Partial<MasterDocument>,
     reEmbed: boolean = false,
+    existingDocOverride?: MasterDocument,
   ): Promise<void> {
     try {
       // Use UnifiedStorageService to update the document
       // This ensures we follow the same storage patterns
-      const existingDoc = await this.getExistingDocument(documentId);
+      const existingDoc =
+        existingDocOverride || (await this.getExistingDocument(documentId));
       if (!existingDoc) {
         throw new Error(`Document ${documentId} not found`);
       }
