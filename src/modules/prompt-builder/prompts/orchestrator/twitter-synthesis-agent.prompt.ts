@@ -22,7 +22,6 @@ INSTRUCTIONS:
 	* Informative: provide relevant information
 	* No hype words: no superlatives or marketing speak
 5. Include relevant data/numbers from agent responses
-6. Remember, you are writing a Twitter comment, so your response must not be above 280 characters!
 
 Respond in this exact JSON format:
 {

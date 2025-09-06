@@ -226,7 +226,7 @@ export class QdrantRepository {
     untilIso: string;
     limit?: number;
   }): Promise<MasterDocument[]> {
-    const { sources, sinceIso, untilIso, limit = 1000 } = options;
+    const { sources, sinceIso, untilIso, limit } = options;
 
     try {
       const collectionName = this.qdrantConfig.getCollectionName();
@@ -249,28 +249,113 @@ export class QdrantRepository {
         ],
       };
 
-      const zeroVector = new Array(
-        this.qdrantConfig.getCollectionConfig().vectors.size,
-      ).fill(0);
+      if (typeof limit === 'number') {
+        const zeroVector = new Array(
+          this.qdrantConfig.getCollectionConfig().vectors.size,
+        ).fill(0);
 
-      const params = {
-        vector: zeroVector,
-        limit: Math.min(limit, 1000),
-        with_payload: true,
-        with_vector: false,
-        filter,
-      };
+        const params = {
+          vector: zeroVector,
+          limit,
+          with_payload: true,
+          with_vector: false,
+          filter,
+        } as any;
 
-      const result = await this.qdrantClient.searchPoints(
-        collectionName,
-        params,
-      );
+        const result = await this.qdrantClient.searchPoints(
+          collectionName,
+          params,
+        );
 
-      if (!Array.isArray(result) || result.length === 0) return [];
-      return result.map((p: any) => p.payload as MasterDocument);
+        if (!Array.isArray(result) || result.length === 0) return [];
+        return result.map((p: any) => p.payload as MasterDocument);
+      }
+
+      // No limit provided: scroll all
+      const all: MasterDocument[] = [];
+      let offset: any = undefined;
+      do {
+        const page = await this.qdrantClient.scrollPoints(collectionName, {
+          with_payload: true,
+          with_vector: false,
+          limit: 1000,
+          offset,
+          filter,
+        });
+        const points = page?.points || [];
+        for (const p of points) all.push(p.payload as MasterDocument);
+        offset = page?.next_page_offset;
+      } while (offset);
+      return all;
     } catch (error) {
       this.logger.error(
         `Failed to query unified documents by date and sources: ${error.message}`,
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Query Twitter MasterDocuments strictly by postedAt date range
+   */
+  async getTwitterDocumentsByPostedAtRange(options: {
+    sinceIso: string;
+    untilIso: string;
+    limit?: number;
+  }): Promise<MasterDocument[]> {
+    const { sinceIso, untilIso, limit } = options;
+
+    try {
+      const collectionName = this.qdrantConfig.getCollectionName();
+
+      const filter: any = {
+        must: [
+          { key: 'source', match: { value: MessageSource.TWITTER } },
+          { key: 'postedAt', range: { gte: sinceIso, lte: untilIso } },
+        ],
+      };
+
+      if (typeof limit === 'number') {
+        const zeroVector = new Array(
+          this.qdrantConfig.getCollectionConfig().vectors.size,
+        ).fill(0);
+
+        const params = {
+          vector: zeroVector,
+          limit,
+          with_payload: true,
+          with_vector: false,
+          filter,
+        } as any;
+
+        const result = await this.qdrantClient.searchPoints(
+          collectionName,
+          params,
+        );
+
+        if (!Array.isArray(result) || result.length === 0) return [];
+        return result.map((p: any) => p.payload as MasterDocument);
+      }
+
+      // No limit provided: scroll all
+      const all: MasterDocument[] = [];
+      let offset: any = undefined;
+      do {
+        const page = await this.qdrantClient.scrollPoints(collectionName, {
+          with_payload: true,
+          with_vector: false,
+          limit: 1000,
+          offset,
+          filter,
+        });
+        const points = page?.points || [];
+        for (const p of points) all.push(p.payload as MasterDocument);
+        offset = page?.next_page_offset;
+      } while (offset);
+      return all;
+    } catch (error) {
+      this.logger.error(
+        `Failed to query Twitter documents by postedAt: ${error.message}`,
       );
       return [];
     }

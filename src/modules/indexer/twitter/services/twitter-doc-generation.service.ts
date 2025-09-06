@@ -161,23 +161,22 @@ export class TwitterDocGenerationService {
       }
     }
 
-    // Update payloads in unified storage without re-embedding via repository setPayload
-    // Page through unified docs by source
-    const pageSize = 500;
+    // Update only MasterDocuments missing postedAt for Twitter
+    const pageSize = 5000;
     let offset = 0;
     let updated = 0;
     while (true) {
-      const docs = await this.storage.getBySource(
+      const docs = await this.storage.getBySourceMissingPostedAt(
         MessageSource.TWITTER,
         pageSize,
         offset,
+        opts.username ? { authorOrChannel: opts.username } : undefined,
       );
       if (!docs || docs.length === 0) break;
 
-      // Prepare minimal updates via unified storage (no re-embedding)
       for (const d of docs) {
         const postedAt = idToPostedAt.get(String(d.id));
-        if (postedAt && d.postedAt !== postedAt) {
+        if (postedAt) {
           try {
             await this.storage.setPostedAt(String(d.id), postedAt);
             updated++;

@@ -19,14 +19,19 @@ export class AgentTaskService {
   async createWeeklySummary(days: number = 7): Promise<any> {
     const now = new Date();
     const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-
-    const docs =
-      await this.qdrantRepository.getUnifiedDocumentsByDateAndSources({
-        sources: [MessageSource.TWITTER, MessageSource.TELEGRAM],
+    const [twitterDocs, telegramDocs] = await Promise.all([
+      this.qdrantRepository.getTwitterDocumentsByPostedAtRange({
         sinceIso: since.toISOString(),
         untilIso: now.toISOString(),
-        limit: 1000,
-      });
+      }),
+      this.qdrantRepository.getUnifiedDocumentsByDateAndSources({
+        sources: [MessageSource.TELEGRAM],
+        sinceIso: since.toISOString(),
+        untilIso: now.toISOString(),
+      }),
+    ]);
+
+    const docs = [...twitterDocs, ...telegramDocs];
 
     const twitterBuckets = new Map<string, any[]>();
     const telegramBuckets = new Map<string, any[]>();

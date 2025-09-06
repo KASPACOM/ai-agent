@@ -194,6 +194,28 @@ export class TwitterApiService {
   }
 
   /**
+   * Ensure write client is available; initialize or throw with missing envs info
+   */
+  private ensureWriteClient(): TwitterApi {
+    const client = this.getWriteTwitterClient();
+    if (client) return client;
+
+    const missing: string[] = [];
+    if (!this.appConfig.getTwitterApiKey) missing.push('TWITTER_API_KEY');
+    if (!this.appConfig.getTwitterApiSecret) missing.push('TWITTER_API_SECRET');
+    if (!this.appConfig.getTwitterAccessToken)
+      missing.push('TWITTER_ACCESS_TOKEN');
+    if (!this.appConfig.getTwitterAccessTokenSecret)
+      missing.push('TWITTER_ACCESS_TOKEN_SECRET');
+
+    const hint =
+      missing.length > 0
+        ? `Missing environment variables: ${missing.join(', ')}`
+        : 'Unknown configuration issue';
+    throw new Error(`Twitter write client not initialized: ${hint}`);
+  }
+
+  /**
    * Fetch tweets from specified accounts using Twitter API
    * Uses the new ETL strategy: query down to latest indexed date
    */
@@ -700,20 +722,17 @@ export class TwitterApiService {
    * Post a new tweet
    */
   async postTweet(status: string): Promise<any> {
-    return await this.notifyTelegramAboutTwitterIntent(status);
-    // try {
-    //   const writeClient = this.getWriteTwitterClient();
-    //   if (!writeClient) {
-    //     throw new Error('Twitter write client not initialized');
-    //   }
-    //   const result = await writeClient.v2.tweet(status);
-    //   this.logger.log(`Tweet posted successfully: ${result.data?.id}`);
-    //   return result.data;
-    // } catch (error) {
-    //   this.logger.error(`Failed to post tweet: ${error.message}`);
-    //   this.apiStats.errors.push(`Post tweet failed: ${error.message}`);
-    //   throw error;
-    // }
+    // return await this.notifyTelegramAboutTwitterIntent(status);
+    try {
+      const writeClient = this.ensureWriteClient();
+      const result = await writeClient.v2.tweet(status);
+      this.logger.log(`Tweet posted successfully: ${result.data?.id}`);
+      return result.data;
+    } catch (error) {
+      this.logger.error(`Failed to post tweet: ${error.message}`);
+      this.apiStats.errors.push(`Post tweet failed: ${error.message}`);
+      throw error;
+    }
   }
 
   /**
@@ -782,7 +801,6 @@ export class TwitterApiService {
         tweet.data,
         this.tranformIncludeUsersToObject(tweet.includes.users),
       );
-      
     } catch (error) {
       this.logger.error(`Failed to get tweet ${tweetId}: ${error.message}`);
       this.apiStats.errors.push(`Get tweet by ID failed: ${error.message}`);
@@ -965,12 +983,12 @@ export class TwitterApiService {
     const maxLength = 280;
     const sentences = text.match(/[^.!?]+[.!?]+[\])'"`’”]*|.+$/g) || [];
     const tweets: string[] = [];
-  
+
     let currentTweet = '';
-  
+
     for (const sentence of sentences) {
       const trimmedSentence = sentence.trim();
-  
+
       if ((currentTweet + ' ' + trimmedSentence).trim().length <= maxLength) {
         currentTweet = (currentTweet + ' ' + trimmedSentence).trim();
       } else {
@@ -992,22 +1010,19 @@ export class TwitterApiService {
         }
       }
     }
-  
+
     if (currentTweet) tweets.push(currentTweet);
-  
+
     return tweets;
   }
-  
 
   async postThread(text: string) {
     const tweets = this.splitLargeTextIntoTweets(text);
-
 
     if (tweets.length === 0) {
       throw new Error('No tweets to post');
     }
 
-    
     const firstTweet = await this.postTweet(tweets[0]);
     for (const tweetText of tweets.slice(1)) {
       await this.postComment(tweetText, firstTweet.id);
@@ -1015,5 +1030,4 @@ export class TwitterApiService {
 
     return firstTweet;
   }
-    
 }
