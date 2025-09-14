@@ -210,6 +210,70 @@ export class UnifiedStorageService {
   }
 
   /**
+   * Retrieve documents by source where postedAt is missing
+   * Optionally filter by author/account (e.g., Twitter authorHandle)
+   */
+  async getBySourceMissingPostedAt(
+    source: MessageSource,
+    limit: number = 100,
+    offset: number = 0,
+    options?: { authorOrChannel?: string },
+  ): Promise<MasterDocument[]> {
+    try {
+      this.logger.debug(
+        `Retrieving ${limit} documents from source: ${source} missing postedAt`,
+      );
+
+      const must: any[] = [{ key: 'source', match: { value: source } }];
+
+      if (options?.authorOrChannel) {
+        if (source === MessageSource.TELEGRAM) {
+          must.push({
+            key: 'telegramChannelTitle',
+            match: { value: options.authorOrChannel },
+          });
+        } else if (source === MessageSource.TWITTER) {
+          must.push({
+            key: 'authorHandle',
+            match: { value: options.authorOrChannel.toLowerCase() },
+          });
+        }
+      }
+
+      const filter = {
+        must,
+        // Exclude any docs where postedAt exists (has at least 1 value)
+        must_not: [{ key: 'postedAt', values_count: { gte: 1 } }],
+      } as any;
+
+      const searchResult = await this.qdrantClient.searchPoints(
+        this.config.getUnifiedMessagesCollectionName(),
+        {
+          vector: new Array(this.config.getVectorDimensions()).fill(0),
+          limit,
+          offset,
+          with_payload: true,
+          with_vector: false,
+          filter,
+        },
+      );
+
+      if (!Array.isArray(searchResult) || searchResult.length === 0) {
+        return [];
+      }
+
+      return searchResult.map((point: any) =>
+        this.convertPayloadToMasterDocument(point.payload),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to retrieve documents by source ${source} missing postedAt: ${error.message}`,
+      );
+      return [];
+    }
+  }
+
+  /**
    * Get latest message date for a specific source and account/channel
    */
   async getLatestMessageDate(
@@ -352,6 +416,40 @@ export class UnifiedStorageService {
    */
   private generatePointId(documentId: string): string {
     return uuidv5(documentId, this.config.getUnifiedMessagesUuidNamespace());
+  }
+
+  /**
+   * Update postedAt on a single MasterDocument without re-embedding
+   */
+  async setPostedAt(documentId: string, postedAtIso: string): Promise<void> {
+    const collectionName = this.config.getUnifiedMessagesCollectionName();
+    const pointId = this.generatePointId(documentId);
+    await this.qdrantClient.setPayload(
+      collectionName,
+      { postedAt: postedAtIso },
+      {
+        points: [pointId],
+      },
+    );
+  }
+
+  /**
+   * Batch update postedAt on MasterDocuments without re-embedding
+   */
+  async setPostedAtBatch(
+    updates: Array<{ id: string; postedAt: string }>,
+  ): Promise<void> {
+    const collectionName = this.config.getUnifiedMessagesCollectionName();
+    for (const u of updates) {
+      const pointId = this.generatePointId(u.id);
+      await this.qdrantClient.setPayload(
+        collectionName,
+        { postedAt: u.postedAt },
+        {
+          points: [pointId],
+        },
+      );
+    }
   }
 
   /**

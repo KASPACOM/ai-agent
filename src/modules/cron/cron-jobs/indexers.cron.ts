@@ -3,7 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { TelegramIndexerService } from 'src/modules/indexer/telegram/services/telegram-indexer.service';
 import { AppConfigService } from 'src/modules/core/modules/config/app-config.service';
 import { BaseIndexerService } from 'src/modules/indexer/shared/services/base-indexer.service';
-import { TwitterSourceIndexerService } from 'src/modules/indexer/twitter/services/twitter-source-indexer.service';
+import { TwitterRawIndexerService } from 'src/modules/indexer/twitter/services/twitter-raw-indexer.service';
 import { TwitterDocGenerationService } from 'src/modules/indexer/twitter/services/twitter-doc-generation.service';
 
 @Injectable()
@@ -12,7 +12,7 @@ export class IndexersCron {
 
   constructor(
     private readonly telegramIndexer: TelegramIndexerService,
-    private readonly twitterSourceIndexer: TwitterSourceIndexerService,
+    private readonly twitterRawIndexer: TwitterRawIndexerService,
     private readonly twitterDocGen: TwitterDocGenerationService,
     private readonly appConfig: AppConfigService,
   ) {}
@@ -22,10 +22,10 @@ export class IndexersCron {
     await this.runIndexer(this.telegramIndexer);
   }
 
-  @Cron('*/15 * * * *')
-  async runTwitterRawIndexer() {
-    await this.runIndexer(this.twitterSourceIndexer);
-  }
+  // @Cron('*/15 * * * *')
+  // async runTwitterRawIndexer() {
+  //   await this.runIndexer(this.twitterRawIndexer);
+  // }
 
   // Run Doc Generation daily at 20:00 server time
   @Cron('0 0 20 * * *')

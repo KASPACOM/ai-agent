@@ -15,6 +15,9 @@ import {
 } from './models/twitter.model';
 import { TwitterTransformer } from './transformers/twitter-api.transformer';
 import { AppConfigService } from 'src/modules/core/modules/config/app-config.service';
+import { OpenAiAdapter } from 'src/modules/llm/openai.service';
+import { LlmConversation } from 'src/modules/llm/llm-adapter.interface';
+import { FORMAT_TWITTER_POSTS } from 'src/modules/prompt-builder/prompts/orchestrator/weekly-digest.prompt';
 import { TelegramPublisherService } from '../telegram/publisher.service';
 
 const DEFAULT_TWEET_FIELDS: Partial<TweetV2PaginableTimelineParams> = {
@@ -113,6 +116,7 @@ export class TwitterApiService {
   constructor(
     private readonly appConfig: AppConfigService,
     private readonly telegramPublisherService: TelegramPublisherService,
+    private readonly openai: OpenAiAdapter,
   ) {
     // Initialize Twitter API client
     this.twitterClient = this.initializeTwitterClient();
@@ -191,6 +195,28 @@ export class TwitterApiService {
     }
 
     return this.twitterClientWithWrite;
+  }
+
+  /**
+   * Ensure write client is available; initialize or throw with missing envs info
+   */
+  private ensureWriteClient(): TwitterApi {
+    const client = this.getWriteTwitterClient();
+    if (client) return client;
+
+    const missing: string[] = [];
+    if (!this.appConfig.getTwitterApiKey) missing.push('TWITTER_API_KEY');
+    if (!this.appConfig.getTwitterApiSecret) missing.push('TWITTER_API_SECRET');
+    if (!this.appConfig.getTwitterAccessToken)
+      missing.push('TWITTER_ACCESS_TOKEN');
+    if (!this.appConfig.getTwitterAccessTokenSecret)
+      missing.push('TWITTER_ACCESS_TOKEN_SECRET');
+
+    const hint =
+      missing.length > 0
+        ? `Missing environment variables: ${missing.join(', ')}`
+        : 'Unknown configuration issue';
+    throw new Error(`Twitter write client not initialized: ${hint}`);
   }
 
   /**
@@ -700,20 +726,17 @@ export class TwitterApiService {
    * Post a new tweet
    */
   async postTweet(status: string): Promise<any> {
-    return await this.notifyTelegramAboutTwitterIntent(status);
-    // try {
-    //   const writeClient = this.getWriteTwitterClient();
-    //   if (!writeClient) {
-    //     throw new Error('Twitter write client not initialized');
-    //   }
-    //   const result = await writeClient.v2.tweet(status);
-    //   this.logger.log(`Tweet posted successfully: ${result.data?.id}`);
-    //   return result.data;
-    // } catch (error) {
-    //   this.logger.error(`Failed to post tweet: ${error.message}`);
-    //   this.apiStats.errors.push(`Post tweet failed: ${error.message}`);
-    //   throw error;
-    // }
+    // return await this.notifyTelegramAboutTwitterIntent(status);
+    try {
+      const writeClient = this.ensureWriteClient();
+      const result = await writeClient.v2.tweet(status);
+      this.logger.log(`Tweet posted successfully: ${result.data?.id}`);
+      return result.data;
+    } catch (error) {
+      this.logger.error(`Failed to post tweet: ${error.message}`);
+      this.apiStats.errors.push(`Post tweet failed: ${error.message}`);
+      throw error;
+    }
   }
 
   /**
@@ -726,30 +749,30 @@ export class TwitterApiService {
     id: string;
     text: string;
   }> {
-    await this.notifyTelegramAboutTwitterIntent(status, inReplyToTweetId);
+    // await this.notifyTelegramAboutTwitterIntent(status, inReplyToTweetId);
 
-    return {
-      id: 'telegram-test-' + Math.floor(Math.random() * 1000000000000),
-      text: status,
-    };
-    // try {
-    //   const writeClient = this.getWriteTwitterClient();
+    // return {
+    //   id: 'telegram-test-' + Math.floor(Math.random() * 1000000000000),
+    //   text: status,
+    // };
+    try {
+      const writeClient = this.getWriteTwitterClient();
 
-    //   if (!writeClient) {
-    //     throw new Error('Twitter write client not initialized');
-    //   }
-    //   const result = await writeClient.v2.tweet({
-    //     text: status,
-    //     reply: { in_reply_to_tweet_id: inReplyToTweetId },
-    //   });
-    //   this.logger.log(`Comment posted successfully: ${result.data?.id}`);
+      if (!writeClient) {
+        throw new Error('Twitter write client not initialized');
+      }
+      const result = await writeClient.v2.tweet({
+        text: status,
+        reply: { in_reply_to_tweet_id: inReplyToTweetId },
+      });
+      this.logger.log(`Comment posted successfully: ${result.data?.id}`);
 
-    //   return result.data;
-    // } catch (error) {
-    //   this.logger.error(`Failed to post comment: ${error.message}`);
-    //   this.apiStats.errors.push(`Post comment failed: ${error.message}`);
-    //   throw error;
-    // }
+      return result.data;
+    } catch (error) {
+      this.logger.error(`Failed to post comment: ${error.message}`);
+      this.apiStats.errors.push(`Post comment failed: ${error.message}`);
+      throw error;
+    }
   }
 
   /**
@@ -782,7 +805,6 @@ export class TwitterApiService {
         tweet.data,
         this.tranformIncludeUsersToObject(tweet.includes.users),
       );
-      
     } catch (error) {
       this.logger.error(`Failed to get tweet ${tweetId}: ${error.message}`);
       this.apiStats.errors.push(`Get tweet by ID failed: ${error.message}`);
@@ -965,12 +987,12 @@ export class TwitterApiService {
     const maxLength = 280;
     const sentences = text.match(/[^.!?]+[.!?]+[\])'"`’”]*|.+$/g) || [];
     const tweets: string[] = [];
-  
+
     let currentTweet = '';
-  
+
     for (const sentence of sentences) {
       const trimmedSentence = sentence.trim();
-  
+
       if ((currentTweet + ' ' + trimmedSentence).trim().length <= maxLength) {
         currentTweet = (currentTweet + ' ' + trimmedSentence).trim();
       } else {
@@ -992,28 +1014,57 @@ export class TwitterApiService {
         }
       }
     }
-  
+
     if (currentTweet) tweets.push(currentTweet);
-  
+
     return tweets;
   }
-  
 
   async postThread(text: string) {
-    const tweets = this.splitLargeTextIntoTweets(text);
+    const conversation: LlmConversation = {
+      messages: [
+        { role: 'system', content: FORMAT_TWITTER_POSTS },
+        { role: 'user', content: text },
+      ],
+    };
+    const schema = {
+      type: 'object',
+      properties: {
+        response: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['response'],
+    } as const;
 
+    let tweets: string[] = [];
+    try {
+      const result = await this.openai.generateStructuredOutput<any>(
+        conversation,
+        schema,
+        { temperature: 0.4, maxTokens: 1600 },
+      );
+      if (Array.isArray(result?.response)) {
+        tweets = result.response.map((t: any) => String(t)).filter(Boolean);
+      }
+    } catch (err) {
+      this.logger.warn(
+        `LLM formatter failed, falling back to simple splitter: ${err?.message}`,
+      );
+    }
+
+    if (!tweets || tweets.length === 0) {
+      tweets = this.splitLargeTextIntoTweets(text);
+    }
 
     if (tweets.length === 0) {
       throw new Error('No tweets to post');
     }
 
-    
     const firstTweet = await this.postTweet(tweets[0]);
     for (const tweetText of tweets.slice(1)) {
+      // await this.postTweet(tweetText);
       await this.postComment(tweetText, firstTweet.id);
     }
 
     return firstTweet;
   }
-    
 }

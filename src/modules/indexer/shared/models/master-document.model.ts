@@ -69,6 +69,8 @@ export interface MasterDocument {
   author: string;
   authorHandle: string;
   createdAt: string; // ISO string for storage consistency
+  // Original posted timestamp from the source platform (e.g., Twitter created_at)
+  postedAt?: string; // ISO string
   url: string;
 
   // ==========================================

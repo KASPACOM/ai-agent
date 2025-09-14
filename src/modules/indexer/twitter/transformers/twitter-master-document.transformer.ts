@@ -26,7 +26,7 @@ export class TwitterMasterDocumentTransformer {
     const finalText = noteText || originalText; // Use note_tweet if available, fallback to original
     const text = this.normalizeText(finalText);
     const tweetId = tweet.id_str || tweet.id || `twitter_${Date.now()}`;
-
+    const postedAt = new Date(tweet.created_at).toISOString();
     return {
       id: tweetId,
       source: MessageSource.TWITTER,
@@ -37,7 +37,8 @@ export class TwitterMasterDocumentTransformer {
         tweet.user?.username ||
         accountHandle
       ).toLowerCase(),
-      createdAt: new Date(tweet.created_at || Date.now()).toISOString(),
+      createdAt: new Date(tweet.created_at).toISOString(),
+      postedAt: postedAt,
       url:
         tweet.url || `https://twitter.com/${accountHandle}/status/${tweetId}`,
 

@@ -3,12 +3,7 @@ import { QdrantRepository } from '../../../database/qdrant/services/qdrant.repos
 import { QdrantClientService } from '../../../database/qdrant/services/qdrant-client.service';
 import { IndexerConfigService } from '../../shared/config/indexer.config';
 import { AppConfigService } from '../../../core/modules/config/app-config.service';
-import {
-  AccountStatus,
-  AccountWithStatus,
-  AccountRotationConfig,
-  AccountSyncStatus,
-} from '../models/account-status.model';
+import { AccountStatus } from '../models/account-status.model';
 
 export enum RotationMode {
   CLASSIC = 'CLASSIC',
@@ -37,16 +32,9 @@ export class AccountRotationService {
   private readonly TWITTER_HISTORY_COLLECTION: string;
   private readonly TWITTER_RAW_HISTORY_COLLECTION: string;
 
-  // Default configuration - can be overridden via environment
-  private readonly config: AccountRotationConfig = {
-    maxConsecutiveRuns: 3, // Max times same account can be processed in a row
-    cooldownHours: 24, // Hours to wait before re-processing complete accounts
-    priorityBoostHours: 48, // Hours after which to boost account priority
-    maxRequestsPerAccount: 5, // Max requests to spend per account per run
-  };
-
-  // In-memory tracking for current session
-  private processingSession: Map<string, number> = new Map(); // account -> consecutive runs
+  // In-memory RAW queue for current session
+  // Simple in-memory queue for RAW mode selection (repopulated as needed)
+  private rawQueue: string[] = [];
 
   constructor(
     private readonly qdrantRepository: QdrantRepository,
@@ -65,17 +53,16 @@ export class AccountRotationService {
    * Initialize the Twitter history collection on module startup
    */
   async onModuleInit() {
-    await this.ensureCollection(RotationMode.CLASSIC);
-    await this.ensureCollection(RotationMode.RAW);
+    await this.ensureRawCollection();
   }
 
   /**
    * Ensure Twitter history collection exists (lazy creation)
    * Handles race conditions where multiple processes try to create the same collection
    */
-  private async ensureCollection(mode: RotationMode): Promise<void> {
+  private async ensureCollection(): Promise<void> {
     try {
-      const collection = this.getCollectionName(mode);
+      const collection = this.getCollectionName();
       const exists = await this.qdrantClient.collectionExists(collection);
 
       if (exists) {
@@ -103,7 +90,7 @@ export class AccountRotationService {
         error.message?.includes('already exists')
       ) {
         this.logger.debug(
-          `Collection ${this.getCollectionName(mode)} already exists (created by another process)`,
+          `Collection ${this.getCollectionName()} already exists (created by another process)`,
         );
         return; // This is actually success - another process created it
       }
@@ -116,10 +103,14 @@ export class AccountRotationService {
     }
   }
 
-  private getCollectionName(mode: RotationMode): string {
-    return mode === RotationMode.RAW
-      ? this.TWITTER_RAW_HISTORY_COLLECTION
-      : this.TWITTER_HISTORY_COLLECTION;
+  // Classic mode deprecated: only RAW collection is used
+
+  private async ensureRawCollection(): Promise<void> {
+    await this.ensureCollection();
+  }
+
+  private getCollectionName(): string {
+    return this.TWITTER_RAW_HISTORY_COLLECTION;
   }
 
   /**
@@ -129,7 +120,6 @@ export class AccountRotationService {
    */
   async selectAccountsForProcessing(
     availableRequests: number,
-    mode: RotationMode = RotationMode.CLASSIC,
     maxAccounts?: number,
   ): Promise<
     Array<{
@@ -143,36 +133,114 @@ export class AccountRotationService {
       `🎯 Selecting accounts for processing (${availableRequests} requests available)`,
     );
 
-    // Get current status of all configured accounts
-    const accountStatuses = await this.getAllAccountStatuses(mode);
+    // Only RAW mode supported: use queue
+    return this.selectAccountsForProcessingRaw(availableRequests, maxAccounts);
+  }
 
-    // Calculate selection scores and priorities
-    const scoredAccounts = accountStatuses
-      .map((account) => this.calculateAccountScore(account))
-      .sort((a, b) => {
-        // Primary: higher score first
-        if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
-        // Secondary: least recently updated first
-        const aUpdated = a.updatedAt ? a.updatedAt.getTime() : 0;
-        const bUpdated = b.updatedAt ? b.updatedAt.getTime() : 0;
-        if (aUpdated !== bUpdated) return aUpdated - bUpdated;
-        // Tertiary: stable alphabetical by account
-        return a.account.localeCompare(b.account);
+  /**
+   * Simplified RAW selection using a queue ordered by last synced ascending
+   */
+  private async selectAccountsForProcessingRaw(
+    availableRequests: number,
+    maxAccounts?: number,
+  ): Promise<
+    Array<{
+      account: string;
+      requestBudget: number;
+      priority: number;
+      reason: string;
+    }>
+  > {
+    // Rebuild the queue if empty
+    if (this.rawQueue.length === 0) {
+      await this.buildRawQueue();
+    }
+
+    if (this.rawQueue.length === 0) {
+      return [];
+    }
+
+    // Ensure we can allocate at least 1 request per selected account
+    const effectiveRequests = Math.max(1, availableRequests);
+    const maxPick =
+      typeof maxAccounts === 'number' && maxAccounts > 0
+        ? maxAccounts
+        : this.rawQueue.length;
+    const pickCount = Math.min(
+      this.rawQueue.length,
+      maxPick,
+      effectiveRequests,
+    );
+
+    const picked = this.rawQueue.splice(0, pickCount);
+
+    // Evenly distribute the available requests among picked accounts
+    const base = Math.max(1, Math.floor(effectiveRequests / pickCount));
+    let remainder = Math.max(0, effectiveRequests - base * pickCount);
+
+    const selection = picked.map((account) => ({
+      account,
+      requestBudget: base + (remainder-- > 0 ? 1 : 0),
+      priority: 0,
+      reason: 'RAW-queue',
+    }));
+
+    this.logger.log(
+      `📋 Selected ${selection.length} RAW accounts from queue (requests=${effectiveRequests})`,
+    );
+
+    return selection;
+  }
+
+  /**
+   * Build the RAW mode queue from configured accounts and history
+   * Missing account docs are lazily created.
+   */
+  private async buildRawQueue(): Promise<void> {
+    try {
+      await this.ensureRawCollection();
+      const accounts = this.getTwitterAccounts();
+      const items = await Promise.all(
+        accounts.map(async (acc) => {
+          const normalized = acc.toLowerCase();
+          let status = await this.getAccountStatus(normalized);
+          if (!status) {
+            await this.upsertAccountStatus(normalized, {});
+            status = await this.getAccountStatus(normalized);
+          }
+          return {
+            account: normalized,
+            lastSyncedAt: this.getLastSyncedAt(status),
+          };
+        }),
+      );
+
+      items.sort((a, b) => {
+        const diff = a.lastSyncedAt.getTime() - b.lastSyncedAt.getTime();
+        return diff !== 0 ? diff : a.account.localeCompare(b.account);
       });
 
-    // Optionally cap number of accounts before allocation
-    const capped =
-      typeof maxAccounts === 'number' && maxAccounts > 0
-        ? scoredAccounts.slice(0, maxAccounts)
-        : scoredAccounts;
+      this.rawQueue = items.map((i) => i.account);
+      this.logger.log(
+        `🔄 RAW queue rebuilt with ${this.rawQueue.length} accounts`,
+      );
+    } catch (error) {
+      this.logger.error(`Failed to build RAW queue: ${error.message}`);
+      this.rawQueue = [];
+    }
+  }
 
-    // Allocate requests using weighted fair queuing
-    const selectedAccounts = this.allocateRequests(capped, availableRequests);
-
-    // Log selection rationale
-    this.logSelectionRationale(selectedAccounts);
-
-    return selectedAccounts;
+  /**
+   * Determine the last synced timestamp for ordering
+   */
+  private getLastSyncedAt(status: AccountStatus | null): Date {
+    if (!status) return new Date(0);
+    return (
+      status.lastPartialSync ||
+      status.lastFullSync ||
+      status.createdAt ||
+      new Date(0)
+    );
   }
 
   /**
@@ -191,10 +259,13 @@ export class AccountRotationService {
       earliestTweetDate?: string;
       earliestTweetId?: string;
       requestsUsed?: number;
+      // backfill tracking
+      backfillComplete?: boolean;
+      backfillLastId?: string;
+      backfillLastDate?: string;
     },
-    mode: RotationMode = RotationMode.CLASSIC,
   ): Promise<void> {
-    const existing = await this.getAccountStatus(account, mode);
+    const existing = await this.getAccountStatus(account);
     const now = new Date();
 
     const updated: Partial<AccountStatus> = {
@@ -204,12 +275,15 @@ export class AccountRotationService {
       ...(result.messagesIndexed &&
         result.messagesIndexed > 0 && { lastPartialSync: now }),
       updatedAt: now,
-      consecutiveRuns: (this.processingSession.get(account) || 0) + 1,
       latestTweetDate: result.latestTweetDate,
       latestTweetId: result.latestTweetId,
       earliestTweetDate: result.earliestTweetDate,
       earliestTweetId: result.earliestTweetId,
       requestsUsed: result.requestsUsed ?? existing?.requestsUsed ?? 0,
+      backfillComplete:
+        result.backfillComplete ?? existing?.backfillComplete ?? false,
+      backfillLastId: result.backfillLastId ?? existing?.backfillLastId,
+      backfillLastDate: result.backfillLastDate ?? existing?.backfillLastDate,
     };
 
     // Update completion status
@@ -220,54 +294,24 @@ export class AccountRotationService {
     ) {
       updated.isComplete = true;
       updated.lastFullSync = now;
-      updated.consecutiveRuns = 0; // Reset counter on completion
-      this.processingSession.delete(account);
+      // no-op for consecutiveRuns in simplified mode
       this.logger.log(`✅ Account @${account} marked as fully synced`);
     } else if (result.hasMoreData) {
       updated.isComplete = false;
-      this.processingSession.set(account, updated.consecutiveRuns!);
     }
 
-    await this.upsertAccountStatus(account, updated, mode);
+    await this.upsertAccountStatus(account, updated);
   }
 
   /**
    * Get account rotation summary for monitoring
    */
-  async getAccountRotationSummary(): Promise<{
-    totalAccounts: number;
-    accountsNeedingSync: number;
-    completedAccounts: number;
-    accountsWithErrors: number;
-  }> {
-    const allStatuses = await this.getAllAccountStatuses(RotationMode.CLASSIC);
-
-    return {
-      totalAccounts: allStatuses.length,
-      accountsNeedingSync: allStatuses.filter((a) => !a.isComplete).length,
-      completedAccounts: allStatuses.filter((a) => a.isComplete).length,
-      accountsWithErrors: allStatuses.filter(
-        (a) => a.syncStatus === AccountSyncStatus.COOLING_DOWN,
-      ).length,
-    };
-  }
+  // Classic rotation summary deprecated
 
   /**
    * Get comprehensive status for all configured accounts
    */
-  private async getAllAccountStatuses(
-    mode: RotationMode,
-  ): Promise<AccountWithStatus[]> {
-    // ✅ Get Twitter accounts from environment variables (config fallback)
-    const configuredAccounts = this.getTwitterAccounts();
-    const statuses = await Promise.all(
-      configuredAccounts.map((account) =>
-        this.getEnrichedAccountStatus(account, mode),
-      ),
-    );
-
-    return statuses;
-  }
+  // Classic status enrichment deprecated
 
   /**
    * Get Twitter accounts configuration
@@ -286,235 +330,55 @@ export class AccountRotationService {
   /**
    * Get enriched account status with calculated fields
    */
-  private async getEnrichedAccountStatus(
-    account: string,
-    mode: RotationMode,
-  ): Promise<AccountWithStatus> {
-    const status = await this.getAccountStatus(account, mode);
-    const now = new Date();
-
-    // Default values for new accounts
-    const enriched: AccountWithStatus = {
-      account,
-      lastFullSync: status?.lastFullSync || null,
-      lastPartialSync: status?.lastPartialSync || null,
-      requestsUsed: status?.requestsUsed || 0,
-      isComplete: status?.isComplete || false,
-      priority: status?.priority || 5,
-      consecutiveRuns:
-        this.processingSession.get(account) || status?.consecutiveRuns || 0,
-      totalTweets: status?.totalTweets || 0,
-      syncedTweets: status?.syncedTweets || 0,
-      createdAt: status?.createdAt || now,
-      updatedAt: status?.updatedAt || now,
-      syncStatus: AccountSyncStatus.NEVER_SYNCED,
-      staleness: 0,
-      estimatedRequestsNeeded: 1,
-    };
-
-    // Calculate derived fields
-    enriched.syncStatus = this.calculateSyncStatus(enriched);
-    enriched.staleness = this.calculateStaleness(enriched, now);
-    enriched.estimatedRequestsNeeded = this.estimateRequestsNeeded(enriched);
-
-    return enriched;
-  }
+  // Classic status enrichment deprecated
 
   /**
    * Calculate sync status based on account state
    */
-  private calculateSyncStatus(account: AccountWithStatus): AccountSyncStatus {
-    const now = new Date();
-
-    if (!account.lastPartialSync) {
-      return AccountSyncStatus.NEVER_SYNCED;
-    }
-
-    if (account.isComplete) {
-      const hoursSinceComplete = account.lastFullSync
-        ? (now.getTime() - account.lastFullSync.getTime()) / (1000 * 60 * 60)
-        : 999;
-
-      if (hoursSinceComplete < this.config.cooldownHours) {
-        return AccountSyncStatus.COOLING_DOWN;
-      } else {
-        return AccountSyncStatus.STALE;
-      }
-    }
-
-    const hoursSincePartial =
-      (now.getTime() - account.lastPartialSync.getTime()) / (1000 * 60 * 60);
-
-    if (hoursSincePartial > this.config.priorityBoostHours) {
-      return AccountSyncStatus.STALE;
-    }
-
-    return AccountSyncStatus.PARTIAL_SYNC;
-  }
+  // Classic scoring deprecated
 
   /**
    * Calculate how stale an account is (hours since last sync)
    */
-  private calculateStaleness(account: AccountWithStatus, now: Date): number {
-    if (!account.lastPartialSync) return 999; // Never synced = maximum staleness
-
-    return Math.floor(
-      (now.getTime() - account.lastPartialSync.getTime()) / (1000 * 60 * 60),
-    );
-  }
+  // Classic scoring deprecated
 
   /**
    * Estimate requests needed to complete account sync
    */
-  private estimateRequestsNeeded(account: AccountWithStatus): number {
-    if (account.syncStatus === AccountSyncStatus.NEVER_SYNCED) {
-      return Math.min(this.config.maxRequestsPerAccount, 5); // Conservative start
-    }
-
-    if (account.syncStatus === AccountSyncStatus.STALE && account.isComplete) {
-      return 1; // Just checking for new tweets
-    }
-
-    if (account.syncStatus === AccountSyncStatus.PARTIAL_SYNC) {
-      return Math.min(this.config.maxRequestsPerAccount, 3); // Continue where left off
-    }
-
-    return 1; // Default conservative estimate
-  }
+  // Classic scoring deprecated
 
   /**
    * Calculate comprehensive score for account selection priority
    */
-  private calculateAccountScore(
-    account: AccountWithStatus,
-  ): AccountWithStatus & { totalScore: number } {
-    let score = 0;
-
-    // 🎯 Priority multipliers (higher = more urgent)
-    const priorityWeights = {
-      [AccountSyncStatus.NEVER_SYNCED]: 1000, // Highest priority
-      [AccountSyncStatus.STALE]: 500, // High priority
-      [AccountSyncStatus.PARTIAL_SYNC]: 200, // Medium priority
-      [AccountSyncStatus.FULL_SYNC]: 50, // Low priority
-      [AccountSyncStatus.COOLING_DOWN]: 1000, // Lowest priority
-    };
-
-    score += priorityWeights[account.syncStatus];
-
-    // ⏱️ Staleness bonus (older = higher priority)
-    score += Math.min(account.staleness * 10, 500); // Cap at 500 points
-
-    // 🔄 Consecutive runs penalty (prevent hogging)
-    score -= account.consecutiveRuns * 100;
-
-    // 📊 Completion percentage bonus (closer to done = higher priority for partial syncs)
-    if (account.totalTweets > 0) {
-      const completionRate = account.syncedTweets / account.totalTweets;
-      if (
-        account.syncStatus === AccountSyncStatus.PARTIAL_SYNC &&
-        completionRate > 0.8
-      ) {
-        score += 200; // Bonus for nearly complete accounts
-      }
-    }
-
-    return { ...account, totalScore: Math.max(0, score) };
-  }
+  // Classic scoring deprecated
 
   /**
    * Allocate available requests among selected accounts using weighted fair queuing
    */
-  private allocateRequests(
-    scoredAccounts: Array<AccountWithStatus & { totalScore: number }>,
-    availableRequests: number,
-  ): Array<{
-    account: string;
-    requestBudget: number;
-    priority: number;
-    reason: string;
-  }> {
-    const result = [];
-    let remainingRequests = availableRequests;
-
-    for (const account of scoredAccounts) {
-      if (remainingRequests <= 0) break;
-      if (account.totalScore <= 0) continue; // Skip cooling down accounts
-
-      const requestBudget = Math.min(
-        remainingRequests,
-        account.estimatedRequestsNeeded,
-        this.config.maxRequestsPerAccount,
-      );
-
-      if (requestBudget > 0) {
-        result.push({
-          account: account.account,
-          requestBudget,
-          priority: account.totalScore,
-          reason: this.getSelectionReason(account),
-        });
-
-        remainingRequests -= requestBudget;
-      }
-    }
-
-    return result;
-  }
+  // Classic allocation deprecated
 
   /**
    * Generate human-readable reason for account selection
    */
-  private getSelectionReason(
-    account: AccountWithStatus & { totalScore: number },
-  ): string {
-    switch (account.syncStatus) {
-      case AccountSyncStatus.NEVER_SYNCED:
-        return 'Never indexed before';
-      case AccountSyncStatus.STALE:
-        return `Stale (${account.staleness}h since last sync)`;
-      case AccountSyncStatus.PARTIAL_SYNC:
-        return `Partial sync (${account.consecutiveRuns} consecutive runs)`;
-      case AccountSyncStatus.FULL_SYNC:
-        return 'Checking for new tweets';
-      case AccountSyncStatus.COOLING_DOWN:
-        return 'Recently completed (cooling down)';
-      default:
-        return 'Unknown';
-    }
-  }
+  // Classic selection rationale deprecated
 
   /**
    * Log selection rationale for debugging
    */
-  private logSelectionRationale(
-    selected: Array<{
-      account: string;
-      requestBudget: number;
-      priority: number;
-      reason: string;
-    }>,
-  ): void {
-    this.logger.log(`📋 Selected ${selected.length} accounts for processing:`);
-    selected.forEach((selection, index) => {
-      this.logger.log(
-        `  ${index + 1}. @${selection.account} (${selection.requestBudget} requests) - ${selection.reason}`,
-      );
-    });
-  }
+  // Classic selection rationale deprecated
 
   /**
    * Database operations for account status
    */
   private async getAccountStatus(
     account: string,
-    mode: RotationMode = RotationMode.CLASSIC,
   ): Promise<AccountStatus | null> {
     try {
-      // Ensure collection exists before querying
-      await this.ensureCollection(mode);
+      // Ensure RAW collection exists before querying
+      await this.ensureRawCollection();
 
       const results = await this.qdrantRepository.searchVectors(
-        this.getCollectionName(mode),
+        this.TWITTER_RAW_HISTORY_COLLECTION,
         [0], // dummy vector since we only care about payload
         1,
         {
@@ -555,29 +419,22 @@ export class AccountRotationService {
   }
 
   // Public facade for audit/consumers
-  async getStatus(
-    account: string,
-    mode: RotationMode = RotationMode.CLASSIC,
-  ): Promise<AccountStatus | null> {
-    return this.getAccountStatus(account, mode);
+  async getStatus(account: string): Promise<AccountStatus | null> {
+    return this.getAccountStatus(account);
   }
 
   private async upsertAccountStatus(
     account: string,
     updates: Partial<AccountStatus>,
-    mode: RotationMode = RotationMode.CLASSIC,
   ): Promise<void> {
     try {
       const normalizedAccount = account.toLowerCase();
 
-      // Ensure collection exists before upserting
-      await this.ensureCollection(mode);
+      // Ensure RAW collection exists before upserting
+      await this.ensureRawCollection();
 
       // Get existing status or create new one
-      const existingStatus = await this.getAccountStatus(
-        normalizedAccount,
-        mode,
-      );
+      const existingStatus = await this.getAccountStatus(normalizedAccount);
       const now = new Date();
 
       // Merge updates with existing status using correct field names
@@ -623,6 +480,13 @@ export class AccountRotationService {
         consecutiveRuns: fullStatus.consecutiveRuns || 0,
         totalTweets: fullStatus.totalTweets || 0,
         syncedTweets: fullStatus.syncedTweets || 0,
+        latestTweetDate: fullStatus.latestTweetDate,
+        latestTweetId: fullStatus.latestTweetId,
+        earliestTweetDate: fullStatus.earliestTweetDate,
+        earliestTweetId: fullStatus.earliestTweetId,
+        backfillComplete: !!fullStatus.backfillComplete,
+        backfillLastId: fullStatus.backfillLastId || null,
+        backfillLastDate: fullStatus.backfillLastDate || null,
       };
 
       const point = {
@@ -642,9 +506,10 @@ export class AccountRotationService {
       );
 
       // Upsert the point
-      await this.qdrantClient.upsertPoints(this.getCollectionName(mode), [
-        point,
-      ]);
+      await this.qdrantClient.upsertPoints(
+        this.TWITTER_RAW_HISTORY_COLLECTION,
+        [point],
+      );
 
       this.logger.debug(
         `✅ Updated status for @${normalizedAccount}: ${updates.syncedTweets || 0} tweets`,
@@ -678,11 +543,7 @@ export class AccountRotationService {
   }
 
   // Public reconcile helpers
-  async setSyncedTweets(
-    account: string,
-    count: number,
-    mode: RotationMode = RotationMode.CLASSIC,
-  ): Promise<void> {
-    await this.upsertAccountStatus(account, { syncedTweets: count }, mode);
+  async setSyncedTweets(account: string, count: number): Promise<void> {
+    await this.upsertAccountStatus(account, { syncedTweets: count });
   }
 }

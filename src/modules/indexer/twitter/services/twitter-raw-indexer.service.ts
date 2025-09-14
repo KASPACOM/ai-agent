@@ -9,10 +9,7 @@ import { MessageSource } from '../../shared/models/message-source.enum';
 import { IndexingResult } from '../../shared/models/indexer-result.model';
 import { TwitterApi, TwitterApiReadOnly } from 'twitter-api-v2';
 import { AppConfigService } from '../../../core/modules/config/app-config.service';
-import {
-  AccountRotationService,
-  RotationMode,
-} from './account-rotation.service';
+import { AccountRotationService } from './account-rotation.service';
 import {
   TwitterRawStorageService,
   RawTweetRecord,
@@ -33,6 +30,216 @@ export class TwitterRawIndexerService extends BaseIndexerService {
     super(unifiedStorage);
   }
 
+  /**
+   * Backfill all configured accounts in batches of up to 10 requests per run (~900 tweets),
+   * with a 15-minute cooldown between batches per account, until no more data.
+   * - Initializes/updates RAW history via AccountRotationService
+   * - Dedupe via TwitterRawStorageService.storeBatch
+   * - Persists progress pointers (earliest/latest and backfill markers)
+   */
+  async runBackfillIndexing(): Promise<IndexingResult> {
+    const startTime = new Date();
+    let totalStored = 0;
+    const errors: string[] = [];
+
+    try {
+      const accounts = this.appConfig.getTwitterBackfillAccountsConfig || [];
+      if (accounts.length === 0) {
+        return {
+          success: true,
+          processed: 0,
+          embedded: 0,
+          stored: 0,
+          errors: [],
+          processingTime: 0,
+          startTime,
+          endTime: new Date(),
+          rateLimited: false,
+          hasMoreData: false,
+          requestsUsed: 0,
+        };
+      }
+
+      const client = new TwitterApi(this.appConfig.getTwitterBearerToken)
+        .readOnly;
+
+      // Iterate one by one as requested
+      for (const usernameRaw of accounts) {
+        const username = (usernameRaw || '')
+          .trim()
+          .replace(/^@+/, '')
+          .toLowerCase();
+        try {
+          // Initialize history doc with backfillComplete=false on first pass
+          const status = await this.rotation.getStatus(username);
+          if (!status || status.backfillComplete === undefined) {
+            await this.rotation.updateAccountStatus(username, {
+              backfillComplete: false,
+            });
+          }
+
+          // Load pointers
+          let lastId = status?.backfillLastId;
+          let lastDate = status?.backfillLastDate;
+
+          if (!status?.backfillComplete) {
+            // Preload existing IDs for this account to avoid duplicate upserts
+            const existingForUser =
+              await this.storage.getAllRawTweets(username);
+            const existingIds = new Set<string>(
+              existingForUser.map((t) => String(t.id)),
+            );
+
+            // One batch = up to 10 requests, 100 tweets per request
+            const pageLimit = 10;
+            const nowIso = new Date().toISOString();
+            const user = await client.v2.userByUsername(username);
+            let token: string | undefined = undefined;
+            let requestsUsed = 0;
+            const newTweets: RawTweetRecord[] = [];
+            let reachedEnd = false;
+            let batchEarliest: { id: string; createdAt: string } | undefined;
+
+            while (requestsUsed < pageLimit) {
+              try {
+                const params: any = {
+                  max_results: 100,
+                  'tweet.fields': twitterTimelineFields['tweet.fields'],
+                  expansions: twitterTimelineFields.expansions,
+                  'user.fields': twitterTimelineFields['user.fields'],
+                  'media.fields': twitterTimelineFields['media.fields'],
+                  'place.fields': twitterTimelineFields['place.fields'],
+                  'poll.fields': twitterTimelineFields['poll.fields'],
+                  // pagination_token added conditionally below
+                };
+                // Resume from last backfill pointer only on the first page
+                if (!token) {
+                  if (lastId) {
+                    params.until_id = String(lastId);
+                  } else if (lastDate) {
+                    const iso = new Date(lastDate)
+                      .toISOString()
+                      .replace(/\.\d{3}Z$/, 'Z');
+                    params.end_time = iso;
+                  }
+                }
+                if (token) {
+                  params.pagination_token = token;
+                }
+                this.logger.debug(
+                  `RAW backfill request params for @${username}: ${JSON.stringify(
+                    params,
+                  )}`,
+                );
+
+                const page = await client.v2.userTimeline(user.data.id, params);
+                const data = page.data?.data || [];
+                for (const t of data) {
+                  const createdAt = new Date(t.created_at).toISOString();
+                  const id = String(t.id);
+                  // Track the earliest tweet seen in the batch (regardless of duplicate)
+                  if (!batchEarliest || createdAt < batchEarliest.createdAt) {
+                    batchEarliest = { id, createdAt };
+                  }
+                  // Only queue for storage if not already in DB
+                  if (!existingIds.has(id)) {
+                    newTweets.push({
+                      id,
+                      username,
+                      createdAt,
+                      payload: t as unknown as Record<string, unknown>,
+                      fetchedAt: nowIso,
+                    });
+                    existingIds.add(id);
+                  }
+                }
+
+                const next = page.data?.meta?.next_token;
+                if (!next) {
+                  reachedEnd = true;
+                  break;
+                }
+                token = next;
+              } catch (err: any) {
+                // Enhanced error diagnostics to understand 404s/param issues
+                this.logger.error(
+                  `RAW backfill request failed for @${username}: status=${err?.status || err?.code} ` +
+                    `${err?.data?.title ? `title=${err.data.title} ` : ''}` +
+                    `${err?.data?.detail ? `detail=${err.data.detail} ` : ''}` +
+                    `${err?.data?.type ? `type=${err.data.type}` : ''}`,
+                );
+                if (err?.code === 429 || err?.status === 429) {
+                  errors.push(`Rate limited for @${username}`);
+                  break;
+                }
+                throw err;
+              } finally {
+                requestsUsed++;
+              }
+              let storedThisBatch = 0;
+              if (newTweets.length > 0) {
+                const res = await this.storage.storeBatch(newTweets);
+                storedThisBatch = res.stored;
+                totalStored += res.stored;
+              }
+
+              // Update pointers based on batch earliest seen (even if all duplicates)
+              if (batchEarliest) {
+                lastId = batchEarliest.id;
+                lastDate = batchEarliest.createdAt;
+              }
+
+              await this.rotation.updateAccountStatus(username, {
+                messagesIndexed: storedThisBatch,
+                hasMoreData: !reachedEnd,
+                earliestTweetDate: batchEarliest?.createdAt,
+                earliestTweetId: batchEarliest?.id as any,
+                backfillComplete: reachedEnd,
+                backfillLastId: lastId,
+                backfillLastDate: lastDate,
+              });
+
+              // If not complete, cooldown 15 minutes before next batch
+              const cooldownMs = 15 * 60 * 1000;
+              const updated = await this.rotation.getStatus(username);
+              if (!updated?.backfillComplete) {
+                await this.sleep(cooldownMs);
+              }
+            }
+          }
+        } catch (e: any) {
+          errors.push(`@${username}: ${e.message}`);
+        }
+      }
+
+      return {
+        success: errors.length === 0,
+        processed: totalStored,
+        embedded: 0,
+        stored: totalStored,
+        errors,
+        processingTime: Date.now() - startTime.getTime(),
+        startTime,
+        endTime: new Date(),
+        rateLimited: errors.some((e) => e.includes('Rate limited')),
+        hasMoreData: false,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        processed: totalStored,
+        embedded: 0,
+        stored: totalStored,
+        errors: [error.message],
+        processingTime: Date.now() - startTime.getTime(),
+        startTime,
+        endTime: new Date(),
+        rateLimited: false,
+        hasMoreData: false,
+      };
+    }
+  }
+
   protected async executeIndexingProcess(): Promise<IndexingResult> {
     const startTime = new Date();
     let totalStored = 0;
@@ -45,7 +252,7 @@ export class TwitterRawIndexerService extends BaseIndexerService {
       const requestLimit = this.config.getTwitterRequestLimit();
       const selected = await this.rotation.selectAccountsForProcessing(
         requestLimit,
-        RotationMode.RAW,
+        3,
       );
 
       if (selected.length === 0) {
@@ -69,10 +276,7 @@ export class TwitterRawIndexerService extends BaseIndexerService {
 
       for (const sel of selected) {
         try {
-          const status = await this.rotation.getStatus(
-            sel.account,
-            RotationMode.RAW,
-          );
+          const status = await this.rotation.getStatus(sel.account);
           const pageBudget = Math.max(1, Math.min(sel.requestBudget, 5));
 
           // Head pass
@@ -106,26 +310,22 @@ export class TwitterRawIndexerService extends BaseIndexerService {
           if (combinedRateLimited) anyRateLimited = true;
           if (combinedHasMore) anyHasMore = true;
 
-          await this.rotation.updateAccountStatus(
-            sel.account,
-            {
-              lastSync: new Date(),
-              messagesIndexed: combinedStored,
-              hasMoreData: backfill
-                ? !backfill.backfillCompleted && !!backfill.hasMore
-                : !status?.isComplete,
-              requestsUsed: combinedRequests,
-              ...(head.latest && {
-                latestTweetDate: head.latest.date,
-                latestTweetId: head.latest.id,
-              }),
-              ...(backfill?.earliest && {
-                earliestTweetDate: backfill.earliest.date,
-                earliestTweetId: backfill.earliest.id,
-              }),
-            },
-            RotationMode.RAW,
-          );
+          await this.rotation.updateAccountStatus(sel.account, {
+            lastSync: new Date(),
+            messagesIndexed: combinedStored,
+            hasMoreData: backfill
+              ? !backfill.backfillCompleted && !!backfill.hasMore
+              : !status?.isComplete,
+            requestsUsed: combinedRequests,
+            ...(head.latest && {
+              latestTweetDate: head.latest.date,
+              latestTweetId: head.latest.id,
+            }),
+            ...(backfill?.earliest && {
+              earliestTweetDate: backfill.earliest.date,
+              earliestTweetId: backfill.earliest.id,
+            }),
+          });
 
           await this.sleep(this.getIndexerConfig().processingDelayMs);
         } catch (err) {

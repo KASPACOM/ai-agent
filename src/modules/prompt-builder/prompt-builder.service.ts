@@ -23,7 +23,11 @@ export class PromptBuilderService {
 
   private loadTemplates(): void {
     // Register all prompt templates
-    const templates = [DECISION_AGENT_PROMPT, SYNTHESIS_AGENT_PROMPT, TWITTER_SYNTHESIS_AGENT_PROMPT];
+    const templates = [
+      DECISION_AGENT_PROMPT,
+      SYNTHESIS_AGENT_PROMPT,
+      TWITTER_SYNTHESIS_AGENT_PROMPT,
+    ];
 
     templates.forEach((template) => {
       this.templates.set(template.name, template);

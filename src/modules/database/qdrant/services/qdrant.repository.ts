@@ -5,21 +5,21 @@ import { QdrantConfigService } from '../config/qdrant.config';
 import { QdrantPoint, QdrantSearchResult } from '../models/qdrant.model';
 import { v5 as uuidv5 } from 'uuid';
 import { EmbeddingService } from '../../../embedding/embedding.service';
+import { MasterDocument } from '../../../indexer/shared/models/master-document.model';
+import { MessageSource } from '../../../indexer/shared/models/message-source.enum';
 // import { TelegramMessage } from '../../../etl/models/telegram.model'; // Removed ETL dependency
-
 
 export const UUID_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'; // Standard UUID namespace for tweets
 export function generateUuidFromTwitterId(twitterId: string): string {
   return uuidv5(twitterId, UUID_NAMESPACE);
 }
 
-
 /**
  * Qdrant Repository Service
  *
  * High-level domain operations for vector storage and retrieval
  * Provides tweet-specific operations for the ETL pipeline
- * 
+ *
  */
 @Injectable()
 export class QdrantRepository {
@@ -30,8 +30,7 @@ export class QdrantRepository {
     private readonly qdrantCollection: QdrantCollectionService,
     private readonly qdrantConfig: QdrantConfigService,
     private readonly embeddingService: EmbeddingService, // <-- Injected
-  ) { }
-
+  ) {}
 
   /**
    * Store tweet vector with metadata
@@ -216,6 +215,197 @@ export class QdrantRepository {
     }
 
     return result;
+  }
+
+  /**
+   * Query unified MasterDocuments by sources and createdAt date range
+   */
+  async getUnifiedDocumentsByDateAndSources(options: {
+    sources: MessageSource[];
+    sinceIso: string;
+    untilIso: string;
+    limit?: number;
+  }): Promise<MasterDocument[]> {
+    const { sources, sinceIso, untilIso, limit } = options;
+
+    try {
+      const collectionName = this.qdrantConfig.getCollectionName();
+
+      const filter: any = {
+        must: [
+          // prefer postedAt if present, else fallback to createdAt via should
+          {
+            should: [
+              { key: 'postedAt', range: { gte: sinceIso, lte: untilIso } },
+              { key: 'createdAt', range: { gte: sinceIso, lte: untilIso } },
+            ],
+          },
+          {
+            should: sources.map((s) => ({
+              key: 'source',
+              match: { value: s },
+            })),
+          },
+        ],
+      };
+
+      if (typeof limit === 'number') {
+        const zeroVector = new Array(
+          this.qdrantConfig.getCollectionConfig().vectors.size,
+        ).fill(0);
+
+        const params = {
+          vector: zeroVector,
+          limit,
+          with_payload: true,
+          with_vector: false,
+          filter,
+        } as any;
+
+        const result = await this.qdrantClient.searchPoints(
+          collectionName,
+          params,
+        );
+
+        if (!Array.isArray(result) || result.length === 0) return [];
+        return result.map((p: any) => p.payload as MasterDocument);
+      }
+
+      // No limit provided: scroll all
+      const all: MasterDocument[] = [];
+      let offset: any = undefined;
+      do {
+        const page = await this.qdrantClient.scrollPoints(collectionName, {
+          with_payload: true,
+          with_vector: false,
+          limit: 1000,
+          offset,
+          filter,
+        });
+        const points = page?.points || [];
+        for (const p of points) all.push(p.payload as MasterDocument);
+        offset = page?.next_page_offset;
+      } while (offset);
+      return all;
+    } catch (error) {
+      this.logger.error(
+        `Failed to query unified documents by date and sources: ${error.message}`,
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Query Twitter MasterDocuments strictly by postedAt date range
+   */
+  async getTwitterDocumentsByPostedAtRange(options: {
+    sinceIso: string;
+    untilIso: string;
+    limit?: number;
+  }): Promise<MasterDocument[]> {
+    const { sinceIso, untilIso, limit } = options;
+
+    try {
+      const collectionName = this.qdrantConfig.getCollectionName();
+
+      const filter: any = {
+        must: [
+          { key: 'source', match: { value: MessageSource.TWITTER } },
+          { key: 'postedAt', range: { gte: sinceIso, lte: untilIso } },
+        ],
+      };
+
+      if (typeof limit === 'number') {
+        const zeroVector = new Array(
+          this.qdrantConfig.getCollectionConfig().vectors.size,
+        ).fill(0);
+
+        const params = {
+          vector: zeroVector,
+          limit,
+          with_payload: true,
+          with_vector: false,
+          filter,
+        } as any;
+
+        const result = await this.qdrantClient.searchPoints(
+          collectionName,
+          params,
+        );
+
+        if (!Array.isArray(result) || result.length === 0) return [];
+        return result.map((p: any) => p.payload as MasterDocument);
+      }
+
+      // No limit provided: scroll all
+      const all: MasterDocument[] = [];
+      let offset: any = undefined;
+      do {
+        const page = await this.qdrantClient.scrollPoints(collectionName, {
+          with_payload: true,
+          with_vector: false,
+          limit: 1000,
+          offset,
+          filter,
+        });
+        const points = page?.points || [];
+        for (const p of points) all.push(p.payload as MasterDocument);
+        offset = page?.next_page_offset;
+      } while (offset);
+      return all;
+    } catch (error) {
+      this.logger.error(
+        `Failed to query Twitter documents by postedAt: ${error.message}`,
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Update postedAt for a set of document IDs without re-embedding
+   */
+  async updatePostedAtForIds(
+    ids: string[],
+    postedAtIso: string,
+  ): Promise<boolean> {
+    try {
+      const collectionName = this.qdrantConfig.getCollectionName();
+      await this.qdrantClient.setPayload(
+        collectionName,
+        { postedAt: postedAtIso },
+        { points: ids },
+      );
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to update postedAt for ids: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Update postedAt by matching document id in payload (no re-embedding)
+   */
+  async updatePostedAtByDocumentId(
+    docId: string,
+    postedAtIso: string,
+  ): Promise<boolean> {
+    try {
+      const collectionName = this.qdrantConfig.getCollectionName();
+      const filter = {
+        must: [{ key: 'id', match: { value: docId } }],
+      };
+      await this.qdrantClient.setPayload(
+        collectionName,
+        { postedAt: postedAtIso },
+        { filter },
+      );
+      return true;
+    } catch (error) {
+      this.logger.error(
+        `Failed to update postedAt for doc ${docId}: ${error.message}`,
+      );
+      return false;
+    }
   }
 
   /**
@@ -943,13 +1133,13 @@ export class QdrantRepository {
       // Build filter for account if specified
       const filter = account
         ? {
-          must: [
-            {
-              key: 'authorHandle',
-              match: { value: account },
-            },
-          ],
-        }
+            must: [
+              {
+                key: 'authorHandle',
+                match: { value: account },
+              },
+            ],
+          }
         : undefined;
 
       // Use zero vector for filtering-only query

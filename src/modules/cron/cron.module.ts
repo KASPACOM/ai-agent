@@ -6,6 +6,7 @@ import { TwitterModule } from '../indexer/twitter/twitter.module';
 import { TelegramModule } from '../indexer/telegram/telegram.module';
 import { TwitterCron } from './cron-jobs/twitter.cron';
 import { AppConfigModule } from '../core/modules/config/app-config.module';
+import { OrchestratorModule } from '../orchestrator/orchestrator.module';
 import { IndexersCron } from './cron-jobs/indexers.cron';
 
 /**
@@ -13,7 +14,7 @@ import { IndexersCron } from './cron-jobs/indexers.cron';
  *
  * This module centralizes all cron job management for the application.
  * It uses NestJS built-in scheduler for better integration and features.
- * 
+ *
  * Scheduled tasks include:
  * - Twitter indexing
  * - Telegram indexing
@@ -32,6 +33,7 @@ import { IndexersCron } from './cron-jobs/indexers.cron';
     TwitterModule, // Import to access Twitter indexer services
     TelegramModule, // Import to access Telegram indexer services
     AppConfigModule,
+    OrchestratorModule,
   ],
   providers: [IndexersCron, TwitterCron],
   exports: [],

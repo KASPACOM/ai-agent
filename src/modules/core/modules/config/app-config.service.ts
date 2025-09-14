@@ -68,6 +68,17 @@ export class AppConfigService {
     }
   }
 
+  get getTwitterBackfillAccountsConfig(): string[] {
+    const accounts = this.configService.get('TWITTER_ACCOUNTS_BACKFILL_CONFIG');
+    try {
+      return JSON.parse(accounts);
+    } catch (error) {
+      throw new Error(
+        `Failed to parse TWITTER_ACCOUNTS_CONFIG: ${error.message}. Expected valid JSON array format.`,
+      );
+    }
+  }
+
   get getTwitterUsername(): string {
     return this.configService.get('TWITTER_USERNAME');
   }

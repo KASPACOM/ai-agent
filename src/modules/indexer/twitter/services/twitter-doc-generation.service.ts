@@ -132,4 +132,74 @@ export class TwitterDocGenerationService {
 
     return { created, updated, processed: rawTweets.length };
   }
+
+  /**
+   * Backfill postedAt field in unified collection from raw tweets (no re-embedding)
+   */
+  async backfillPostedAt(
+    opts: { username?: string } = {},
+  ): Promise<{ updated: number }> {
+    const rawTweets = await this.rawStorage.getAllRawTweets(opts.username);
+    if (!rawTweets || rawTweets.length === 0) return { updated: 0 };
+
+    // Build id -> postedAt map
+    const idToPostedAt = new Map<string, string>();
+    const missingCreatedAt: string[] = [];
+    for (const t of rawTweets) {
+      const id = String(t.id);
+      const createdAtRaw = t?.payload?.created_at;
+      if (createdAtRaw) {
+        try {
+          const iso = new Date(createdAtRaw as string).toISOString();
+          idToPostedAt.set(id, iso);
+        } catch (e) {
+          missingCreatedAt.push(id);
+        }
+      } else {
+        // No created_at on raw payload – record for reporting, skip update
+        missingCreatedAt.push(id);
+      }
+    }
+
+    // Update only MasterDocuments missing postedAt for Twitter
+    const pageSize = 5000;
+    let offset = 0;
+    let updated = 0;
+    while (true) {
+      const docs = await this.storage.getBySourceMissingPostedAt(
+        MessageSource.TWITTER,
+        pageSize,
+        offset,
+        opts.username ? { authorOrChannel: opts.username } : undefined,
+      );
+      if (!docs || docs.length === 0) break;
+
+      for (const d of docs) {
+        const postedAt = idToPostedAt.get(String(d.id));
+        if (postedAt) {
+          try {
+            await this.storage.setPostedAt(String(d.id), postedAt);
+            updated++;
+          } catch (e) {
+            this.logger.warn(
+              `Failed postedAt update for ${d.id}: ${e?.message || e}`,
+            );
+          }
+        }
+      }
+      offset += docs.length;
+      if (docs.length < pageSize) break;
+    }
+
+    if (missingCreatedAt.length > 0) {
+      // Log aggregated list of IDs missing created_at in raw payload
+      const sample = missingCreatedAt.slice(0, 20).join(', ');
+      this.logger.warn(
+        `Raw tweets missing created_at: count=${missingCreatedAt.length}$${sample ? `, sample=[${sample}]` : ''}`,
+      );
+    }
+
+    // Widen return to include missingCreatedAt for caller visibility
+    return { updated } as any;
+  }
 }

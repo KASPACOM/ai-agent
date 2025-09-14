@@ -233,160 +233,160 @@ export class DeFiAgentFactory {
         )
 
         // === Educational and General Capabilities ===
-        .addCapability(
-          'defi_general_query',
-          'Handle general DeFi-related questions and education',
-          [
-            {
-              name: 'query',
-              type: 'string',
-              required: true,
-              description: 'The DeFi question or topic to address',
-            },
-          ],
-          [
-            'what is DeFi?',
-            'explain liquidity pools',
-            'how does yield farming work?',
-            'what are smart contracts?',
-            'DeFi vs traditional finance',
-          ],
-          async (args) => {
-            // Educational responses for DeFi concepts
-            const query = args.query.toLowerCase();
+        // .addCapability(
+        //   'defi_general_query',
+        //   'Handle general DeFi-related questions and education',
+        //   [
+        //     {
+        //       name: 'query',
+        //       type: 'string',
+        //       required: true,
+        //       description: 'The DeFi question or topic to address',
+        //     },
+        //   ],
+        //   [
+        //     'what is DeFi?',
+        //     'explain liquidity pools',
+        //     'how does yield farming work?',
+        //     'what are smart contracts?',
+        //     'DeFi vs traditional finance',
+        //   ],
+        //   async (args) => {
+        //     // Educational responses for DeFi concepts
+        //     const query = args.query.toLowerCase();
 
-            if (
-              query.includes('defi') ||
-              query.includes('decentralized finance')
-            ) {
-              return {
-                topic: 'DeFi Overview',
-                explanation:
-                  'DeFi (Decentralized Finance) refers to financial services built on blockchain networks that operate without traditional intermediaries like banks.',
-                benefits: [
-                  'Open access for anyone with an internet connection',
-                  'Programmable money and automated contracts',
-                  'Lower fees compared to traditional banking',
-                  'Global availability 24/7',
-                  'Transparency through public blockchains',
-                ],
-                examples: [
-                  'Decentralized exchanges (DEXs)',
-                  'Lending protocols',
-                  'Yield farming',
-                  'Liquidity mining',
-                ],
-                networks: [
-                  'Kasplex (Chain ID: 12211)',
-                  'Igra (Chain ID: 2600)',
-                ],
-              };
-            }
+        //     if (
+        //       query.includes('defi') ||
+        //       query.includes('decentralized finance')
+        //     ) {
+        //       return {
+        //         topic: 'DeFi Overview',
+        //         explanation:
+        //           'DeFi (Decentralized Finance) refers to financial services built on blockchain networks that operate without traditional intermediaries like banks.',
+        //         benefits: [
+        //           'Open access for anyone with an internet connection',
+        //           'Programmable money and automated contracts',
+        //           'Lower fees compared to traditional banking',
+        //           'Global availability 24/7',
+        //           'Transparency through public blockchains',
+        //         ],
+        //         examples: [
+        //           'Decentralized exchanges (DEXs)',
+        //           'Lending protocols',
+        //           'Yield farming',
+        //           'Liquidity mining',
+        //         ],
+        //         networks: [
+        //           'Kasplex (Chain ID: 12211)',
+        //           'Igra (Chain ID: 2600)',
+        //         ],
+        //       };
+        //     }
 
-            if (query.includes('liquidity pool')) {
-              return {
-                topic: 'Liquidity Pools',
-                explanation:
-                  'Liquidity pools are smart contracts that hold tokens and allow users to trade against them. Users who provide liquidity earn fees from trades.',
-                howItWorks: [
-                  'Users deposit token pairs (e.g., KAS/USDT)',
-                  'Traders swap against the pool reserves',
-                  'Liquidity providers earn trading fees proportionally',
-                  'Prices adjust automatically based on supply and demand',
-                ],
-                benefits: [
-                  'Earn passive income',
-                  'Enable decentralized trading',
-                  'Price discovery',
-                ],
-                risks: [
-                  'Impermanent loss',
-                  'Smart contract risks',
-                  'Market volatility',
-                ],
-              };
-            }
+        //     if (query.includes('liquidity pool')) {
+        //       return {
+        //         topic: 'Liquidity Pools',
+        //         explanation:
+        //           'Liquidity pools are smart contracts that hold tokens and allow users to trade against them. Users who provide liquidity earn fees from trades.',
+        //         howItWorks: [
+        //           'Users deposit token pairs (e.g., KAS/USDT)',
+        //           'Traders swap against the pool reserves',
+        //           'Liquidity providers earn trading fees proportionally',
+        //           'Prices adjust automatically based on supply and demand',
+        //         ],
+        //         benefits: [
+        //           'Earn passive income',
+        //           'Enable decentralized trading',
+        //           'Price discovery',
+        //         ],
+        //         risks: [
+        //           'Impermanent loss',
+        //           'Smart contract risks',
+        //           'Market volatility',
+        //         ],
+        //       };
+        //     }
 
-            if (query.includes('yield farming') || query.includes('yield')) {
-              return {
-                topic: 'Yield Farming',
-                explanation:
-                  'Yield farming is the practice of lending or staking crypto assets to generate returns through interest, rewards, or fees.',
-                strategies: [
-                  'Provide liquidity to DEX pools',
-                  'Stake tokens in protocols',
-                  'Lend assets for interest',
-                  'Participate in governance for rewards',
-                ],
-                considerations: [
-                  'Higher yields often mean higher risks',
-                  'Gas fees can eat into profits',
-                  'Requires active management',
-                ],
-              };
-            }
+        //     if (query.includes('yield farming') || query.includes('yield')) {
+        //       return {
+        //         topic: 'Yield Farming',
+        //         explanation:
+        //           'Yield farming is the practice of lending or staking crypto assets to generate returns through interest, rewards, or fees.',
+        //         strategies: [
+        //           'Provide liquidity to DEX pools',
+        //           'Stake tokens in protocols',
+        //           'Lend assets for interest',
+        //           'Participate in governance for rewards',
+        //         ],
+        //         considerations: [
+        //           'Higher yields often mean higher risks',
+        //           'Gas fees can eat into profits',
+        //           'Requires active management',
+        //         ],
+        //       };
+        //     }
 
-            if (query.includes('smart contract')) {
-              return {
-                topic: 'Smart Contracts',
-                explanation:
-                  'Smart contracts are self-executing contracts with terms directly written into code on the blockchain.',
-                features: [
-                  'Automatic execution when conditions are met',
-                  'No need for intermediaries',
-                  'Transparent and immutable',
-                  'Programmable money and logic',
-                ],
-                useCases: [
-                  'Automated trading',
-                  'Lending protocols',
-                  'Insurance',
-                  'Governance systems',
-                ],
-              };
-            }
+        //     if (query.includes('smart contract')) {
+        //       return {
+        //         topic: 'Smart Contracts',
+        //         explanation:
+        //           'Smart contracts are self-executing contracts with terms directly written into code on the blockchain.',
+        //         features: [
+        //           'Automatic execution when conditions are met',
+        //           'No need for intermediaries',
+        //           'Transparent and immutable',
+        //           'Programmable money and logic',
+        //         ],
+        //         useCases: [
+        //           'Automated trading',
+        //           'Lending protocols',
+        //           'Insurance',
+        //           'Governance systems',
+        //         ],
+        //       };
+        //     }
 
-            if (query.includes('swap') || query.includes('exchange')) {
-              return {
-                topic: 'Token Swapping',
-                explanation:
-                  'Token swapping allows you to exchange one cryptocurrency for another directly without a centralized exchange.',
-                process: [
-                  'Connect your wallet to a DEX',
-                  'Select tokens to swap',
-                  'Set slippage tolerance',
-                  'Confirm transaction and pay gas fees',
-                ],
-                tips: [
-                  'Check slippage before swapping',
-                  'Be aware of gas fees',
-                  'Verify token contracts',
-                ],
-                walletAuthRequired:
-                  'Note: Actual swapping requires wallet authentication - coming soon!',
-              };
-            }
+        //     if (query.includes('swap') || query.includes('exchange')) {
+        //       return {
+        //         topic: 'Token Swapping',
+        //         explanation:
+        //           'Token swapping allows you to exchange one cryptocurrency for another directly without a centralized exchange.',
+        //         process: [
+        //           'Connect your wallet to a DEX',
+        //           'Select tokens to swap',
+        //           'Set slippage tolerance',
+        //           'Confirm transaction and pay gas fees',
+        //         ],
+        //         tips: [
+        //           'Check slippage before swapping',
+        //           'Be aware of gas fees',
+        //           'Verify token contracts',
+        //         ],
+        //         walletAuthRequired:
+        //           'Note: Actual swapping requires wallet authentication - coming soon!',
+        //       };
+        //     }
 
-            return {
-              topic: 'General DeFi Information',
-              message:
-                'I can help explain DeFi concepts like liquidity pools, yield farming, smart contracts, and token swapping. I can also help you interact with DeFi tokens and pools on Kasplex and Igra networks.',
-              availableTopics: [
-                'DeFi basics',
-                'Liquidity pools',
-                'Yield farming',
-                'Smart contracts',
-                'Token swapping',
-                'DeFi risks and benefits',
-              ],
-              supportedNetworks: [
-                'Kasplex (Chain ID: 12211)',
-                'Igra (Chain ID: 2600)',
-              ],
-              note: 'Smart contract operations requiring wallet authentication are planned for future implementation.',
-            };
-          },
-        )
+        //     return {
+        //       topic: 'General DeFi Information',
+        //       message:
+        //         'I can help explain DeFi concepts like liquidity pools, yield farming, smart contracts, and token swapping. I can also help you interact with DeFi tokens and pools on Kasplex and Igra networks.',
+        //       availableTopics: [
+        //         'DeFi basics',
+        //         'Liquidity pools',
+        //         'Yield farming',
+        //         'Smart contracts',
+        //         'Token swapping',
+        //         'DeFi risks and benefits',
+        //       ],
+        //       supportedNetworks: [
+        //         'Kasplex (Chain ID: 12211)',
+        //         'Igra (Chain ID: 2600)',
+        //       ],
+        //       note: 'Smart contract operations requiring wallet authentication are planned for future implementation.',
+        //     };
+        //   },
+        // )
 
         /*
         TODO: WALLET-AUTH-REQUIRED CAPABILITIES - Implement when agent wallet authentication is ready

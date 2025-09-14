@@ -23,6 +23,11 @@ export interface AccountStatus {
   latestTweetId?: string;
   earliestTweetDate?: string;
   earliestTweetId?: string;
+
+  // Backfill progress tracking (RAW history)
+  backfillComplete?: boolean;
+  backfillLastId?: string;
+  backfillLastDate?: string; // ISO
 }
 
 export interface AccountRotationConfig {
@@ -45,3 +50,5 @@ export interface AccountWithStatus extends AccountStatus {
   staleness: number; // Hours since last sync
   estimatedRequestsNeeded: number; // Estimated requests to complete
 }
+
+

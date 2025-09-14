@@ -95,6 +95,15 @@ export abstract class BaseIndexerService {
         `${result.errors.length} errors in ${result.processingTime}ms`,
     );
 
+    if (result.errors && result.errors.length > 0) {
+      this.logger.error(
+        `${config.serviceName} error details (${result.errors.length}):`,
+      );
+      result.errors.forEach((err, idx) => {
+        this.logger.error(`  ${idx + 1}. ${err}`);
+      });
+    }
+
     return result;
   }
 

@@ -15,11 +15,13 @@ import { UserManagementAgentFactory } from './agents/factories/user-management-a
 import { NFTAgentFactory } from './agents/factories/nft-agent.factory';
 import { QdrantAgentFactory } from './agents/factories/qdrant-agent.factory';
 import { QdrantModule } from '../database/qdrant/qdrant.module';
+import { LlmModule } from '../llm/llm.module';
 
 // === API Services ===
 import { BackendApiService } from './services/backend-api.service';
 import { KaspaApiService } from './services/kaspa-api.service';
 import { KasplexKrc20Service } from './services/kasplex-krc20.service';
+import { AgentTaskService } from './services/agent-task.service';
 
 /**
  * MultiAgentModule
@@ -36,6 +38,7 @@ import { KasplexKrc20Service } from './services/kasplex-krc20.service';
     }),
     ConfigModule,
     QdrantModule,
+    LlmModule,
   ],
   providers: [
     // === Core Agent System ===
@@ -55,6 +58,7 @@ import { KasplexKrc20Service } from './services/kasplex-krc20.service';
     BackendApiService,
     KaspaApiService,
     KasplexKrc20Service,
+    AgentTaskService,
   ],
   exports: [
     // === Core Agent System ===
@@ -74,6 +78,7 @@ import { KasplexKrc20Service } from './services/kasplex-krc20.service';
     BackendApiService,
     KaspaApiService,
     KasplexKrc20Service,
+    AgentTaskService,
   ],
 })
 export class MultiAgentModule {}
