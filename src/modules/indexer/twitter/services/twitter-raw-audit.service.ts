@@ -116,7 +116,7 @@ export class TwitterRawAuditService {
     const acct = (username || '').toLowerCase();
     const [rawStats, status] = await Promise.all([
       this.getRawStatsForAccount(acct),
-      this.rotation.getStatus(acct, RotationMode.RAW),
+      this.rotation.getStatus(acct),
     ]);
 
     const discrepancies: string[] = [];
@@ -200,7 +200,7 @@ export class TwitterRawAuditService {
     const results: any[] = [];
     for (const acc of selected) {
       const rawAgg = aggByUser.get(acc) || { account: acc, count: 0 };
-      const status = await this.rotation.getStatus(acc, RotationMode.RAW);
+      const status = await this.rotation.getStatus(acc);
       const discrepancies: string[] = [];
       if (!status) {
         discrepancies.push('No rotation status found');
@@ -261,12 +261,12 @@ export class TwitterRawAuditService {
     for (const acc of targetAccounts) {
       const agg = aggByUser.get(acc);
       const count = agg?.count || 0;
-      const status = await this.rotation.getStatus(acc, RotationMode.RAW);
+      const status = await this.rotation.getStatus(acc);
       const before = status?.syncedTweets || 0;
       const countsChanged = before !== count;
 
       if (countsChanged) {
-        await this.rotation.setSyncedTweets(acc, count, RotationMode.RAW);
+        await this.rotation.setSyncedTweets(acc, count);
       }
 
       const latestBefore = status
@@ -300,16 +300,12 @@ export class TwitterRawAuditService {
       );
 
       if (latestChanged || earliestChanged) {
-        await this.rotation.updateAccountStatus(
-          acc,
-          {
-            latestTweetDate: latestAfter?.date,
-            latestTweetId: latestAfter?.id as any,
-            earliestTweetDate: earliestAfter?.date,
-            earliestTweetId: earliestAfter?.id as any,
-          },
-          RotationMode.RAW,
-        );
+        await this.rotation.updateAccountStatus(acc, {
+          latestTweetDate: latestAfter?.date,
+          latestTweetId: latestAfter?.id as any,
+          earliestTweetDate: earliestAfter?.date,
+          earliestTweetId: earliestAfter?.id as any,
+        });
       }
 
       results.push({

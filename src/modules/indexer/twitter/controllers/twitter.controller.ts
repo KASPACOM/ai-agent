@@ -7,7 +7,6 @@ import {
   Param,
   Body,
 } from '@nestjs/common';
-import { TwitterIndexerService } from '../services/twitter-indexer.service';
 import { IndexingResult } from '../../shared/models/indexer-result.model';
 import { TwitterService } from '../services/twitter.service';
 import { TwitterRawAuditService } from '../services/twitter-raw-audit.service';
@@ -16,6 +15,8 @@ import { TwitterDocGenerationService } from '../services/twitter-doc-generation.
 import { AgentFactory } from 'src/modules/multiagent/agents/agent-factory.service';
 import { OrchestratorService } from 'src/modules/orchestrator/orchestrator.service';
 import { TwitterApiService } from 'src/modules/integrations/twitter/twitter-api.service';
+import { TwitterRawIndexerService } from '../services/twitter-raw-indexer.service';
+import { CREATE_TELEGRAM_PROMPT } from 'src/modules/prompt-builder/prompts/orchestrator/weekly-digest.prompt';
 
 /**
  * Twitter Controller
@@ -28,7 +29,6 @@ export class TwitterController {
   private readonly logger = new Logger(TwitterController.name);
 
   constructor(
-    private readonly twitterIndexer: TwitterIndexerService,
     private readonly twitterService: TwitterService,
     private readonly rawAudit: TwitterRawAuditService,
     private readonly appConfig: AppConfigService,
@@ -36,17 +36,10 @@ export class TwitterController {
     private readonly agentFactory: AgentFactory,
     private readonly orchestrator: OrchestratorService,
     private readonly twitterApi: TwitterApiService,
+    private readonly rawIndexer: TwitterRawIndexerService,
   ) {}
 
-  /**
-   * Manual trigger endpoint
-   * POST /twitter/run
-   */
-  @Post('run')
-  async triggerManualRun(): Promise<IndexingResult> {
-    this.logger.log('Manual twitter indexing triggered via API');
-    return this.twitterIndexer.runIndexer();
-  }
+  // Removed deprecated /twitter/run endpoint and TwitterIndexerService injection
 
   @Post('mentions')
   async triggerManualRunMentions(): Promise<IndexingResult> {
@@ -110,12 +103,20 @@ export class TwitterController {
   }
 
   @Post('summary/weekly')
-  async runWeeklySummary(@Query('days') days?: string): Promise<any> {
+  async runWeeklySummary(
+    @Query('days') days?: string,
+    @Query('source') source?: string | string[],
+  ): Promise<any> {
     const agent = this.agentFactory.createQdrantAgent();
     const result = await agent.executeCapability(
       'qdrant_create_weekly_summary',
       {
         days: days ? parseInt(days, 10) : 7,
+        sources: Array.isArray(source)
+          ? source
+          : source
+            ? [source]
+            : ['TWITTER', 'TELEGRAM'],
       },
     );
     return result;
@@ -146,11 +147,12 @@ export class TwitterController {
       dryRun?: boolean;
     },
   ): Promise<{ success: boolean; tweetId?: string; message?: string }> {
-    const prompt = body?.prompt;
+    let prompt = body?.prompt;
     if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
       return { success: false, message: 'prompt is required' };
     }
 
+    prompt = CREATE_TELEGRAM_PROMPT;
     // Run through orchestrator to get synthesized response
     const response = await this.orchestrator.processMessage(
       'twitter-publish-manual',
@@ -172,5 +174,15 @@ export class TwitterController {
       const tw = await this.twitterApi.postTweet(text);
       return { success: true, tweetId: tw?.id, message: 'Tweet posted' };
     }
+  }
+
+  /**
+   * Trigger RAW backfill indexing across configured accounts
+   * POST /twitter/raw/backfill
+   */
+  @Post('raw/backfill')
+  async triggerRawBackfill(): Promise<IndexingResult> {
+    this.logger.log('Manual twitter RAW backfill triggered via API');
+    return this.rawIndexer.runBackfillIndexing();
   }
 }

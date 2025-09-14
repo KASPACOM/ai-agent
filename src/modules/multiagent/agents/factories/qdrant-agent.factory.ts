@@ -5,6 +5,7 @@ import { AgentBuilder } from '../agent-builder.service';
 import { BuiltAgent } from '../../models/agent.model';
 import { QdrantRepository } from '../../../database/qdrant/services/qdrant.repository';
 import { AgentTaskService } from '../../services/agent-task.service';
+import { MessageSource } from '../../../indexer/shared/models/message-source.enum';
 
 @Injectable()
 export class QdrantAgentFactory {
@@ -179,6 +180,14 @@ export class QdrantAgentFactory {
               description: 'How many days back to include (default 7)',
               default: 7,
             },
+            {
+              name: 'sources',
+              type: 'object',
+              required: false,
+              description:
+                'Sources to include as array of strings (twitter, telegram)',
+              default: ['TWITTER'],
+            },
           ],
           [
             'weekly summary',
@@ -187,8 +196,26 @@ export class QdrantAgentFactory {
             'public summary',
             'create weekly summary',
           ],
-          async (args) =>
-            await this.agentTasks.createWeeklySummary(args?.days ?? 7),
+          async (args) => {
+            const raw = Array.isArray(args?.sources)
+              ? args.sources
+              : Array.isArray(args?.source)
+                ? args.source
+                : args?.source
+                  ? [args.source]
+                  : undefined;
+            const norm = (raw ?? ['TWITTER', 'TELEGRAM'])
+              .map((s: string) => String(s).toUpperCase())
+              .filter((s: string) => s === 'TWITTER' || s === 'TELEGRAM');
+            const selected: MessageSource[] = [];
+            if (norm.includes('TWITTER')) selected.push(MessageSource.TWITTER);
+            if (norm.includes('TELEGRAM'))
+              selected.push(MessageSource.TELEGRAM);
+            return this.agentTasks.createWeeklySummary(
+              args?.days ?? 7,
+              selected,
+            );
+          },
         )
         .build()
     );

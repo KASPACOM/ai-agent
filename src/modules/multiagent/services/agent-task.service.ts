@@ -16,22 +16,39 @@ export class AgentTaskService {
     private readonly openai: OpenAiAdapter,
   ) {}
 
-  async createWeeklySummary(days: number = 7): Promise<any> {
+  async createWeeklySummary(
+    days: number = 7,
+    sources: MessageSource[] = [MessageSource.TWITTER, MessageSource.TELEGRAM],
+  ): Promise<any> {
     const now = new Date();
     const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    const wantTwitter = sources.includes(MessageSource.TWITTER);
+    const wantTelegram = sources.includes(MessageSource.TELEGRAM);
+
+    const twitterPromise = wantTwitter
+      ? this.qdrantRepository.getTwitterDocumentsByPostedAtRange({
+          sinceIso: since.toISOString(),
+          untilIso: now.toISOString(),
+        })
+      : Promise.resolve([] as any[]);
+
+    const telegramPromise = wantTelegram
+      ? this.qdrantRepository.getUnifiedDocumentsByDateAndSources({
+          sources: [MessageSource.TELEGRAM],
+          sinceIso: since.toISOString(),
+          untilIso: now.toISOString(),
+        })
+      : Promise.resolve([] as any[]);
+
     const [twitterDocs, telegramDocs] = await Promise.all([
-      this.qdrantRepository.getTwitterDocumentsByPostedAtRange({
-        sinceIso: since.toISOString(),
-        untilIso: now.toISOString(),
-      }),
-      this.qdrantRepository.getUnifiedDocumentsByDateAndSources({
-        sources: [MessageSource.TELEGRAM],
-        sinceIso: since.toISOString(),
-        untilIso: now.toISOString(),
-      }),
+      twitterPromise,
+      telegramPromise,
     ]);
 
-    const docs = [...twitterDocs, ...telegramDocs];
+    const docs = [
+      ...(wantTwitter ? twitterDocs : []),
+      ...(wantTelegram ? telegramDocs : []),
+    ];
 
     const twitterBuckets = new Map<string, any[]>();
     const telegramBuckets = new Map<string, any[]>();
@@ -94,7 +111,7 @@ export class AgentTaskService {
       const result = await this.openai.generateStructuredOutput<any>(
         conversation,
         schema,
-        { temperature: 0.5, maxTokens: 800 },
+        { temperature: 0.5, maxTokens: 1600 },
       );
 
       return {
@@ -108,11 +125,15 @@ export class AgentTaskService {
     };
 
     const bucketResults: any[] = [];
-    for (const [k, v] of twitterBuckets) {
-      bucketResults.push(await summarizeBucket(`twitter:@${k}`, v));
+    if (wantTwitter) {
+      for (const [k, v] of twitterBuckets) {
+        bucketResults.push(await summarizeBucket(`twitter:@${k}`, v));
+      }
     }
-    for (const [k, v] of telegramBuckets) {
-      bucketResults.push(await summarizeBucket(`telegram:${k}`, v));
+    if (wantTelegram) {
+      for (const [k, v] of telegramBuckets) {
+        bucketResults.push(await summarizeBucket(`telegram:${k}`, v));
+      }
     }
 
     return {
