@@ -29,8 +29,13 @@ export class TelegramMasterDocumentTransformer {
     // Derive topic id: prefer explicit option, fallback to replyToTopId if available
     const derivedTopicId = options?.topicId ?? telegramMsg?.replyTo?.replyToTopId;
 
+    // ID format: telegram_{messageId} for main, telegram_{messageId}_{topicId} for topics
+    const id = derivedTopicId
+      ? `telegram_${telegramMsg.id}_${derivedTopicId}`
+      : `telegram_${telegramMsg.id}`;
+
     return {
-      id: `telegram_${telegramMsg.id}_${channel.username}`,
+      id,
       source: MessageSource.TELEGRAM,
       text,
       author: telegramMsg.from_id?.user_id || channel.title || channel.username,

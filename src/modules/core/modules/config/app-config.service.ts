@@ -56,6 +56,11 @@ export class AppConfigService {
     return this.configService.get('QDRANT_COLLECTION_NAME') || 'kasparebro';
   }
 
+  // MongoDB config
+  get getMongoUri(): string {
+    return this.configService.get('MONGODB_URI');
+  }
+
   // Twitter/X Data Collection config
   get getTwitterAccountsConfig(): string[] {
     const accounts = this.configService.get('TWITTER_ACCOUNTS_CONFIG');

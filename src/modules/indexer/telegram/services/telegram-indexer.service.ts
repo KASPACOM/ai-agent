@@ -5,12 +5,11 @@ import {
 } from '../../shared/services/base-indexer.service';
 import { UnifiedStorageService } from '../../shared/services/unified-storage.service';
 import { TelegramHistoryService } from './telegram-history.service';
-import { IndexerConfigService } from '../../shared/config/indexer.config';
 import {
-  MasterDocument,
-  ProcessingStatus,
-  TelegramMessageType,
-} from '../../shared/models/master-document.model';
+  TelegramStorageService,
+  TelegramMessageRecord,
+} from './telegram-storage.service';
+import { IndexerConfigService } from '../../shared/config/indexer.config';
 import { MessageSource } from '../../shared/models/message-source.enum';
 import { IndexingResult } from '../../shared/models/indexer-result.model';
 
@@ -18,7 +17,6 @@ import { IndexingResult } from '../../shared/models/indexer-result.model';
 import { TelegramMTProtoService } from './telegram-mtproto.service';
 
 import { TelegramChannelConfig } from '../models/telegram-history.model';
-import { TelegramMasterDocumentTransformer } from '../transformers/telegram-master-document.transformer';
 
 /**
  * Telegram Indexer Service
@@ -37,7 +35,7 @@ import { TelegramMasterDocumentTransformer } from '../transformers/telegram-mast
  * - Processes all configured Telegram channels
  * - Handles both main channel messages and forum topics
  * - Integrates with TelegramHistoryService for progress tracking
- * - Transforms messages to MasterDocument format for unified storage
+ * - Stores raw messages in MongoDB for later vector generation
  * - Respects Telegram API rate limits and best practices
  */
 @Injectable()
@@ -47,6 +45,7 @@ export class TelegramIndexerService extends BaseIndexerService {
   constructor(
     unifiedStorage: UnifiedStorageService,
     private readonly telegramHistory: TelegramHistoryService,
+    private readonly telegramStorage: TelegramStorageService,
     private readonly config: IndexerConfigService,
     private readonly telegramMtproto: TelegramMTProtoService,
   ) {
@@ -59,7 +58,6 @@ export class TelegramIndexerService extends BaseIndexerService {
   protected async executeIndexingProcess(): Promise<IndexingResult> {
     const startTime = new Date();
     let totalProcessed = 0;
-    let totalEmbedded = 0;
     let totalStored = 0;
     const errors: string[] = [];
 
@@ -90,7 +88,6 @@ export class TelegramIndexerService extends BaseIndexerService {
         try {
           const channelResult = await this.processChannel(channel);
           totalProcessed += channelResult.processed;
-          totalEmbedded += channelResult.embedded;
           totalStored += channelResult.stored;
           errors.push(...channelResult.errors);
 
@@ -109,7 +106,7 @@ export class TelegramIndexerService extends BaseIndexerService {
       this.logger.log('Telegram indexing completed', {
         channels: channels.length,
         processed: totalProcessed,
-        embedded: totalEmbedded,
+        embedded: 0,
         stored: totalStored,
         errors: errors.length,
         processingTimeMs: endTime.getTime() - startTime.getTime(),
@@ -118,7 +115,7 @@ export class TelegramIndexerService extends BaseIndexerService {
       return {
         success,
         processed: totalProcessed,
-        embedded: totalEmbedded,
+        embedded: 0,
         stored: totalStored,
         errors,
         processingTime: endTime.getTime() - startTime.getTime(),
@@ -134,7 +131,7 @@ export class TelegramIndexerService extends BaseIndexerService {
       return {
         success: false,
         processed: totalProcessed,
-        embedded: totalEmbedded,
+        embedded: 0,
         stored: totalStored,
         errors: [...errors, error.message],
         processingTime: Date.now() - startTime.getTime(),
@@ -225,7 +222,6 @@ export class TelegramIndexerService extends BaseIndexerService {
   ): Promise<IndexingResult> {
     const startTime = new Date();
     let processed = 0;
-    let embedded = 0;
     let stored = 0;
     const errors: string[] = [];
 
@@ -272,33 +268,26 @@ export class TelegramIndexerService extends BaseIndexerService {
         `Processing ${telegramMessages.length} historical messages from ${channel.username}:${topicId || 'main'} (chronological order)`,
       );
 
-      // Transform to MasterDocument format
-      const masterDocuments: MasterDocument[] = [];
-      for (const telegramMsg of telegramMessages) {
-        try {
-          // Convert directly to MasterDocument using static transformer
-          const masterDoc =
-            TelegramMasterDocumentTransformer.transformTelegramApiResponseToMasterDocument(
-              telegramMsg,
-              channel,
-              { topicId, topicTitle: history.topicTitle },
-            );
-          masterDocuments.push(masterDoc);
-          processed++;
-        } catch (error) {
-          const errorMsg = `Failed to transform message ${telegramMsg.id}: ${error.message}`;
-          this.logger.warn(errorMsg);
-          errors.push(errorMsg);
-        }
-      }
+      // Store RAW messages to MongoDB
+      const rawMessages: TelegramMessageRecord[] = telegramMessages.map(
+        (msg) => ({
+          messageId: msg.id,
+          channelId: channel.id,
+          channelUsername: channel.username,
+          topicId: topicId ?? null,
+          date: new Date(msg.date * 1000),
+          payload: msg as unknown as Record<string, unknown>,
+          fetchedAt: new Date(),
+        }),
+      );
 
-      // Store in unified collection
-      if (masterDocuments.length > 0) {
+      processed = telegramMessages.length;
+
+      // Store in MongoDB
+      if (rawMessages.length > 0) {
         const storageResult =
-          await this.unifiedStorage.storeBatch(masterDocuments);
+          await this.telegramStorage.storeBatch(rawMessages);
         stored = storageResult.stored;
-        embedded = storageResult.stored; // Assume embedding happened during storage
-        errors.push(...storageResult.errors);
 
         // ✅ HISTORICAL PROGRESSION: Track our progress from bottom UP
         // Messages are sorted chronologically (oldest first) due to reverse: true
@@ -335,7 +324,7 @@ export class TelegramIndexerService extends BaseIndexerService {
       return {
         success: errors.length === 0 || stored > 0,
         processed,
-        embedded,
+        embedded: 0,
         stored,
         errors,
         processingTime: Date.now() - startTime.getTime(),
@@ -355,7 +344,7 @@ export class TelegramIndexerService extends BaseIndexerService {
       return {
         success: false,
         processed,
-        embedded,
+        embedded: 0,
         stored,
         errors: [...errors, error.message],
         processingTime: Date.now() - startTime.getTime(),
@@ -372,7 +361,6 @@ export class TelegramIndexerService extends BaseIndexerService {
     channel: TelegramChannelConfig,
   ): Promise<IndexingResult> {
     let totalProcessed = 0;
-    let totalEmbedded = 0;
     let totalStored = 0;
     const errors: string[] = [];
 
@@ -408,7 +396,6 @@ export class TelegramIndexerService extends BaseIndexerService {
               topic.id,
             );
             totalProcessed += topicResult.processed;
-            totalEmbedded += topicResult.embedded;
             totalStored += topicResult.stored;
             errors.push(...topicResult.errors);
           }
@@ -425,7 +412,7 @@ export class TelegramIndexerService extends BaseIndexerService {
       return {
         success: errors.length === 0 || totalStored > 0,
         processed: totalProcessed,
-        embedded: totalEmbedded,
+        embedded: 0, // Vector generation happens separately
         stored: totalStored,
         errors,
         processingTime: 0, // Will be calculated by parent
@@ -439,7 +426,7 @@ export class TelegramIndexerService extends BaseIndexerService {
       return {
         success: false,
         processed: totalProcessed,
-        embedded: totalEmbedded,
+        embedded: 0,
         stored: totalStored,
         errors: [...errors, error.message],
         processingTime: 0,
@@ -447,60 +434,6 @@ export class TelegramIndexerService extends BaseIndexerService {
         endTime: new Date(),
       };
     }
-  }
-
-  /**
-   * Transform TelegramMessage to MasterDocument format
-   */
-  private transformToMasterDocument(
-    telegramMessage: any,
-    channel: TelegramChannelConfig,
-  ): MasterDocument {
-    const now = new Date().toISOString();
-
-    return {
-      id: `telegram_${telegramMessage.id}_${channel.username}`,
-      source: MessageSource.TELEGRAM,
-      text: telegramMessage.text || '',
-      author: telegramMessage.author || channel.title || channel.username,
-      authorHandle: channel.username,
-      createdAt: telegramMessage.createdAt,
-      url:
-        telegramMessage.url ||
-        `https://t.me/${channel.username}/${telegramMessage.id}`,
-      processingStatus: ProcessingStatus.PROCESSED,
-      processedAt: now,
-      kaspaRelated: telegramMessage.kaspaRelated || false,
-      kaspaTopics: telegramMessage.kaspaTopics || [],
-      hashtags: telegramMessage.hashtags || [],
-      mentions: telegramMessage.mentions || [],
-      links: telegramMessage.links || [],
-      language: telegramMessage.language || 'unknown',
-      errors: [],
-      retryCount: 0,
-
-      // Telegram-specific fields
-      telegramChannelTitle: channel.title,
-      telegramTopicId: telegramMessage.topicId,
-      telegramMessageType: this.determineTelegramMessageType(telegramMessage),
-
-      // Fields that will be populated during storage
-      vector: undefined,
-      vectorDimensions: undefined,
-      embeddedAt: undefined,
-      storedAt: undefined,
-    };
-  }
-
-  /**
-   * Determine Telegram message type
-   */
-  private determineTelegramMessageType(message: any): TelegramMessageType {
-    if (message.isForwarded) return TelegramMessageType.FORWARDED;
-    if (message.isReply) return TelegramMessageType.REPLY;
-    if (message.hasMedia) return TelegramMessageType.MEDIA;
-    if (message.isChannelPost) return TelegramMessageType.CHANNEL_POST;
-    return TelegramMessageType.TEXT;
   }
 
   /**

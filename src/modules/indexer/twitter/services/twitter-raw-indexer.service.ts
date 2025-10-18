@@ -15,6 +15,15 @@ import {
   RawTweetRecord,
 } from './twitter-raw-storage.service';
 import { twitterTimelineFields } from '../consts/twitter-query';
+import { AccountState } from '../models/account-state.enum';
+import {
+  FirstRunBackfillResult,
+  FetchNewTweetsResult,
+  ContinueBackfillResult,
+  AccountStatusUpdate,
+} from '../models/backfill-results.model';
+import { AccountStatus } from '../models/account-status.model';
+import { TwitterTimelineParams } from '../models/twitter-api-params.model';
 
 @Injectable()
 export class TwitterRawIndexerService extends BaseIndexerService {
@@ -132,7 +141,10 @@ export class TwitterRawIndexerService extends BaseIndexerService {
                   )}`,
                 );
 
-                const page = await client.v2.userTimeline(user.data.id, params);
+                const page = await client.v2.userTimeline(
+                  user.data.id,
+                  params as any,
+                );
                 const data = page.data?.data || [];
                 for (const t of data) {
                   const createdAt = new Date(t.created_at).toISOString();
@@ -240,12 +252,327 @@ export class TwitterRawIndexerService extends BaseIndexerService {
     }
   }
 
+  /**
+   * Determine account state based on sync status
+   */
+  private determineAccountState(status: AccountStatus | null): AccountState {
+    if (!status || status.syncedTweets === 0) {
+      return AccountState.NEW;
+    }
+    if (status.backfillComplete) {
+      return AccountState.COMPLETE;
+    }
+    return AccountState.ACTIVE;
+  }
+
+  /**
+   * First-run backfill for brand new accounts
+   * Fetches from newest → oldest until budget exhausted or account complete
+   */
+  private async firstRunBackfill(
+    client: TwitterApiReadOnly,
+    username: string,
+    requestBudget: number,
+  ): Promise<FirstRunBackfillResult> {
+    this.logger.log(
+      `🆕 First-run backfill for @${username} with ${requestBudget} requests`,
+    );
+
+    const nowIso = new Date().toISOString();
+    const collected: RawTweetRecord[] = [];
+    let requestsUsed = 0;
+    let paginationToken: string | undefined;
+    let reachedEnd = false;
+
+    try {
+      const user = await client.v2.userByUsername(username);
+
+      while (requestsUsed < requestBudget && !reachedEnd) {
+        const params: TwitterTimelineParams = {
+          max_results: 100,
+          'tweet.fields': twitterTimelineFields['tweet.fields'],
+          expansions: twitterTimelineFields.expansions,
+          'user.fields': twitterTimelineFields['user.fields'],
+          'media.fields': twitterTimelineFields['media.fields'],
+          'place.fields': twitterTimelineFields['place.fields'],
+          'poll.fields': twitterTimelineFields['poll.fields'],
+          pagination_token: paginationToken,
+        };
+
+        const page = await client.v2.userTimeline(user.data.id, params as any);
+        const data = page.data?.data || [];
+
+        for (const t of data) {
+          collected.push({
+            id: String(t.id),
+            username: username.toLowerCase(),
+            createdAt: new Date(t.created_at).toISOString(),
+            payload: t as unknown as Record<string, unknown>,
+            fetchedAt: nowIso,
+          });
+        }
+
+        requestsUsed++;
+
+        const nextToken = page.data?.meta?.next_token;
+        if (!nextToken) {
+          reachedEnd = true;
+          break;
+        }
+        paginationToken = nextToken;
+      }
+
+      // Store all collected tweets
+      let stored = 0;
+      if (collected.length > 0) {
+        const res = await this.storage.storeBatch(collected);
+        stored = res.stored;
+
+        // Sort to find latest/earliest
+        const sorted = [...collected].sort((a, b) =>
+          a.createdAt > b.createdAt ? -1 : 1,
+        );
+        const latest = sorted[0];
+        const earliest = sorted[sorted.length - 1];
+
+        this.logger.log(
+          `✅ First-run backfill @${username}: ${stored} tweets stored, ${requestsUsed} requests used${reachedEnd ? ' (COMPLETE)' : ''}`,
+        );
+
+        return {
+          stored,
+          requestsUsed,
+          completed: reachedEnd,
+          latestTweetId: latest.id,
+          latestTweetDate: latest.createdAt,
+          earliestTweetId: earliest.id,
+          earliestTweetDate: earliest.createdAt,
+        };
+      }
+
+      return {
+        stored: 0,
+        requestsUsed,
+        completed: reachedEnd,
+      };
+    } catch (error) {
+      const err = error as Error;
+      this.logger.error(
+        `❌ First-run backfill failed for @${username}: ${err.message}`,
+      );
+      throw err;
+    }
+  }
+
+  /**
+   * Fetch new tweets (HEAD pass)
+   * Gets tweets NEWER than latestTweetId
+   */
+  private async fetchNewTweets(
+    client: TwitterApiReadOnly,
+    username: string,
+    latestTweetId: string | null,
+    latestTweetDate: string | null,
+    maxRequests: number,
+  ): Promise<FetchNewTweetsResult> {
+    this.logger.debug(
+      `📥 Fetching new tweets for @${username} (since ${latestTweetId || latestTweetDate})`,
+    );
+
+    const nowIso = new Date().toISOString();
+    const collected: RawTweetRecord[] = [];
+    let requestsUsed = 0;
+    let paginationToken: string | undefined;
+
+    try {
+      const user = await client.v2.userByUsername(username);
+
+      while (requestsUsed < maxRequests) {
+        const params: TwitterTimelineParams = {
+          max_results: 50, // Increased from 10 for efficiency
+          'tweet.fields': twitterTimelineFields['tweet.fields'],
+          expansions: twitterTimelineFields.expansions,
+          'user.fields': twitterTimelineFields['user.fields'],
+          'media.fields': twitterTimelineFields['media.fields'],
+          'place.fields': twitterTimelineFields['place.fields'],
+          'poll.fields': twitterTimelineFields['poll.fields'],
+          pagination_token: paginationToken,
+          since_id:
+            !paginationToken && latestTweetId ? latestTweetId : undefined,
+          start_time:
+            !paginationToken && !latestTweetId && latestTweetDate
+              ? latestTweetDate
+              : undefined,
+        };
+
+        const page = await client.v2.userTimeline(user.data.id, params as any);
+        const data = page.data?.data || [];
+
+        let shouldStop = false;
+        for (const t of data) {
+          const createdAt = new Date(t.created_at);
+          // Stop if we've reached tweets we already have
+          if (latestTweetDate && createdAt <= new Date(latestTweetDate)) {
+            shouldStop = true;
+            break;
+          }
+          collected.push({
+            id: String(t.id),
+            username: username.toLowerCase(),
+            createdAt: createdAt.toISOString(),
+            payload: t as unknown as Record<string, unknown>,
+            fetchedAt: nowIso,
+          });
+        }
+
+        requestsUsed++;
+
+        if (shouldStop || !page.data?.meta?.next_token) {
+          break;
+        }
+        paginationToken = page.data.meta.next_token;
+      }
+
+      // Store collected tweets
+      let stored = 0;
+      if (collected.length > 0) {
+        const res = await this.storage.storeBatch(collected);
+        stored = res.stored;
+
+        const sorted = [...collected].sort((a, b) =>
+          a.createdAt > b.createdAt ? -1 : 1,
+        );
+        const latest = sorted[0];
+
+        this.logger.debug(
+          `✅ Fetched new tweets for @${username}: ${stored} stored, ${requestsUsed} requests`,
+        );
+
+        return {
+          stored,
+          requestsUsed,
+          latestTweetId: latest.id,
+          latestTweetDate: latest.createdAt,
+        };
+      }
+
+      return { stored: 0, requestsUsed };
+    } catch (error) {
+      const err = error as Error;
+      this.logger.error(
+        `❌ Fetch new tweets failed for @${username}: ${err.message}`,
+      );
+      throw err;
+    }
+  }
+
+  /**
+   * Continue backfill for accounts with partial history
+   * Fetches tweets OLDER than earliestTweetId
+   */
+  private async continueBackfill(
+    client: TwitterApiReadOnly,
+    username: string,
+    earliestTweetId: string | null,
+    earliestTweetDate: string | null,
+    requestBudget: number,
+  ): Promise<ContinueBackfillResult> {
+    this.logger.debug(
+      `⏪ Continue backfill for @${username} (until ${earliestTweetId || earliestTweetDate})`,
+    );
+
+    const nowIso = new Date().toISOString();
+    const collected: RawTweetRecord[] = [];
+    let requestsUsed = 0;
+    let paginationToken: string | undefined;
+    let reachedEnd = false;
+
+    try {
+      const user = await client.v2.userByUsername(username);
+
+      while (requestsUsed < requestBudget && !reachedEnd) {
+        const params: TwitterTimelineParams = {
+          max_results: 100,
+          'tweet.fields': twitterTimelineFields['tweet.fields'],
+          expansions: twitterTimelineFields.expansions,
+          'user.fields': twitterTimelineFields['user.fields'],
+          'media.fields': twitterTimelineFields['media.fields'],
+          'place.fields': twitterTimelineFields['place.fields'],
+          'poll.fields': twitterTimelineFields['poll.fields'],
+          pagination_token: paginationToken,
+          until_id:
+            !paginationToken && earliestTweetId ? earliestTweetId : undefined,
+          end_time:
+            !paginationToken && !earliestTweetId && earliestTweetDate
+              ? earliestTweetDate
+              : undefined,
+        };
+
+        const page = await client.v2.userTimeline(user.data.id, params as any);
+        const data = page.data?.data || [];
+
+        for (const t of data) {
+          collected.push({
+            id: String(t.id),
+            username: username.toLowerCase(),
+            createdAt: new Date(t.created_at).toISOString(),
+            payload: t as unknown as Record<string, unknown>,
+            fetchedAt: nowIso,
+          });
+        }
+
+        requestsUsed++;
+
+        const nextToken = page.data?.meta?.next_token;
+        if (!nextToken) {
+          reachedEnd = true;
+          break;
+        }
+        paginationToken = nextToken;
+      }
+
+      // Store collected tweets
+      let stored = 0;
+      if (collected.length > 0) {
+        const res = await this.storage.storeBatch(collected);
+        stored = res.stored;
+
+        const sorted = [...collected].sort((a, b) =>
+          a.createdAt > b.createdAt ? -1 : 1,
+        );
+        const earliest = sorted[sorted.length - 1];
+
+        this.logger.debug(
+          `✅ Continue backfill @${username}: ${stored} tweets stored, ${requestsUsed} requests${reachedEnd ? ' (COMPLETE)' : ''}`,
+        );
+
+        return {
+          stored,
+          requestsUsed,
+          completed: reachedEnd,
+          earliestTweetId: earliest.id,
+          earliestTweetDate: earliest.createdAt,
+        };
+      }
+
+      return {
+        stored: 0,
+        requestsUsed,
+        completed: reachedEnd,
+      };
+    } catch (error) {
+      const err = error as Error;
+      this.logger.error(
+        `❌ Continue backfill failed for @${username}: ${err.message}`,
+      );
+      throw err;
+    }
+  }
+
   protected async executeIndexingProcess(): Promise<IndexingResult> {
     const startTime = new Date();
     let totalStored = 0;
     let totalRequestsUsed = 0;
-    let anyRateLimited = false;
-    let anyHasMore = false;
     const errors: string[] = [];
 
     try {
@@ -256,18 +583,19 @@ export class TwitterRawIndexerService extends BaseIndexerService {
       );
 
       if (selected.length === 0) {
-        const endTimeNoSel = new Date();
+        this.logger.log('No accounts selected for processing');
         return {
           success: true,
           processed: 0,
           embedded: 0,
           stored: 0,
           errors: [],
-          processingTime: endTimeNoSel.getTime() - startTime.getTime(),
+          processingTime: Date.now() - startTime.getTime(),
           startTime,
-          endTime: endTimeNoSel,
+          endTime: new Date(),
           rateLimited: false,
           hasMoreData: false,
+          requestsUsed: 0,
         };
       }
 
@@ -277,59 +605,114 @@ export class TwitterRawIndexerService extends BaseIndexerService {
       for (const sel of selected) {
         try {
           const status = await this.rotation.getStatus(sel.account);
-          const pageBudget = Math.max(1, Math.min(sel.requestBudget, 5));
+          const accountState = this.determineAccountState(status);
+          const budget = sel.requestBudget;
 
-          // Head pass
-          const head = await this.processAccount(client, sel.account, {
-            mode: 'head',
-            pageLimit: pageBudget,
-            sinceIso: status?.latestTweetDate,
-            latestId: status?.latestTweetId,
-          });
+          this.logger.log(
+            `Processing @${sel.account} [${accountState}] with ${budget} requests`,
+          );
 
-          // Backfill pass if budget remains and account not complete
-          const remaining = Math.max(0, pageBudget - (head.requestsUsed || 0));
-          let backfill: typeof head | undefined = undefined;
-          const shouldBackfill = remaining > 0;
-          if (shouldBackfill) {
-            backfill = await this.processAccount(client, sel.account, {
-              mode: 'backfill',
-              pageLimit: remaining,
-            });
+          let accountStored = 0;
+          let accountRequestsUsed = 0;
+          let updateData: AccountStatusUpdate = { lastSync: new Date() };
+
+          // STATE-BASED PROCESSING
+          if (accountState === AccountState.NEW) {
+            // 🆕 NEW ACCOUNT: First-run backfill with all budget
+            const result = await this.firstRunBackfill(
+              client,
+              sel.account,
+              budget,
+            );
+
+            accountStored = result.stored;
+            accountRequestsUsed = result.requestsUsed;
+
+            updateData = {
+              ...updateData,
+              messagesIndexed: result.stored,
+              backfillComplete: result.completed,
+              latestTweetId: result.latestTweetId,
+              latestTweetDate: result.latestTweetDate,
+              earliestTweetId: result.earliestTweetId,
+              earliestTweetDate: result.earliestTweetDate,
+            };
+          } else if (accountState === AccountState.ACTIVE) {
+            // 🔄 ACTIVE ACCOUNT: Fetch new + continue backfill
+            const newResult = await this.fetchNewTweets(
+              client,
+              sel.account,
+              status.latestTweetId,
+              status.latestTweetDate,
+              budget,
+            );
+
+            accountStored += newResult.stored;
+            accountRequestsUsed += newResult.requestsUsed;
+
+            if (newResult.latestTweetId) {
+              updateData.latestTweetId = newResult.latestTweetId;
+              updateData.latestTweetDate = newResult.latestTweetDate;
+            }
+
+            // If budget remains, continue backfill
+            const remainingBudget = budget - newResult.requestsUsed;
+            if (remainingBudget > 0) {
+              const backfillResult = await this.continueBackfill(
+                client,
+                sel.account,
+                status.earliestTweetId,
+                status.earliestTweetDate,
+                remainingBudget,
+              );
+
+              accountStored += backfillResult.stored;
+              accountRequestsUsed += backfillResult.requestsUsed;
+
+              updateData.backfillComplete = backfillResult.completed;
+              if (backfillResult.earliestTweetId) {
+                updateData.earliestTweetId = backfillResult.earliestTweetId;
+                updateData.earliestTweetDate = backfillResult.earliestTweetDate;
+              }
+            }
+
+            updateData.messagesIndexed = accountStored;
+          } else if (accountState === AccountState.COMPLETE) {
+            // ✅ COMPLETE ACCOUNT: Only fetch new tweets
+            const newResult = await this.fetchNewTweets(
+              client,
+              sel.account,
+              status.latestTweetId,
+              status.latestTweetDate,
+              budget,
+            );
+
+            accountStored = newResult.stored;
+            accountRequestsUsed = newResult.requestsUsed;
+
+            updateData = {
+              ...updateData,
+              messagesIndexed: newResult.stored,
+              latestTweetId: newResult.latestTweetId,
+              latestTweetDate: newResult.latestTweetDate,
+            };
           }
 
-          const combinedStored = (head.stored || 0) + (backfill?.stored || 0);
-          const combinedRequests =
-            (head.requestsUsed || 0) + (backfill?.requestsUsed || 0);
-          const combinedRateLimited =
-            head.rateLimited || !!backfill?.rateLimited;
-          const combinedHasMore = !!backfill?.hasMore;
+          // Update account status
+          await this.rotation.updateAccountStatus(sel.account, updateData);
 
-          totalStored += combinedStored;
-          totalRequestsUsed += combinedRequests;
-          if (combinedRateLimited) anyRateLimited = true;
-          if (combinedHasMore) anyHasMore = true;
+          totalStored += accountStored;
+          totalRequestsUsed += accountRequestsUsed;
 
-          await this.rotation.updateAccountStatus(sel.account, {
-            lastSync: new Date(),
-            messagesIndexed: combinedStored,
-            hasMoreData: backfill
-              ? !backfill.backfillCompleted && !!backfill.hasMore
-              : !status?.isComplete,
-            requestsUsed: combinedRequests,
-            ...(head.latest && {
-              latestTweetDate: head.latest.date,
-              latestTweetId: head.latest.id,
-            }),
-            ...(backfill?.earliest && {
-              earliestTweetDate: backfill.earliest.date,
-              earliestTweetId: backfill.earliest.id,
-            }),
-          });
+          this.logger.log(
+            `✅ @${sel.account}: ${accountStored} tweets, ${accountRequestsUsed} requests`,
+          );
 
           await this.sleep(this.getIndexerConfig().processingDelayMs);
-        } catch (err) {
-          errors.push(`Failed ${sel.account}: ${err.message}`);
+        } catch (error) {
+          const err = error as Error;
+          this.logger.error(`❌ Failed @${sel.account}: ${err.message}`);
+          errors.push(`@${sel.account}: ${err.message}`);
         }
       }
 
@@ -343,22 +726,23 @@ export class TwitterRawIndexerService extends BaseIndexerService {
         processingTime: endTime.getTime() - startTime.getTime(),
         startTime,
         endTime,
-        rateLimited: anyRateLimited,
-        hasMoreData: anyHasMore,
+        rateLimited: false,
+        hasMoreData: false,
         requestsUsed: totalRequestsUsed,
       };
     } catch (error) {
+      const err = error as Error;
       return {
         success: false,
         processed: totalStored,
         embedded: 0,
         stored: 0,
-        errors: [...errors, error.message],
+        errors: [...errors, err.message],
         processingTime: Date.now() - startTime.getTime(),
         startTime,
         endTime: new Date(),
-        rateLimited: anyRateLimited,
-        hasMoreData: anyHasMore,
+        rateLimited: false,
+        hasMoreData: false,
         requestsUsed: totalRequestsUsed,
       };
     }
@@ -408,7 +792,10 @@ export class TwitterRawIndexerService extends BaseIndexerService {
           } else if (opts.sinceIso) {
             params.start_time = opts.sinceIso;
           }
-          const page = await client.v2.userTimeline(user.data.id, params);
+          const page = await client.v2.userTimeline(
+            user.data.id,
+            params as any,
+          );
           const data = page.data?.data || [];
           for (const t of data) {
             const createdAt = new Date(t.created_at);
@@ -453,7 +840,10 @@ export class TwitterRawIndexerService extends BaseIndexerService {
             'poll.fields': twitterTimelineFields['poll.fields'],
             pagination_token: token,
           } as const;
-          const page = await client.v2.userTimeline(user.data.id, params);
+          const page = await client.v2.userTimeline(
+            user.data.id,
+            params as any,
+          );
           const data = page.data?.data || [];
           for (const t of data) {
             const createdAt = new Date(t.created_at);

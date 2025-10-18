@@ -113,6 +113,10 @@ export class TwitterApiService {
     lastRun: null as Date | null,
   };
 
+  // Simple monthly query limit tracking
+  private queryCount = 0;
+  private monthlyQueryLimit = 4500; // Set manually as needed
+
   constructor(
     private readonly appConfig: AppConfigService,
     private readonly telegramPublisherService: TelegramPublisherService,
@@ -128,6 +132,59 @@ export class TwitterApiService {
    */
   private async delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Check if we can make another API request without exceeding monthly limit
+   */
+  private canMakeRequest(): boolean {
+    if (this.queryCount >= this.monthlyQueryLimit) {
+      this.logger.error(
+        `❌ Monthly query limit reached: ${this.queryCount}/${this.monthlyQueryLimit}. Stopping requests.`,
+      );
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Increment query counter after successful API call
+   */
+  private incrementQueryCount(): void {
+    this.queryCount++;
+    if (this.queryCount % 100 === 0 || this.queryCount === 1) {
+      // Log every 100 queries or first query
+      this.logger.log(
+        `📊 Twitter API queries: ${this.queryCount}/${this.monthlyQueryLimit} (${this.monthlyQueryLimit - this.queryCount} remaining)`,
+      );
+    }
+  }
+
+  /**
+   * Get current query statistics
+   */
+  getQueryStats(): { count: number; limit: number; remaining: number } {
+    return {
+      count: this.queryCount,
+      limit: this.monthlyQueryLimit,
+      remaining: Math.max(0, this.monthlyQueryLimit - this.queryCount),
+    };
+  }
+
+  /**
+   * Manually set the monthly query limit
+   */
+  setMonthlyQueryLimit(limit: number): void {
+    this.monthlyQueryLimit = limit;
+    this.logger.log(`✅ Monthly query limit set to: ${limit}`);
+  }
+
+  /**
+   * Reset query counter (useful at start of new month)
+   */
+  resetQueryCount(): void {
+    this.queryCount = 0;
+    this.logger.log('🔄 Query counter reset to 0');
   }
 
   /**
@@ -331,6 +388,14 @@ export class TwitterApiService {
 
       while (shouldContinue) {
         try {
+          // Check monthly query limit before making request
+          if (!this.canMakeRequest()) {
+            this.logger.warn(
+              `Stopping indexing for ${username} - monthly query limit reached`,
+            );
+            break;
+          }
+
           // Add delay between requests to respect rate limits (Basic: 10 req/15min = ~90s between requests)
           await this.delay(2000); // 2 second delay between requests
 
@@ -340,6 +405,9 @@ export class TwitterApiService {
             ...DEFAULT_TWEET_FIELDS,
             pagination_token: paginationToken,
           });
+
+          // Increment query counter after successful request
+          this.incrementQueryCount();
 
           // Handle the response properly - it's timeline.data.data and timeline.data.meta!
           const resultCount = timeline.data?.meta?.result_count || 0;
@@ -433,6 +501,14 @@ export class TwitterApiService {
 
       while (shouldContinue) {
         try {
+          // Check monthly query limit before making request
+          if (!this.canMakeRequest()) {
+            this.logger.warn(
+              `Stopping raw fetch for ${username} - monthly query limit reached`,
+            );
+            break;
+          }
+
           // Add delay between requests to respect rate limits (Basic: 10 req/15min = ~90s between requests)
           await this.delay(2000); // 2 second delay between requests
 
@@ -442,6 +518,9 @@ export class TwitterApiService {
             ...DEFAULT_TWEET_FIELDS,
             pagination_token: paginationToken,
           });
+
+          // Increment query counter after successful request
+          this.incrementQueryCount();
 
           // Handle the response properly - it's timeline.data.data and timeline.data.meta!
           const resultCount = timeline.data?.meta?.result_count || 0;
@@ -517,8 +596,18 @@ export class TwitterApiService {
    */
   async getUserByUsername(username: string): Promise<UserV2> {
     try {
+      // Check monthly query limit before making request
+      if (!this.canMakeRequest()) {
+        throw new Error(
+          `Cannot fetch user ${username} - monthly query limit reached: ${this.queryCount}/${this.monthlyQueryLimit}`,
+        );
+      }
+
       this.apiStats.apiCalls++;
       const user = await this.twitterClient.v2.userByUsername(username);
+
+      // Increment query counter after successful request
+      this.incrementQueryCount();
 
       if (!user.data) {
         throw new Error(`User not found: ${username}`);
@@ -572,10 +661,19 @@ export class TwitterApiService {
         this.apiStats.apiCalls++;
       }
 
+      // Check monthly query limit before making request
+      if (!this.canMakeRequest()) {
+        this.logger.warn(`Cannot perform search - monthly query limit reached`);
+        return [];
+      }
+
       let searchResults = await this.twitterClient.v2.search(
         query,
         searchOptions,
       );
+
+      // Increment query counter after successful request
+      this.incrementQueryCount();
 
       if (notFromIndexer) {
         let allTweets: Tweet[] = [];
@@ -793,9 +891,18 @@ export class TwitterApiService {
    */
   async getTweetById(tweetId: string): Promise<Tweet | null> {
     try {
+      // Check monthly query limit before making request
+      if (!this.canMakeRequest()) {
+        this.logger.warn(`Cannot fetch tweet ${tweetId} - monthly query limit reached`);
+        return null;
+      }
+
       const tweet = await this.twitterClient.v2.singleTweet(tweetId, {
         ...DEFAULT_TWEET_FIELDS,
       });
+
+      // Increment query counter after successful request
+      this.incrementQueryCount();
 
       if (!tweet?.data) {
         return null;
@@ -820,9 +927,18 @@ export class TwitterApiService {
     rateLimit?: { limit: number; remaining: number; reset: number };
   }> {
     try {
+      // Check monthly query limit before making request
+      if (!this.canMakeRequest()) {
+        this.logger.warn(`Cannot fetch tweet ${tweetId} with meta - monthly query limit reached`);
+        return { tweet: null };
+      }
+
       const res: any = await this.twitterClient.v2.singleTweet(tweetId, {
         ...DEFAULT_TWEET_FIELDS,
       });
+
+      // Increment query counter after successful request
+      this.incrementQueryCount();
 
       const rateLimit = res?.rateLimit || res?._rateLimit || undefined;
 
@@ -883,11 +999,20 @@ export class TwitterApiService {
         ...DEFAULT_TWEET_FIELDS,
       };
 
+      // Check monthly query limit before making request
+      if (!this.canMakeRequest()) {
+        this.logger.warn(`Cannot fetch mentions - monthly query limit reached`);
+        return [];
+      }
+
       // Step 2: Fetch mentions timeline
       const mentions = await this.twitterClient.v2.userMentionTimeline(
         options.userId,
         apiOptions,
       );
+
+      // Increment query counter after successful request
+      this.incrementQueryCount();
 
       // Step 3: Transform and return
       const tweets: Tweet[] = [];

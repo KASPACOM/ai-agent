@@ -19,6 +19,9 @@ import { AppConfigService } from './app-config.service';
         PORT: Joi.number().port().default(8080),
         SALT: Joi.number().integer().positive(),
 
+        // MongoDB Configuration
+        MONGODB_URI: Joi.string().uri().required(),
+
         // Qdrant Vector Database
         QDRANT_URL: Joi.string().uri().optional(),
         QDRANT_API_KEY: Joi.string().allow('').optional(),
